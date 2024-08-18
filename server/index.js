@@ -3,6 +3,12 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
 
+// Import multer for file uploads
+const multer = require('multer');
+const upload = multer({
+  dest: 'uploads/' // Specify the destination folder for uploaded files
+});
+
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -17,19 +23,18 @@ mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true })
   .catch(err => console.error('Error connecting to MongoDB:', err));
 
 // Routes
-const apiRouter = require('./routes/api'); // Import the api.js router
-app.use('/api', apiRouter); // Use the router for all routes starting with '/api'
+const apiRouter = require('./routes/api'); 
+app.use('/api', apiRouter); 
 
 // Start the server
 app.listen(port, () => {
   console.log(`Server is running on port: ${port}`);
 });
-const multer = require('multer');
-const upload = multer({
-  dest: 'uploads/' // Specify the destination folder for uploaded files (we'll create this later)
-});
-// Export the upload middleware
+
+// Export the app and upload middleware
 module.exports = { 
     app, 
     upload 
 };
+
+console.log("Exporting upload:", upload);
