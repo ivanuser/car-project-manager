@@ -5,7 +5,7 @@ const taskSchema = new Schema({
   description: { type: String, required: true },
   project: { 
     type: Schema.Types.ObjectId, 
-    ref: 'Project', // Reference to the Project model
+    ref: 'Project', 
     required: true 
   },
   dueDate: { type: Date },
@@ -19,11 +19,11 @@ const taskSchema = new Schema({
     enum: ['Low', 'Medium', 'High'],
     default: 'Medium'
   },
-  assignee: { type: String }, // Optional, for assigning tasks to specific people (if applicable)
+  assignee: { type: String }, 
   notes: { type: String },
   parts: [{ 
     type: Schema.Types.ObjectId, 
-    ref: 'Part' // Reference to the Part model (we'll create this later)
+    ref: 'Part' 
   }]
 });
 

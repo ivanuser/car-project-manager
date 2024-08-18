@@ -24,3 +24,12 @@ app.use('/api', apiRouter); // Use the router for all routes starting with '/api
 app.listen(port, () => {
   console.log(`Server is running on port: ${port}`);
 });
+const multer = require('multer');
+const upload = multer({
+  dest: 'uploads/' // Specify the destination folder for uploaded files (we'll create this later)
+});
+// Export the upload middleware
+module.exports = { 
+    app, 
+    upload 
+};

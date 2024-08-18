@@ -143,7 +143,7 @@ router.post('/projects/:projectId/tasks', getProject, async (req, res) => {
     assignee: req.body.assignee,
     notes: req.body.notes,
     parts: req.body.parts // We'll handle part associations later
-  });
+});
 
   try {
     const newTask = await task.save();
@@ -199,6 +199,37 @@ async function getTask(req, res, next) {
 
 }
 
+// POST add a part to a task
+router.post('/tasks/:taskId/parts', getTask, async (req, res) => {
+  try {
+    res.task.parts.push(req.body.partId); // Assuming you'll send the part's ObjectId in the request body
+    const updatedTask = await res.task.save();
+    res.json(updatedTask);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// DELETE remove a part from a task
+router.delete('/tasks/:taskId/parts/:partId', getTask, async (req, res) => {
+  try {
+    res.task.parts = res.task.parts.filter(part => part.toString() !== req.params.partId);
+    const updatedTask = await res.task.save();
+    res.json(updatedTask);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET all parts for a specific task (using populate)
+router.get('/tasks/:taskId/parts', getTask, async (req, res) => {
+  try {
+    const taskWithParts = await Task.findById(req.params.taskId).populate('parts');
+    res.json(taskWithParts.parts);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 // Import the Part model
 const Part = require('../models/Part');
@@ -272,6 +303,61 @@ async function getPart(req, res, next) {
   }
 
   res.part = part;
+  next();
+}
+
+// File upload routes
+// Import the upload middleware from index.js
+const { upload } = require('../index');
+// Upload a photo for a vehicle
+router.post('/vehicles/:id/upload', getVehicle, upload.single('photo'), async (req, res) => {
+  if (req.file) {
+    res.vehicle.photos.push(req.file.path); // Assuming you want to store the file path
+    // Or, you could store the filename: res.vehicle.photos.push(req.file.filename);
+    await res.vehicle.save();
+    res.json({ message: 'Photo uploaded successfully', filePath: req.file.path });
+  } else {
+    res.status(400).json({ message: 'No file uploaded' });
+  }
+});
+
+// Upload a document for a project
+router.post('/projects/:id/upload', getProject, upload.single('document'), async (req, res) => {
+  if (req.file) {
+    res.project.documents.push(req.file.path); 
+    await res.project.save();
+    res.json({ message: 'Document uploaded successfully', filePath: req.file.path });
+  } else {
+    res.status(400).json({ message: 'No file uploaded' });
+  }
+});
+
+// Upload a photo for a part
+router.post('/parts/:id/upload', getPart, upload.single('photo'), async (req, res) => {
+  if (req.file) {
+    res.part.photo = req.file.path; 
+    await res.part.save();
+    res.json({ message: 'Photo uploaded successfully', filePath: req.file.path });
+  } else {
+    res.status(400).json({ message: 'No file uploaded' });
+  }
+});
+
+// Middleware function to get a vehicle by ID
+async function getVehicle(req, res, next) {
+  let vehicle;
+  try {
+    vehicle = await Vehicle.findById(req.params.id);
+    if (vehicle == null) {
+      return res.status(404).json({   
+ message: 'Cannot find vehicle' });
+    }
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+
+  res.vehicle = vehicle;   
+
   next();
 }
 
