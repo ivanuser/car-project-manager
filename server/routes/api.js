@@ -9,7 +9,7 @@ const Part = require('../models/Part');
 
 // Import the upload middleware from index.js
 const { upload } = require('../index');
-console.log("Imported upload:", upload);
+
 // Test route
 router.get('/test', (req, res) => {
   res.json({ message: 'API is working!' });
@@ -48,7 +48,7 @@ router.post('/vehicles', async (req, res) => {
   });
 
 // Upload a photo for a vehicle
-router.post('/vehicles/:id/upload', upload.single('photo'), async (req, res) => {
+router.post('/vehicles/:id/upload', getVehicle, upload-single('photo'), async (req, res) => {
     if (req.file) {
       res.vehicle.photos.push(req.file.path); 
       await res.vehicle.save();
