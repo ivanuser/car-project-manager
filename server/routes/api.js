@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-
 // Import models
 const Vehicle = require('../models/Vehicle');
 const Project = require('../models/Project');
