@@ -8,7 +8,12 @@ const Task = require('../models/Task');
 const Part = require('../models/Part');
 
 // Import the upload middleware from index.js
+const app = require('../index');
 const { upload } = require('../index');
+
+console.log("Imported from index.js:", app); // Log the imported app object
+console.log("Imported upload middleware:", upload); // Log the imported upload middleware
+
 
 // Test route
 router.get('/test', (req, res) => {
@@ -48,7 +53,7 @@ router.post('/vehicles', async (req, res) => {
   });
 
 // Upload a photo for a vehicle
-router.post('/vehicles/:id/upload', getVehicle, upload-single('photo'), async (req, res) => {
+router.post('/vehicles/:id/upload', getVehicle, upload.single('photo'), async (req, res) => {
     if (req.file) {
       res.vehicle.photos.push(req.file.path); 
       await res.vehicle.save();
@@ -255,22 +260,22 @@ router.post('/projects/:id/upload', getProject, upload.single('document'), async
 // Middleware functions
 
 // Middleware function to get a vehicle by ID
-//async function getVehicle(req, res, next) {
-//   let vehicle;
-//   try {
-//      vehicle = await Vehicle.findById(req.params.id);
-//      if (vehicle == null) {
-//        return res.status(404).json({   
-//   message: 'Cannot find vehicle' });
-//      }
-//    } catch (err) {
-//      return res.status(500).json({ message: err.message });
-//    }
-//
-//    res.vehicle = vehicle;   
-//  
-//    next();
-//  }
+async function getVehicle(req, res, next) {
+   let vehicle;
+   try {
+      vehicle = await Vehicle.findById(req.params.id);
+      if (vehicle == null) {
+        return res.status(404).json({   
+   message: 'Cannot find vehicle' });
+      }
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+
+    res.vehicle = vehicle;   
+
+    next();
+  }
 
 // Middleware function to get a project by ID
 async function getProject(req, res, next) {

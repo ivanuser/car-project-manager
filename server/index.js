@@ -5,18 +5,9 @@ require('dotenv').config();
 
 // Import multer for file uploads
 const multer = require('multer');
-
-// Configure multer storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/'); // Specify the destination directory
-  },
-  filename: function (req, file, cb) {
-    cb(null, file.fieldname + '-' + Date.now()); // Specify the file naming convention
-  }
+const upload = multer({
+  dest: 'uploads/' // Specify the destination folder for uploaded files
 });
-
-const upload = multer({ storage: storage }); // Configure multer with storage
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -41,7 +32,5 @@ app.listen(port, () => {
 });
 
 // Export the app and upload middleware
-module.exports = { 
-    app, 
-    upload 
-};
+module.exports = app;
+module.exports.upload = upload;
