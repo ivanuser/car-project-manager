@@ -3,12 +3,6 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
 
-// Import multer for file uploads
-const multer = require('multer');
-const upload = multer({
-  dest: 'uploads/' // Specify the destination folder for uploaded files
-});
-
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -31,6 +25,4 @@ app.listen(port, () => {
   console.log(`Server is running on port: ${port}`);
 });
 
-// Export the app and upload middleware
 module.exports = app;
-module.exports.upload = upload;

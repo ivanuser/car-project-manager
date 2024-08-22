@@ -7,11 +7,10 @@ const Task = require('../models/Task');
 const Part = require('../models/Part');
 
 // Import the upload middleware from index.js
-const app = require('../index');
-const upload = require('../index').upload;
+const upload = require('../uploadMiddleware');
 
-console.log("Imported from index.js:", app); // Log the imported app object
-console.log("Imported upload middleware:", upload); // Log the imported upload middleware
+//console.log("Imported from index.js:", app); // Log the imported app object
+//console.log("Imported upload middleware:", upload); // Log the imported upload middleware
 
 
 // Test route
