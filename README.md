@@ -65,7 +65,54 @@ On some READMEs, you may see small images that convey metadata, such as whether 
 Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
 
 ## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+// Setup Instructions
+
+/*
+1. Clone the repository:
+   git clone https://github.com/yourusername/car-project-manager.git
+   cd car-project-manager
+
+2. Install dependencies:
+   npm install
+
+3. Set up environment variables:
+   Create a .env.local file in the root directory and add the following variables:
+   DATABASE_URL=your_database_connection_string
+   NEXTAUTH_SECRET=your_nextauth_secret
+   NEXTAUTH_URL=http://localhost:3000
+
+4. Set up the database:
+   - If using PostgreSQL, create a new database for the project
+   - Run migrations: npx prisma migrate dev
+
+5. Run the development server:
+   npm run dev
+
+6. Open http://localhost:3000 in your browser to see the application
+
+7. To build for production:
+   npm run build
+   npm start
+
+Additional setup for new features:
+
+8. Set up MongoDB for the community features (comments):
+   - Add MONGODB_URI to your .env.local file
+
+9. Configure cloud storage for photo and video uploads:
+   - Add appropriate environment variables for your chosen cloud storage provider (e.g., AWS S3, Google Cloud Storage)
+
+10. Set up a payment gateway for the marketplace feature:
+    - Add API keys and secrets for your chosen payment provider (e.g., Stripe) to .env.local
+
+11. Configure social media API keys for the social sharing feature:
+    - Add API keys for platforms like Twitter, Facebook, etc. to .env.local
+
+12. Install additional dependencies for new features:
+    npm install @react-pdf/renderer react-player @stripe/stripe-js @prisma/client mongodb
+
+Remember to keep your .env.local file secure and never commit it to version control.
+*/
 
 ## Usage
 Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
