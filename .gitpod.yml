@@ -28,12 +28,3 @@ vscode:
     - esbenp.prettier-vscode
     - prisma.prisma
 
-github:
-  prebuilds:
-    master: true
-    branches: true
-    pullRequests: true
-    pullRequestsFromForks: false
-    addCheck: true
-    addComment: false
-    addBadge: true
