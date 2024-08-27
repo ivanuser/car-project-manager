@@ -1,0 +1,39 @@
+image:
+  file: .gitpod.Dockerfile
+
+ports:
+  - port: 3000
+    onOpen: open-preview
+  - port: 5432
+    onOpen: ignore
+  - port: 27017
+    onOpen: ignore
+
+tasks:
+  - init: |
+      npm install
+      npx prisma generate
+    command: |
+      npm run dev
+  - command: |
+      mkdir -p /workspace/data/postgres
+      postgres -D /workspace/data/postgres
+  - command: |
+      mkdir -p /workspace/data/mongodb
+      mongod --dbpath /workspace/data/mongodb
+
+vscode:
+  extensions:
+    - dbaeumer.vscode-eslint
+    - esbenp.prettier-vscode
+    - prisma.prisma
+
+github:
+  prebuilds:
+    master: true
+    branches: true
+    pullRequests: true
+    pullRequestsFromForks: false
+    addCheck: true
+    addComment: false
+    addBadge: true
