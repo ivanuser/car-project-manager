@@ -1,4 +1,3 @@
-cat > package.json << EOL
 {
   "name": "car-project-manager",
   "version": "0.1.0",
