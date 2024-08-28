@@ -16,8 +16,7 @@ tasks:
     command: |
       npm run dev
   - command: |
-      mkdir -p /workspace/data/postgres
-      postgres -D /workspace/data/postgres
+      sudo pg_ctlcluster 14 main start
   - command: |
       mkdir -p /workspace/data/mongodb
       mongod --dbpath /workspace/data/mongodb
@@ -27,4 +26,3 @@ vscode:
     - dbaeumer.vscode-eslint
     - esbenp.prettier-vscode
     - prisma.prisma
-

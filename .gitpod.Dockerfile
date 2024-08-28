@@ -23,13 +23,14 @@ RUN bash -c ". .nvm/nvm.sh \
     && npm install -g npm@latest"
 
 # Set up PostgreSQL
-USER gitpod
-RUN pg_ctlcluster 14 main start && \
-    psql -c "CREATE DATABASE car_project_manager;" && \
-    psql -c "CREATE USER gitpod WITH PASSWORD 'gitpod';" && \
-    psql -c "GRANT ALL PRIVILEGES ON DATABASE car_project_manager TO gitpod;"
+USER root
+RUN sudo -u postgres pg_ctlcluster 14 main start && \
+    sudo -u postgres psql -c "CREATE DATABASE car_project_manager;" && \
+    sudo -u postgres psql -c "CREATE USER gitpod WITH PASSWORD 'gitpod';" && \
+    sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE car_project_manager TO gitpod;"
 
 # Set up MongoDB
-RUN mkdir -p /workspace/data/mongodb
+RUN mkdir -p /workspace/data/mongodb && \
+    chown -R gitpod:gitpod /workspace/data
 
-USER root
+USER gitpod
