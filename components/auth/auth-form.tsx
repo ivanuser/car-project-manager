@@ -109,16 +109,11 @@ export function AuthForm({ defaultTab = "login" }: AuthFormProps) {
         // Force a hard navigation to the dashboard
         setDebugInfo("Redirecting to dashboard...")
 
-        // Add a small delay to ensure the toast is visible
+        // Add a small delay to ensure the toast is visible and cookies are set
         setTimeout(() => {
-          if (result.shouldRedirect) {
-            // Use window.location for a full page reload
-            window.location.href = "/dashboard"
-          } else {
-            router.push("/dashboard")
-            router.refresh()
-          }
-        }, 500)
+          // Use window.location for a full page reload to ensure cookies are properly set
+          window.location.href = "/dashboard"
+        }, 1000) // Increased delay to 1 second
       }
     } catch (error) {
       console.error("Login error:", error)

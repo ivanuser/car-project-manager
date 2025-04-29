@@ -25,14 +25,22 @@ export async function middleware(req: NextRequest) {
       return res
     }
 
+    // Create Supabase client
     const supabase = createMiddlewareClient({ req, res })
 
+    // Get session
     const {
       data: { session },
     } = await supabase.auth.getSession()
 
+    // Check for auth cookie directly as a backup
+    const authCookie = req.cookies.get("supabase-auth-token")
+    const hasAuthCookie = !!authCookie?.value
+
     // Debug session information
-    console.log(`[Middleware] Path: ${req.nextUrl.pathname}, Session: ${session ? "Yes" : "No"}`)
+    console.log(
+      `[Middleware] Path: ${req.nextUrl.pathname}, Session: ${session ? "Yes" : "No"}, Auth Cookie: ${hasAuthCookie ? "Yes" : "No"}`,
+    )
 
     // Public routes that don't require authentication
     const isPublicRoute =
@@ -42,7 +50,7 @@ export async function middleware(req: NextRequest) {
     const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard")
 
     // If accessing a protected route without a session, redirect to login
-    if (isProtectedRoute && !session) {
+    if (isProtectedRoute && !session && !hasAuthCookie) {
       console.log(`[Middleware] Redirecting to login from: ${req.nextUrl.pathname}`)
       const redirectUrl = new URL("/login", req.url)
       redirectUrl.searchParams.set("redirect", req.nextUrl.pathname)
@@ -50,7 +58,7 @@ export async function middleware(req: NextRequest) {
     }
 
     // If accessing a public route with a session, redirect to dashboard
-    if (isPublicRoute && session && req.nextUrl.pathname !== "/auth/callback") {
+    if (isPublicRoute && (session || hasAuthCookie) && req.nextUrl.pathname !== "/auth/callback") {
       console.log(`[Middleware] Redirecting to dashboard from: ${req.nextUrl.pathname}`)
       return NextResponse.redirect(new URL("/dashboard", req.url))
     }

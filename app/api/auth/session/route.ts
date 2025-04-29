@@ -10,6 +10,9 @@ export async function GET() {
     // Check for auth debug cookie
     const debugCookie = cookieStore.get("auth-debug")
 
+    // Check for auth token cookie
+    const authCookie = cookieStore.get("supabase-auth-token")
+
     // Get the session
     const { data, error } = await supabase.auth.getSession()
 
@@ -18,6 +21,7 @@ export async function GET() {
         {
           error: error.message,
           debugCookie: debugCookie?.value,
+          hasAuthCookie: !!authCookie,
         },
         { status: 500 },
       )
@@ -34,6 +38,8 @@ export async function GET() {
           }
         : null,
       debugCookie: debugCookie?.value,
+      hasAuthCookie: !!authCookie,
+      cookieValue: authCookie ? "Present (hidden)" : null,
     })
   } catch (error) {
     console.error("Session check error:", error)
