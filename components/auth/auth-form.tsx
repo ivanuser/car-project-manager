@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { signIn, signUp } from "@/actions/auth-actions"
 import { useToast } from "@/hooks/use-toast"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
@@ -44,6 +45,7 @@ export function AuthForm({ defaultTab = "login" }: AuthFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [debugInfo, setDebugInfo] = useState<string | null>(null)
   const router = useRouter()
   const { toast } = useToast()
 
@@ -72,6 +74,7 @@ export function AuthForm({ defaultTab = "login" }: AuthFormProps) {
 
   async function onLoginSubmit(data: LoginFormValues) {
     setIsLoading(true)
+    setDebugInfo(null)
 
     try {
       if (isMissingConfig) {
@@ -87,13 +90,13 @@ export function AuthForm({ defaultTab = "login" }: AuthFormProps) {
       formData.append("email", data.email)
       formData.append("password", data.password)
 
-      console.log("Submitting login form:", { email: data.email })
+      setDebugInfo("Submitting login form...")
       const result = await signIn(formData)
-      console.log("Login result:", result)
+      setDebugInfo(`Login result: ${JSON.stringify(result)}`)
 
       if (result.error) {
         toast({
-          title: "Error",
+          title: "Login Failed",
           description: result.error,
           variant: "destructive",
         })
@@ -104,15 +107,22 @@ export function AuthForm({ defaultTab = "login" }: AuthFormProps) {
         })
 
         // Force a hard navigation to the dashboard
-        if (result.shouldRedirect) {
-          window.location.href = "/dashboard"
-        } else {
-          router.push("/dashboard")
-          router.refresh()
-        }
+        setDebugInfo("Redirecting to dashboard...")
+
+        // Add a small delay to ensure the toast is visible
+        setTimeout(() => {
+          if (result.shouldRedirect) {
+            // Use window.location for a full page reload
+            window.location.href = "/dashboard"
+          } else {
+            router.push("/dashboard")
+            router.refresh()
+          }
+        }, 500)
       }
     } catch (error) {
       console.error("Login error:", error)
+      setDebugInfo(`Login error: ${error instanceof Error ? error.message : String(error)}`)
       toast({
         title: "Error",
         description: "An unexpected error occurred",
@@ -125,6 +135,7 @@ export function AuthForm({ defaultTab = "login" }: AuthFormProps) {
 
   async function onRegisterSubmit(data: RegisterFormValues) {
     setIsLoading(true)
+    setDebugInfo(null)
 
     try {
       if (isMissingConfig) {
@@ -141,13 +152,13 @@ export function AuthForm({ defaultTab = "login" }: AuthFormProps) {
       formData.append("email", data.email)
       formData.append("password", data.password)
 
-      console.log("Submitting registration form:", { email: data.email, name: data.name })
+      setDebugInfo("Submitting registration form...")
       const result = await signUp(formData)
-      console.log("Registration result:", result)
+      setDebugInfo(`Registration result: ${JSON.stringify(result)}`)
 
       if (result.error) {
         toast({
-          title: "Error",
+          title: "Registration Failed",
           description: result.error,
           variant: "destructive",
         })
@@ -160,6 +171,7 @@ export function AuthForm({ defaultTab = "login" }: AuthFormProps) {
       }
     } catch (error) {
       console.error("Register error:", error)
+      setDebugInfo(`Registration error: ${error instanceof Error ? error.message : String(error)}`)
       toast({
         title: "Error",
         description: "An unexpected error occurred",
@@ -169,6 +181,25 @@ export function AuthForm({ defaultTab = "login" }: AuthFormProps) {
       setIsLoading(false)
     }
   }
+
+  // Check for existing session on mount
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const response = await fetch("/api/auth/session")
+        const data = await response.json()
+        if (data.session) {
+          setDebugInfo(`Session found: ${JSON.stringify(data.session)}`)
+        } else {
+          setDebugInfo("No session found")
+        }
+      } catch (error) {
+        console.error("Error checking session:", error)
+      }
+    }
+
+    checkSession()
+  }, [])
 
   return (
     <Card className="w-full max-w-md glass-card">
@@ -236,6 +267,12 @@ export function AuthForm({ defaultTab = "login" }: AuthFormProps) {
                   <p className="text-sm text-error">{loginForm.formState.errors.password.message}</p>
                 )}
               </div>
+
+              {debugInfo && (
+                <Alert variant="outline" className="bg-muted/50 text-xs">
+                  <AlertDescription className="font-mono break-all">{debugInfo}</AlertDescription>
+                </Alert>
+              )}
             </CardContent>
 
             <CardFooter>
@@ -258,6 +295,7 @@ export function AuthForm({ defaultTab = "login" }: AuthFormProps) {
         </TabsContent>
 
         <TabsContent value="register">
+          {/* Register form content remains the same */}
           <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)}>
             <CardContent className="space-y-4">
               <CardTitle className="text-2xl text-center mb-2">Create Account</CardTitle>
@@ -349,6 +387,12 @@ export function AuthForm({ defaultTab = "login" }: AuthFormProps) {
                   <p className="text-sm text-error">{registerForm.formState.errors.confirmPassword.message}</p>
                 )}
               </div>
+
+              {debugInfo && (
+                <Alert variant="outline" className="bg-muted/50 text-xs">
+                  <AlertDescription className="font-mono break-all">{debugInfo}</AlertDescription>
+                </Alert>
+              )}
             </CardContent>
 
             <CardFooter>

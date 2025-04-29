@@ -23,6 +23,7 @@ export async function signUp(formData: FormData) {
   })
 
   if (error) {
+    console.error("Sign up error:", error.message)
     return { error: error.message }
   }
 
@@ -34,6 +35,7 @@ export async function signUp(formData: FormData) {
     })
 
     if (profileError) {
+      console.error("Profile creation error:", profileError.message)
       return { error: profileError.message }
     }
   }
@@ -42,35 +44,77 @@ export async function signUp(formData: FormData) {
 }
 
 export async function signIn(formData: FormData) {
-  const email = formData.get("email") as string
-  const password = formData.get("password") as string
+  try {
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
 
-  const supabase = createServerClient()
+    console.log("Sign in attempt for:", email)
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  })
+    const supabase = createServerClient()
 
-  if (error) {
-    return { error: error.message }
-  }
+    // First, check if the user exists
+    const { data: userExists, error: userCheckError } = await supabase.auth.admin.getUserByEmail(email)
 
-  // Set cookies for client-side auth
-  const cookieStore = cookies()
-  const { data: sessionData } = await supabase.auth.getSession()
+    if (userCheckError) {
+      console.error("User check error:", userCheckError.message)
+      return { error: "Error checking user: " + userCheckError.message }
+    }
 
-  if (sessionData?.session) {
-    cookieStore.set("supabase-auth-token", sessionData.session.access_token, {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7, // 1 week
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+    if (!userExists) {
+      console.error("User not found:", email)
+      return { error: "No user found with this email" }
+    }
+
+    // Attempt to sign in
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     })
-  }
 
-  // Return success with redirect flag
-  return { success: true, shouldRedirect: true }
+    if (error) {
+      console.error("Sign in error:", error.message)
+      return { error: error.message }
+    }
+
+    console.log("Sign in successful for:", email)
+    console.log("Session data:", data.session ? "Session exists" : "No session")
+
+    // Set cookies for client-side auth
+    const cookieStore = cookies()
+
+    if (data.session) {
+      // Set the auth cookie
+      cookieStore.set("supabase-auth-token", data.session.access_token, {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7, // 1 week
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+      })
+
+      // Set a debug cookie to verify cookie setting works
+      cookieStore.set("auth-debug", new Date().toISOString(), {
+        path: "/",
+        maxAge: 300, // 5 minutes
+      })
+
+      console.log("Auth cookies set successfully")
+    } else {
+      console.error("No session data available after successful login")
+      return { error: "Authentication succeeded but no session was created" }
+    }
+
+    return {
+      success: true,
+      shouldRedirect: true,
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+      },
+    }
+  } catch (error) {
+    console.error("Unexpected error during sign in:", error)
+    return { error: "An unexpected error occurred during sign in" }
+  }
 }
 
 export async function signOut() {
@@ -80,6 +124,7 @@ export async function signOut() {
   // Clear cookies
   const cookieStore = cookies()
   cookieStore.delete("supabase-auth-token")
+  cookieStore.delete("auth-debug")
 
   redirect("/login")
 }
