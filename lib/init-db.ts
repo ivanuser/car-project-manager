@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   avatar_url TEXT
 );
 
--- Create vehicle_projects table
+-- Create vehicle_projects table with updated fields
 CREATE TABLE IF NOT EXISTS vehicle_projects (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -21,6 +21,11 @@ CREATE TABLE IF NOT EXISTS vehicle_projects (
   make TEXT NOT NULL,
   model TEXT NOT NULL,
   year INTEGER,
+  vin TEXT,
+  project_type TEXT,
+  start_date DATE,
+  end_date DATE,
+  budget DECIMAL(10, 2),
   status TEXT DEFAULT 'planning',
   user_id UUID NOT NULL,
   thumbnail_url TEXT

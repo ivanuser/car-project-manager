@@ -36,6 +36,11 @@ export interface Database {
           make: string
           model: string
           year: number | null
+          vin: string | null
+          project_type: string | null
+          start_date: string | null
+          end_date: string | null
+          budget: number | null
           status: string
           user_id: string
           thumbnail_url: string | null
@@ -49,6 +54,11 @@ export interface Database {
           make: string
           model: string
           year?: number | null
+          vin?: string | null
+          project_type?: string | null
+          start_date?: string | null
+          end_date?: string | null
+          budget?: number | null
           status?: string
           user_id: string
           thumbnail_url?: string | null
@@ -62,6 +72,11 @@ export interface Database {
           make?: string
           model?: string
           year?: number | null
+          vin?: string | null
+          project_type?: string | null
+          start_date?: string | null
+          end_date?: string | null
+          budget?: number | null
           status?: string
           user_id?: string
           thumbnail_url?: string | null

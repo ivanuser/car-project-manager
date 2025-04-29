@@ -29,6 +29,35 @@ export async function createVehicleProject(formData: FormData) {
   const make = formData.get("make") as string
   const model = formData.get("model") as string
   const year = Number.parseInt(formData.get("year") as string) || null
+  const vin = (formData.get("vin") as string) || null
+  const projectType = (formData.get("projectType") as string) || null
+  const startDate = (formData.get("startDate") as string) || null
+  const endDate = (formData.get("endDate") as string) || null
+  const budget = formData.get("budget") ? Number.parseFloat(formData.get("budget") as string) : null
+
+  // Handle file upload if present
+  let thumbnailUrl = null
+  const thumbnailFile = formData.get("thumbnail") as File
+
+  if (thumbnailFile && thumbnailFile.size > 0) {
+    try {
+      const fileExt = thumbnailFile.name.split(".").pop()
+      const fileName = `${userId}-${Date.now()}.${fileExt}`
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("project-thumbnails")
+        .upload(fileName, thumbnailFile)
+
+      if (uploadError) {
+        console.error("Thumbnail upload error:", uploadError)
+      } else if (uploadData) {
+        const { data: urlData } = supabase.storage.from("project-thumbnails").getPublicUrl(fileName)
+
+        thumbnailUrl = urlData.publicUrl
+      }
+    } catch (error) {
+      console.error("File upload error:", error)
+    }
+  }
 
   const { data, error } = await supabase
     .from("vehicle_projects")
@@ -38,8 +67,14 @@ export async function createVehicleProject(formData: FormData) {
       make,
       model,
       year,
+      vin,
+      project_type: projectType,
+      start_date: startDate,
+      end_date: endDate,
+      budget,
       status: "planning",
       user_id: userId,
+      thumbnail_url: thumbnailUrl,
     })
     .select()
 
@@ -114,21 +149,58 @@ export async function updateVehicleProject(id: string, formData: FormData) {
   const make = formData.get("make") as string
   const model = formData.get("model") as string
   const year = Number.parseInt(formData.get("year") as string) || null
+  const vin = (formData.get("vin") as string) || null
+  const projectType = (formData.get("projectType") as string) || null
+  const startDate = (formData.get("startDate") as string) || null
+  const endDate = (formData.get("endDate") as string) || null
+  const budget = formData.get("budget") ? Number.parseFloat(formData.get("budget") as string) : null
   const status = formData.get("status") as string
 
-  const { data, error } = await supabase
-    .from("vehicle_projects")
-    .update({
-      title,
-      description,
-      make,
-      model,
-      year,
-      status,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .select()
+  // Handle file upload if present
+  let thumbnailUrl = null
+  const thumbnailFile = formData.get("thumbnail") as File
+
+  if (thumbnailFile && thumbnailFile.size > 0) {
+    try {
+      const fileExt = thumbnailFile.name.split(".").pop()
+      const fileName = `${id}-${Date.now()}.${fileExt}`
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("project-thumbnails")
+        .upload(fileName, thumbnailFile)
+
+      if (uploadError) {
+        console.error("Thumbnail upload error:", uploadError)
+      } else if (uploadData) {
+        const { data: urlData } = supabase.storage.from("project-thumbnails").getPublicUrl(fileName)
+
+        thumbnailUrl = urlData.publicUrl
+      }
+    } catch (error) {
+      console.error("File upload error:", error)
+    }
+  }
+
+  const updateData: any = {
+    title,
+    description,
+    make,
+    model,
+    year,
+    vin,
+    project_type: projectType,
+    start_date: startDate,
+    end_date: endDate,
+    budget,
+    status,
+    updated_at: new Date().toISOString(),
+  }
+
+  // Only update thumbnail if a new one was uploaded
+  if (thumbnailUrl) {
+    updateData.thumbnail_url = thumbnailUrl
+  }
+
+  const { data, error } = await supabase.from("vehicle_projects").update(updateData).eq("id", id).select()
 
   if (error) {
     return { error: error.message }

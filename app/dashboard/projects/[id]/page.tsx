@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
+import { format } from "date-fns"
 import { getVehicleProject } from "@/actions/project-actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Edit, Plus } from "lucide-react"
+import { ArrowLeft, Calendar, DollarSign, Edit, Plus, Tag } from "lucide-react"
+import { formatCurrency } from "@/lib/utils"
 
 interface ProjectPageProps {
   params: {
@@ -18,6 +20,24 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
   if (!project) {
     notFound()
   }
+
+  // Format dates if they exist
+  const startDate = project.start_date ? format(new Date(project.start_date), "PPP") : "Not set"
+  const endDate = project.end_date ? format(new Date(project.end_date), "PPP") : "Not set"
+
+  // Map project type to display name
+  const projectTypeMap: Record<string, string> = {
+    restoration: "Restoration",
+    modification: "Modification",
+    performance: "Performance Upgrade",
+    maintenance: "Maintenance",
+    repair: "Repair",
+    custom: "Custom Build",
+  }
+
+  const projectType = project.project_type
+    ? projectTypeMap[project.project_type] || project.project_type
+    : "Not specified"
 
   return (
     <div className="space-y-6">
@@ -45,31 +65,86 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
+        {/* Project thumbnail and description */}
         <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Description</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {project.description ? (
-              <p>{project.description}</p>
-            ) : (
-              <p className="text-muted-foreground italic">No description provided</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
           <CardHeader>
             <CardTitle>Project Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="text-sm font-medium">Status</div>
-              <div className="text-sm capitalize">{project.status}</div>
-              <div className="text-sm font-medium">Created</div>
-              <div className="text-sm">{new Date(project.created_at).toLocaleDateString()}</div>
-              <div className="text-sm font-medium">Last Updated</div>
-              <div className="text-sm">{new Date(project.updated_at).toLocaleDateString()}</div>
+            {project.thumbnail_url && (
+              <div className="mb-4">
+                <img
+                  src={project.thumbnail_url || "/placeholder.svg"}
+                  alt={project.title}
+                  className="w-full h-48 object-cover rounded-md"
+                />
+              </div>
+            )}
+
+            <div>
+              <h3 className="text-lg font-medium mb-2">Description</h3>
+              {project.description ? (
+                <p>{project.description}</p>
+              ) : (
+                <p className="text-muted-foreground italic">No description provided</p>
+              )}
+            </div>
+
+            {project.vin && (
+              <div>
+                <h3 className="text-lg font-medium mb-2">VIN</h3>
+                <p className="font-mono">{project.vin}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Project metadata */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Project Info</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-3 items-center">
+              <Tag className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Project Type</p>
+                <p className="text-sm">{projectType}</p>
+              </div>
+
+              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Timeline</p>
+                <p className="text-sm">
+                  {startDate} to {endDate}
+                </p>
+              </div>
+
+              <DollarSign className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Budget</p>
+                <p className="text-sm">{project.budget ? formatCurrency(project.budget) : "Not specified"}</p>
+              </div>
+
+              <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center">
+                <div className="h-2 w-2 rounded-full bg-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Status</p>
+                <p className="text-sm capitalize">{project.status.replace("_", " ")}</p>
+              </div>
+
+              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Created</p>
+                <p className="text-sm">{format(new Date(project.created_at), "PPP")}</p>
+              </div>
+
+              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Last Updated</p>
+                <p className="text-sm">{format(new Date(project.updated_at), "PPP")}</p>
+              </div>
             </div>
           </CardContent>
         </Card>
