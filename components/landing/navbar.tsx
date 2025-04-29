@@ -5,12 +5,11 @@ import Link from "next/link"
 import { Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Logo } from "@/components/logo"
-import { useTheme } from "next-themes"
-import { MoonIcon, SunIcon } from "lucide-react"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const { theme, setTheme } = useTheme()
+  // const { theme, setTheme } = useTheme()
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b">
@@ -42,24 +41,7 @@ export function Navbar() {
               >
                 Pricing
               </Link>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                className="ml-2"
-                suppressHydrationWarning
-              >
-                {/* Use a client-side only approach to avoid hydration mismatch */}
-                <span className="sr-only">Toggle theme</span>
-                <div className="relative h-5 w-5">
-                  <div className={`absolute transition-opacity ${theme === "dark" ? "opacity-100" : "opacity-0"}`}>
-                    <SunIcon className="h-5 w-5" />
-                  </div>
-                  <div className={`absolute transition-opacity ${theme === "dark" ? "opacity-0" : "opacity-100"}`}>
-                    <MoonIcon className="h-5 w-5" />
-                  </div>
-                </div>
-              </Button>
+              <ThemeToggle className="ml-2" />
             </div>
           </div>
 
@@ -78,23 +60,7 @@ export function Navbar() {
           </div>
 
           <div className="md:hidden flex items-center">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="mr-2"
-              suppressHydrationWarning
-            >
-              <span className="sr-only">Toggle theme</span>
-              <div className="relative h-5 w-5">
-                <div className={`absolute transition-opacity ${theme === "dark" ? "opacity-100" : "opacity-0"}`}>
-                  <SunIcon className="h-5 w-5" />
-                </div>
-                <div className={`absolute transition-opacity ${theme === "dark" ? "opacity-0" : "opacity-100"}`}>
-                  <MoonIcon className="h-5 w-5" />
-                </div>
-              </div>
-            </Button>
+            <ThemeToggle className="mr-2" />
             <Button variant="ghost" size="icon" onClick={() => setIsMenuOpen(!isMenuOpen)}>
               {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               <span className="sr-only">Open menu</span>
