@@ -11,8 +11,8 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuButton,
   SidebarRail,
   SidebarSeparator,
 } from "@/components/ui/sidebar"
@@ -41,56 +41,56 @@ export function DashboardSidebar() {
       <SidebarContent>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/dashboard")} tooltip="Dashboard">
-              <Link href="/dashboard">
+            <Link href="/dashboard" passHref legacyBehavior>
+              <SidebarMenuButton isActive={isActive("/dashboard")} tooltip="Dashboard">
                 <Home className="h-5 w-5" />
                 <span>Dashboard</span>
-              </Link>
-            </SidebarMenuButton>
+              </SidebarMenuButton>
+            </Link>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/dashboard/projects")} tooltip="Projects">
-              <Link href="/dashboard/projects">
+            <Link href="/dashboard/projects" passHref legacyBehavior>
+              <SidebarMenuButton isActive={isActive("/dashboard/projects")} tooltip="Projects">
                 <Car className="h-5 w-5" />
                 <span>Projects</span>
-              </Link>
-            </SidebarMenuButton>
+              </SidebarMenuButton>
+            </Link>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/dashboard/tasks")} tooltip="Tasks">
-              <Link href="/dashboard/tasks">
+            <Link href="/dashboard/tasks" passHref legacyBehavior>
+              <SidebarMenuButton isActive={isActive("/dashboard/tasks")} tooltip="Tasks">
                 <Tool className="h-5 w-5" />
                 <span>Tasks</span>
-              </Link>
-            </SidebarMenuButton>
+              </SidebarMenuButton>
+            </Link>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/dashboard/parts")} tooltip="Parts">
-              <Link href="/dashboard/parts">
+            <Link href="/dashboard/parts" passHref legacyBehavior>
+              <SidebarMenuButton isActive={isActive("/dashboard/parts")} tooltip="Parts">
                 <Package className="h-5 w-5" />
                 <span>Parts</span>
-              </Link>
-            </SidebarMenuButton>
+              </SidebarMenuButton>
+            </Link>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/dashboard/profile")} tooltip="Profile">
-              <Link href="/dashboard/profile">
+            <Link href="/dashboard/profile" passHref legacyBehavior>
+              <SidebarMenuButton isActive={isActive("/dashboard/profile")} tooltip="Profile">
                 <User className="h-5 w-5" />
                 <span>Profile</span>
-              </Link>
-            </SidebarMenuButton>
+              </SidebarMenuButton>
+            </Link>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/dashboard/settings")} tooltip="Settings">
-              <Link href="/dashboard/settings">
+            <Link href="/dashboard/settings" passHref legacyBehavior>
+              <SidebarMenuButton isActive={isActive("/dashboard/settings")} tooltip="Settings">
                 <Cog className="h-5 w-5" />
                 <span>Settings</span>
-              </Link>
-            </SidebarMenuButton>
+              </SidebarMenuButton>
+            </Link>
           </SidebarMenuItem>
           <SidebarSeparator />
           <SidebarMenuItem>
@@ -98,7 +98,7 @@ export function DashboardSidebar() {
               <Button
                 type="submit"
                 variant="ghost"
-                className="w-full justify-start px-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                className="w-full justify-start px-2 hover:bg-muted hover:text-foreground"
               >
                 <LogOut className="mr-2 h-5 w-5" />
                 <span>Sign Out</span>

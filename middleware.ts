@@ -49,7 +49,14 @@ export async function middleware(req: NextRequest) {
     // Protected routes that require authentication
     const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard")
 
-    // If accessing a protected route without a session, redirect to login
+    // IMPORTANT: If we have an auth cookie, allow access to dashboard even without a session
+    // This breaks the redirect loop
+    if (isProtectedRoute && !session && hasAuthCookie) {
+      console.log(`[Middleware] Auth cookie present but no session, allowing access to: ${req.nextUrl.pathname}`)
+      return res
+    }
+
+    // If accessing a protected route without a session or auth cookie, redirect to login
     if (isProtectedRoute && !session && !hasAuthCookie) {
       console.log(`[Middleware] Redirecting to login from: ${req.nextUrl.pathname}`)
       const redirectUrl = new URL("/login", req.url)
@@ -57,7 +64,7 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(redirectUrl)
     }
 
-    // If accessing a public route with a session, redirect to dashboard
+    // If accessing a public route with a session or auth cookie, redirect to dashboard
     if (isPublicRoute && (session || hasAuthCookie) && req.nextUrl.pathname !== "/auth/callback") {
       console.log(`[Middleware] Redirecting to dashboard from: ${req.nextUrl.pathname}`)
       return NextResponse.redirect(new URL("/dashboard", req.url))
