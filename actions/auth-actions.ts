@@ -52,20 +52,7 @@ export async function signIn(formData: FormData) {
 
     const supabase = createServerClient()
 
-    // First, check if the user exists
-    const { data: userExists, error: userCheckError } = await supabase.auth.admin.getUserByEmail(email)
-
-    if (userCheckError) {
-      console.error("User check error:", userCheckError.message)
-      return { error: "Error checking user: " + userCheckError.message }
-    }
-
-    if (!userExists) {
-      console.error("User not found:", email)
-      return { error: "No user found with this email" }
-    }
-
-    // Attempt to sign in
+    // Attempt to sign in directly - no need to check if user exists first
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
