@@ -14,17 +14,18 @@ export default async function DashboardLayout({
 }) {
   // Check if we're in preview mode without Supabase config
   const isMissingConfig = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const isDevelopment = process.env.NODE_ENV === "development"
 
-  // Create mock user data for preview
+  // Create mock user data for preview or development
   let userData = {
-    id: "preview-user-id",
-    email: "preview@example.com",
-    fullName: "Preview User",
+    id: "dev-user-id",
+    email: "dev@example.com",
+    fullName: "Development User",
     avatarUrl: undefined,
   }
 
-  // Only try to get real user data if we have Supabase configured
-  if (!isMissingConfig) {
+  // Only try to get real user data if we have Supabase configured and not in development mode
+  if (!isMissingConfig && !isDevelopment) {
     try {
       const cookieStore = cookies()
       const supabase = createServerClient()
@@ -52,6 +53,20 @@ export default async function DashboardLayout({
     } catch (error) {
       console.error("Error getting user data:", error)
       // Continue with preview user data
+    }
+  }
+
+  // In development mode, initialize the database on each layout render
+  if (isDevelopment) {
+    try {
+      // Call the init-db API route to ensure tables are created
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/init-db`, {
+        cache: "no-store",
+      })
+      const data = await response.json()
+      console.log("Database initialization:", data.success ? "Success" : "Failed")
+    } catch (error) {
+      console.error("Failed to initialize database:", error)
     }
   }
 

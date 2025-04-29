@@ -4,16 +4,24 @@ import { revalidatePath } from "next/cache"
 import { createServerClient } from "@/lib/supabase"
 import { redirect } from "next/navigation"
 
+// Update the createVehicleProject function
 export async function createVehicleProject(formData: FormData) {
   const supabase = createServerClient()
+  const isDevelopment = process.env.NODE_ENV === "development"
 
-  // Get the current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Get the current user or use development user ID
+  let userId = "dev-user-id"
 
-  if (!user) {
-    return { error: "You must be logged in to create a project" }
+  if (!isDevelopment) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return { error: "You must be logged in to create a project" }
+    }
+
+    userId = user.id
   }
 
   const title = formData.get("title") as string
@@ -31,7 +39,7 @@ export async function createVehicleProject(formData: FormData) {
       model,
       year,
       status: "planning",
-      user_id: user.id,
+      user_id: userId,
     })
     .select()
 
@@ -43,22 +51,30 @@ export async function createVehicleProject(formData: FormData) {
   return { success: true, data }
 }
 
+// Update the getVehicleProjects function
 export async function getVehicleProjects() {
   const supabase = createServerClient()
+  const isDevelopment = process.env.NODE_ENV === "development"
 
-  // Get the current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Get the current user or use development user ID
+  let userId = "dev-user-id"
 
-  if (!user) {
-    redirect("/login")
+  if (!isDevelopment) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      redirect("/login")
+    }
+
+    userId = user.id
   }
 
   const { data, error } = await supabase
     .from("vehicle_projects")
     .select("*")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .order("created_at", { ascending: false })
 
   if (error) {
