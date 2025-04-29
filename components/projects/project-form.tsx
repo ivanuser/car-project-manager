@@ -47,7 +47,7 @@ const projectSchema = z.object({
 type ProjectFormValues = z.infer<typeof projectSchema>
 
 interface ProjectFormProps {
-  defaultValues?: Partial<ProjectFormValues> & { id?: string }
+  defaultValues?: Partial<ProjectFormValues> & { id?: string; thumbnail_url?: string }
   isEditing?: boolean
 }
 
