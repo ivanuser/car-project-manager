@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react"
 import { Chart, registerables } from "chart.js"
 
+// Register Chart.js components
 Chart.register(...registerables)
 
 export function DemoBudgetChart() {
@@ -12,39 +13,38 @@ export function DemoBudgetChart() {
   useEffect(() => {
     if (!chartRef.current) return
 
-    const ctx = chartRef.current.getContext("2d")
-    if (!ctx) return
-
     // Destroy existing chart
     if (chartInstance.current) {
       chartInstance.current.destroy()
     }
 
     // Create new chart
+    const ctx = chartRef.current.getContext("2d")
+    if (!ctx) return
+
     chartInstance.current = new Chart(ctx, {
       type: "doughnut",
       data: {
-        labels: ["Engine", "Suspension", "Body Work", "Interior", "Electrical", "Wheels & Tires", "Other"],
+        labels: ["Parts", "Tools", "Labor", "Miscellaneous", "Remaining"],
         datasets: [
           {
-            data: [3200, 1800, 2400, 1200, 800, 1500, 300],
+            data: [4500, 2800, 3200, 1500, 6000],
             backgroundColor: [
-              "rgba(234, 88, 12, 0.8)",
-              "rgba(22, 163, 74, 0.8)",
-              "rgba(37, 99, 235, 0.8)",
-              "rgba(217, 70, 239, 0.8)",
-              "rgba(245, 158, 11, 0.8)",
-              "rgba(6, 182, 212, 0.8)",
-              "rgba(107, 114, 128, 0.8)",
+              "rgba(59, 130, 246, 0.8)", // Parts - Blue
+              "rgba(16, 185, 129, 0.8)", // Tools - Green
+              "rgba(245, 158, 11, 0.8)", // Labor - Amber
+              "rgba(139, 92, 246, 0.8)", // Misc - Purple
+              "rgba(229, 231, 235, 0.8)", // Remaining - Gray
             ],
             borderColor: [
-              "rgba(234, 88, 12, 1)",
-              "rgba(22, 163, 74, 1)",
-              "rgba(37, 99, 235, 1)",
-              "rgba(217, 70, 239, 1)",
+              "rgba(59, 130, 246, 1)",
+              "rgba(16, 185, 129, 1)",
               "rgba(245, 158, 11, 1)",
-              "rgba(6, 182, 212, 1)",
-              "rgba(107, 114, 128, 1)",
+              "rgba(139, 92, 246,130,246,1)",
+              "rgba(16, 185, 129, 1)",
+              "rgba(245, 158, 11, 1)",
+              "rgba(139, 92, 246, 1)",
+              "rgba(229, 231, 235, 1)",
             ],
             borderWidth: 1,
           },
@@ -55,10 +55,10 @@ export function DemoBudgetChart() {
         maintainAspectRatio: false,
         plugins: {
           legend: {
-            position: "right",
+            position: "bottom",
             labels: {
-              boxWidth: 15,
-              padding: 15,
+              padding: 20,
+              boxWidth: 12,
             },
           },
           tooltip: {
@@ -73,6 +73,7 @@ export function DemoBudgetChart() {
             },
           },
         },
+        cutout: "65%",
       },
     })
 
@@ -83,5 +84,9 @@ export function DemoBudgetChart() {
     }
   }, [])
 
-  return <canvas ref={chartRef} />
+  return (
+    <div className="h-80">
+      <canvas ref={chartRef} />
+    </div>
+  )
 }

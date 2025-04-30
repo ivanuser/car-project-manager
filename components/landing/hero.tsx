@@ -19,18 +19,14 @@ export function Hero() {
             automotive enthusiasts.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Button
-              size="lg"
-              asChild
-              className="bg-gradient-to-r from-primary-dark via-secondary to-accent hover:from-primary hover:to-accent-dark"
-            >
-              <Link href="/login?tab=register">Start Your First Project</Link>
+            <Button size="lg" asChild className="bg-primary text-white hover:bg-primary/90">
+              <Link href="/login">Start Your First Project</Link>
             </Button>
-            <Button size="lg" variant="secondary" asChild>
+            <Button size="lg" variant="secondary" asChild className="bg-secondary text-white hover:bg-secondary/90">
               <Link href="/demo">Try Demo</Link>
             </Button>
-            <Button size="lg" variant="outline" asChild>
-              <Link href="/#features">See Features</Link>
+            <Button size="lg" variant="outline" asChild className="border-primary text-primary hover:bg-primary/10">
+              <Link href="#features">See Features</Link>
             </Button>
           </div>
 

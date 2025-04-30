@@ -1,240 +1,216 @@
 "use client"
 
-import { useState } from "react"
-import { ArrowRight, Calendar, Car, DollarSign, Package, PenToolIcon as Tool, Wrench } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { DemoProjectCard } from "@/components/demo/demo-project-card"
-import { DemoTaskList } from "@/components/demo/demo-task-list"
-import { DemoBudgetChart } from "@/components/demo/demo-budget-chart"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { DemoProjectCard } from "./demo-project-card"
+import { DemoTaskList } from "./demo-task-list"
+import { DemoBudgetChart } from "./demo-budget-chart"
 
-export function DemoContent() {
-  const [activeTab, setActiveTab] = useState("overview")
+interface DemoContentProps {
+  activeTab: string
+}
+
+export function DemoContent({ activeTab }: DemoContentProps) {
+  // Sample data
+  const stats = [
+    { title: "Total Projects", value: "3" },
+    { title: "Active Tasks", value: "12" },
+    { title: "Parts Inventory", value: "47" },
+    { title: "Budget Used", value: "68%" },
+  ]
 
   return (
-    <div className="flex-1 overflow-auto p-4 md:p-6">
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold tracking-tight">Welcome to CAJPRO Demo</h1>
-          <p className="text-muted-foreground">
-            This is an interactive demo of the CAJPRO platform. Explore the features below.
-          </p>
+    <div className="space-y-6 pb-16">
+      {activeTab === "dashboard" && (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {stats.map((stat) => (
+              <Card key={stat.title}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stat.value}</div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+            <Card className="col-span-4">
+              <CardHeader>
+                <CardTitle>Recent Projects</CardTitle>
+                <CardDescription>Your most recent vehicle projects</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <DemoProjectCard title="1967 Mustang Restoration" progress={75} image="/vintage-mustang.png" />
+                <DemoProjectCard title="BMW M3 Engine Swap" progress={45} image="/bmw-m3-engine.png" />
+                <DemoProjectCard title="Jeep Wrangler Offroad Build" progress={30} image="/jeep-wrangler-offroad.png" />
+              </CardContent>
+            </Card>
+            <Card className="col-span-3">
+              <CardHeader>
+                <CardTitle>Upcoming Tasks</CardTitle>
+                <CardDescription>Tasks due in the next 7 days</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DemoTaskList limit={5} />
+              </CardContent>
+            </Card>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+            <Card className="col-span-4">
+              <CardHeader>
+                <CardTitle>Budget Overview</CardTitle>
+                <CardDescription>Your spending across all projects</CardDescription>
+              </CardHeader>
+              <CardContent className="pl-2">
+                <DemoBudgetChart />
+              </CardContent>
+            </Card>
+            <Card className="col-span-3">
+              <CardHeader>
+                <CardTitle>Recent Activity</CardTitle>
+                <CardDescription>Latest updates from your projects</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {[
+                    { time: "2 hours ago", text: "Added new part: K&N Air Filter" },
+                    { time: "5 hours ago", text: "Completed task: Install suspension kit" },
+                    { time: "Yesterday", text: "Updated budget for BMW project" },
+                    { time: "2 days ago", text: "Created new project: Jeep Wrangler Offroad Build" },
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-start gap-4 text-sm">
+                      <div className="min-w-24 text-muted-foreground">{item.time}</div>
+                      <div>{item.text}</div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
+
+      {activeTab === "projects" && (
+        <div className="space-y-6">
+          <h2 className="text-3xl font-bold tracking-tight">Your Projects</h2>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <DemoProjectCard
+              title="1967 Mustang Restoration"
+              progress={75}
+              image="/vintage-mustang.png"
+              description="Full restoration of a classic 1967 Ford Mustang, including engine rebuild, interior restoration, and paint job."
+            />
+            <DemoProjectCard
+              title="BMW M3 Engine Swap"
+              progress={45}
+              image="/bmw-m3-engine.png"
+              description="Swapping the stock engine with an S55 twin-turbo inline-six from a 2018 M3 Competition."
+            />
+            <DemoProjectCard
+              title="Jeep Wrangler Offroad Build"
+              progress={30}
+              image="/jeep-wrangler-offroad.png"
+              description="Converting a stock Jeep Wrangler into an off-road beast with lift kit, winch, and custom bumpers."
+            />
+          </div>
         </div>
+      )}
 
-        <Tabs defaultValue="overview" className="space-y-4" onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="projects">Projects</TabsTrigger>
-            <TabsTrigger value="tasks">Tasks</TabsTrigger>
-            <TabsTrigger value="budget">Budget</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {activeTab === "tasks" && (
+        <div className="space-y-6">
+          <h2 className="text-3xl font-bold tracking-tight">Task Management</h2>
+          <Tabs defaultValue="all">
+            <TabsList>
+              <TabsTrigger value="all">All Tasks</TabsTrigger>
+              <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+              <TabsTrigger value="completed">Completed</TabsTrigger>
+            </TabsList>
+            <TabsContent value="all" className="mt-4">
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Active Projects</CardTitle>
-                  <Car className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">3</div>
-                  <p className="text-xs text-muted-foreground">+1 from last month</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Pending Tasks</CardTitle>
-                  <Wrench className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">12</div>
-                  <p className="text-xs text-muted-foreground">4 due this week</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Parts Inventory</CardTitle>
-                  <Package className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">28</div>
-                  <p className="text-xs text-muted-foreground">3 awaiting delivery</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Budget Used</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">68%</div>
-                  <Progress value={68} className="h-2" />
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-              <Card className="col-span-4">
                 <CardHeader>
-                  <CardTitle>Recent Projects</CardTitle>
+                  <CardTitle>All Tasks</CardTitle>
+                  <CardDescription>View and manage all your project tasks</CardDescription>
                 </CardHeader>
-                <CardContent className="pl-2">
-                  <div className="flex flex-col gap-4">
-                    <DemoProjectCard
-                      title="1967 Mustang Restoration"
-                      description="Full restoration of classic Mustang"
-                      progress={75}
-                      image="/vintage-mustang.png"
-                    />
-                    <DemoProjectCard
-                      title="BMW M3 Performance Upgrade"
-                      description="Engine and suspension modifications"
-                      progress={45}
-                      image="/bmw-m3-engine.png"
-                    />
-                    <DemoProjectCard
-                      title="Jeep Wrangler Off-Road Build"
-                      description="Lift kit and off-road modifications"
-                      progress={30}
-                      image="/jeep-wrangler-offroad.png"
-                    />
-                  </div>
+                <CardContent>
+                  <DemoTaskList limit={10} />
                 </CardContent>
-                <CardFooter>
-                  <Button variant="ghost" className="w-full" disabled>
-                    View All Projects
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </CardFooter>
               </Card>
-
-              <Card className="col-span-3">
+            </TabsContent>
+            <TabsContent value="upcoming" className="mt-4">
+              <Card>
                 <CardHeader>
                   <CardTitle>Upcoming Tasks</CardTitle>
                   <CardDescription>Tasks due in the next 7 days</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-4">
-                      <div className="bg-primary/10 p-2 rounded-full">
-                        <Tool className="h-4 w-4 text-primary" />
-                      </div>
-                      <div className="flex-1 space-y-1">
-                        <p className="text-sm font-medium leading-none">Replace Carburetor</p>
-                        <p className="text-xs text-muted-foreground">Mustang Restoration</p>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        <span>Tomorrow</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <div className="bg-primary/10 p-2 rounded-full">
-                        <Tool className="h-4 w-4 text-primary" />
-                      </div>
-                      <div className="flex-1 space-y-1">
-                        <p className="text-sm font-medium leading-none">Install Coilovers</p>
-                        <p className="text-xs text-muted-foreground">BMW M3 Upgrade</p>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        <span>In 2 days</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <div className="bg-primary/10 p-2 rounded-full">
-                        <Tool className="h-4 w-4 text-primary" />
-                      </div>
-                      <div className="flex-1 space-y-1">
-                        <p className="text-sm font-medium leading-none">Install Lift Kit</p>
-                        <p className="text-xs text-muted-foreground">Jeep Wrangler Build</p>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        <span>In 5 days</span>
-                      </div>
-                    </div>
-                  </div>
+                  <DemoTaskList limit={5} filter="upcoming" />
                 </CardContent>
-                <CardFooter>
-                  <Button variant="ghost" className="w-full" disabled>
-                    View All Tasks
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </CardFooter>
               </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="projects" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              <DemoProjectCard
-                title="1967 Mustang Restoration"
-                description="Full restoration of classic Mustang"
-                progress={75}
-                image="/vintage-mustang.png"
-                expanded
-              />
-              <DemoProjectCard
-                title="BMW M3 Performance Upgrade"
-                description="Engine and suspension modifications"
-                progress={45}
-                image="/bmw-m3-engine.png"
-                expanded
-              />
-              <DemoProjectCard
-                title="Jeep Wrangler Off-Road Build"
-                description="Lift kit and off-road modifications"
-                progress={30}
-                image="/jeep-wrangler-offroad.png"
-                expanded
-              />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="tasks" className="space-y-4">
-            <DemoTaskList />
-          </TabsContent>
-
-          <TabsContent value="budget" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            </TabsContent>
+            <TabsContent value="completed" className="mt-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Total Budget</CardTitle>
+                  <CardTitle>Completed Tasks</CardTitle>
+                  <CardDescription>Tasks you've already completed</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold">$15,000.00</div>
-                  <div className="mt-4 flex items-center gap-2">
-                    <div className="text-sm">Spent: $10,200.00</div>
-                    <div className="text-sm text-muted-foreground">(68%)</div>
-                  </div>
-                  <Progress value={68} className="h-2 mt-2" />
-                  <div className="mt-2 flex items-center gap-2">
-                    <div className="text-sm">Remaining: $4,800.00</div>
-                    <div className="text-sm text-muted-foreground">(32%)</div>
-                  </div>
+                  <DemoTaskList limit={5} filter="completed" />
                 </CardContent>
               </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+      )}
 
-              <Card className="col-span-2">
-                <CardHeader>
-                  <CardTitle>Budget Breakdown</CardTitle>
-                </CardHeader>
-                <CardContent className="h-[300px]">
-                  <DemoBudgetChart />
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </div>
+      {activeTab === "budget" && (
+        <div className="space-y-6">
+          <h2 className="text-3xl font-bold tracking-tight">Budget Tracking</h2>
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Budget Overview</CardTitle>
+                <CardDescription>Your spending across all projects</CardDescription>
+              </CardHeader>
+              <CardContent className="pl-2">
+                <DemoBudgetChart />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Budget Summary</CardTitle>
+                <CardDescription>Financial overview of your projects</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {[
+                    { project: "Mustang Restoration", budget: "$12,000", spent: "$9,000", remaining: "$3,000" },
+                    { project: "BMW Engine Swap", budget: "$8,500", spent: "$3,825", remaining: "$4,675" },
+                    { project: "Jeep Wrangler Build", budget: "$6,000", spent: "$1,800", remaining: "$4,200" },
+                  ].map((item, i) => (
+                    <div key={i} className="grid grid-cols-4 text-sm">
+                      <div className="font-medium">{item.project}</div>
+                      <div className="text-muted-foreground">{item.budget}</div>
+                      <div className="text-muted-foreground">{item.spent}</div>
+                      <div className="font-medium">{item.remaining}</div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {activeTab !== "dashboard" && activeTab !== "projects" && activeTab !== "tasks" && activeTab !== "budget" && (
+        <div className="flex h-[50vh] items-center justify-center rounded-lg border border-dashed">
+          <div className="text-center">
+            <h3 className="text-lg font-medium">Feature Preview</h3>
+            <p className="text-sm text-muted-foreground">This feature is available in the full version</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

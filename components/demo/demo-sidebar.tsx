@@ -1,98 +1,60 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
-import Link from "next/link"
-import { BarChart3, Car, Cog, Home, Package, PenToolIcon as Tool, Wrench, X } from "lucide-react"
+import { BarChart3, Car, Cog, FileText, Home, Package, PenToolIcon as Tool, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
 
-interface NavItem {
-  title: string
-  icon: React.ElementType
-  href: string
-  isActive?: boolean
+interface DemoSidebarProps {
+  isOpen: boolean
+  activeTab: string
+  setActiveTab: (tab: string) => void
 }
 
-const navItems: NavItem[] = [
-  {
-    title: "Dashboard",
-    icon: Home,
-    href: "/demo",
-    isActive: true,
-  },
-  {
-    title: "Projects",
-    icon: Car,
-    href: "/demo",
-  },
-  {
-    title: "Tasks",
-    icon: Wrench,
-    href: "/demo",
-  },
-  {
-    title: "Parts",
-    icon: Tool,
-    href: "/demo",
-  },
-  {
-    title: "Inventory",
-    icon: Package,
-    href: "/demo",
-  },
-  {
-    title: "Reports",
-    icon: BarChart3,
-    href: "/demo",
-  },
-  {
-    title: "Settings",
-    icon: Cog,
-    href: "/demo",
-  },
-]
-
-export function DemoSidebar() {
-  const [isOpen, setIsOpen] = useState(true)
+export function DemoSidebar({ isOpen, activeTab, setActiveTab }: DemoSidebarProps) {
+  const menuItems = [
+    { id: "dashboard", label: "Dashboard", icon: Home },
+    { id: "projects", label: "Projects", icon: Car },
+    { id: "tasks", label: "Tasks", icon: FileText },
+    { id: "parts", label: "Parts", icon: Tool },
+    { id: "budget", label: "Budget", icon: BarChart3 },
+    { id: "inventory", label: "Inventory", icon: Package },
+    { id: "community", label: "Community", icon: Users },
+    { id: "settings", label: "Settings", icon: Cog },
+  ]
 
   return (
-    <div
+    <aside
       className={cn(
-        "relative h-full border-r bg-background transition-all duration-300 ease-in-out",
-        isOpen ? "w-64" : "w-16",
+        "fixed inset-y-0 left-0 z-20 flex w-64 flex-col border-r bg-background transition-transform md:translate-x-0",
+        isOpen ? "translate-x-0" : "-translate-x-full",
       )}
     >
-      <div className="flex h-14 items-center border-b px-4">
-        <Link href="/demo" className="flex items-center gap-2">
-          {isOpen ? <span className="font-bold text-xl">CAJPRO</span> : <span className="font-bold text-xl">CJ</span>}
-        </Link>
-        <Button variant="ghost" size="icon" className="ml-auto" onClick={() => setIsOpen(!isOpen)}>
-          <X className="h-4 w-4" />
-          <span className="sr-only">Toggle Sidebar</span>
-        </Button>
+      <div className="flex h-16 items-center border-b px-6">
+        <h2 className="text-lg font-semibold">CAJPRO Demo</h2>
       </div>
-      <ScrollArea className="h-[calc(100vh-3.5rem)]">
-        <div className="px-2 py-2">
-          <nav className="grid gap-1">
-            {navItems.map((item, index) => (
-              <Button
-                key={index}
-                variant={item.isActive ? "secondary" : "ghost"}
-                className={cn("flex items-center gap-3 justify-start", !isOpen && "justify-center px-0")}
-                asChild
-              >
-                <Link href={item.href}>
-                  <item.icon className="h-4 w-4" />
-                  {isOpen && <span>{item.title}</span>}
-                </Link>
-              </Button>
-            ))}
-          </nav>
+      <div className="flex-1 overflow-auto py-4">
+        <nav className="grid gap-1 px-2">
+          {menuItems.map((item) => (
+            <Button
+              key={item.id}
+              variant={activeTab === item.id ? "secondary" : "ghost"}
+              className={cn("flex justify-start gap-3", activeTab === item.id && "bg-secondary/20")}
+              onClick={() => setActiveTab(item.id)}
+            >
+              <item.icon className="h-4 w-4" />
+              {item.label}
+            </Button>
+          ))}
+        </nav>
+        <Separator className="my-4" />
+        <div className="px-4 py-2">
+          <div className="rounded-lg bg-muted p-3">
+            <h3 className="font-medium">Demo Version</h3>
+            <p className="text-sm text-muted-foreground">This is a preview of CAJPRO. Sign up for full access.</p>
+          </div>
         </div>
-      </ScrollArea>
-    </div>
+      </div>
+    </aside>
   )
 }

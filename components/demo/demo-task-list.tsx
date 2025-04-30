@@ -1,265 +1,175 @@
 "use client"
 
 import { useState } from "react"
-import { CheckCircle2, Circle, Clock } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Clock } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 
 interface Task {
   id: string
   title: string
   project: string
+  dueDate: string
   status: "todo" | "in-progress" | "completed"
   priority: "low" | "medium" | "high"
-  dueDate: string
 }
 
-const demoTasks: Task[] = [
-  {
-    id: "1",
-    title: "Replace Carburetor",
-    project: "1967 Mustang Restoration",
-    status: "in-progress",
-    priority: "high",
-    dueDate: "Tomorrow",
-  },
-  {
-    id: "2",
-    title: "Rebuild Transmission",
-    project: "1967 Mustang Restoration",
-    status: "todo",
-    priority: "medium",
-    dueDate: "Next week",
-  },
-  {
-    id: "3",
-    title: "Install Coilovers",
-    project: "BMW M3 Performance Upgrade",
-    status: "todo",
-    priority: "high",
-    dueDate: "In 2 days",
-  },
-  {
-    id: "4",
-    title: "ECU Tuning",
-    project: "BMW M3 Performance Upgrade",
-    status: "todo",
-    priority: "medium",
-    dueDate: "Next week",
-  },
-  {
-    id: "5",
-    title: "Install Lift Kit",
-    project: "Jeep Wrangler Off-Road Build",
-    status: "todo",
-    priority: "high",
-    dueDate: "In 5 days",
-  },
-  {
-    id: "6",
-    title: "Replace Brake Pads",
-    project: "1967 Mustang Restoration",
-    status: "completed",
-    priority: "high",
-    dueDate: "Last week",
-  },
-  {
-    id: "7",
-    title: "Install New Exhaust",
-    project: "BMW M3 Performance Upgrade",
-    status: "completed",
-    priority: "medium",
-    dueDate: "2 weeks ago",
-  },
-]
+interface DemoTaskListProps {
+  limit?: number
+  filter?: "upcoming" | "completed"
+}
 
-export function DemoTaskList() {
-  const [tasks, setTasks] = useState(demoTasks)
+export function DemoTaskList({ limit = 10, filter }: DemoTaskListProps) {
+  // Sample tasks data
+  const initialTasks: Task[] = [
+    {
+      id: "1",
+      title: "Order new carburetor",
+      project: "Mustang Restoration",
+      dueDate: "2023-05-15",
+      status: "todo",
+      priority: "high",
+    },
+    {
+      id: "2",
+      title: "Install suspension kit",
+      project: "Jeep Wrangler Build",
+      dueDate: "2023-05-18",
+      status: "completed",
+      priority: "medium",
+    },
+    {
+      id: "3",
+      title: "Rebuild transmission",
+      project: "BMW Engine Swap",
+      dueDate: "2023-05-20",
+      status: "in-progress",
+      priority: "high",
+    },
+    {
+      id: "4",
+      title: "Paint interior trim pieces",
+      project: "Mustang Restoration",
+      dueDate: "2023-05-22",
+      status: "todo",
+      priority: "low",
+    },
+    {
+      id: "5",
+      title: "Install new exhaust system",
+      project: "BMW Engine Swap",
+      dueDate: "2023-05-25",
+      status: "todo",
+      priority: "medium",
+    },
+    {
+      id: "6",
+      title: "Replace brake pads and rotors",
+      project: "Jeep Wrangler Build",
+      dueDate: "2023-05-28",
+      status: "todo",
+      priority: "high",
+    },
+    {
+      id: "7",
+      title: "Reupholster seats",
+      project: "Mustang Restoration",
+      dueDate: "2023-06-01",
+      status: "todo",
+      priority: "medium",
+    },
+    {
+      id: "8",
+      title: "Install lift kit",
+      project: "Jeep Wrangler Build",
+      dueDate: "2023-06-05",
+      status: "todo",
+      priority: "high",
+    },
+    {
+      id: "9",
+      title: "Tune ECU",
+      project: "BMW Engine Swap",
+      dueDate: "2023-06-08",
+      status: "todo",
+      priority: "medium",
+    },
+    {
+      id: "10",
+      title: "Replace fuel pump",
+      project: "Mustang Restoration",
+      dueDate: "2023-06-10",
+      status: "todo",
+      priority: "high",
+    },
+  ]
 
+  const [tasks, setTasks] = useState<Task[]>(initialTasks)
+
+  // Filter tasks based on props
+  let filteredTasks = tasks
+  if (filter === "upcoming") {
+    filteredTasks = tasks.filter((task) => task.status !== "completed")
+  } else if (filter === "completed") {
+    filteredTasks = tasks.filter((task) => task.status === "completed")
+  }
+
+  // Limit the number of tasks
+  filteredTasks = filteredTasks.slice(0, limit)
+
+  // Toggle task completion
   const toggleTaskStatus = (taskId: string) => {
     setTasks(
       tasks.map((task) => {
         if (task.id === taskId) {
-          const newStatus = task.status === "completed" ? "todo" : "completed"
-          return { ...task, status: newStatus }
+          return {
+            ...task,
+            status: task.status === "completed" ? "todo" : "completed",
+          }
         }
         return task
       }),
     )
   }
 
+  // Get badge color based on priority
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case "high":
-        return "destructive"
+        return "bg-red-500 hover:bg-red-600"
       case "medium":
-        return "warning"
+        return "bg-yellow-500 hover:bg-yellow-600"
       case "low":
-        return "secondary"
+        return "bg-green-500 hover:bg-green-600"
       default:
-        return "secondary"
+        return "bg-slate-500 hover:bg-slate-600"
     }
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Tasks</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="all" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="todo">To Do</TabsTrigger>
-            <TabsTrigger value="in-progress">In Progress</TabsTrigger>
-            <TabsTrigger value="completed">Completed</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="all" className="space-y-4">
-            {tasks.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-center gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors"
-              >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 rounded-full p-0 text-muted-foreground"
-                  onClick={() => toggleTaskStatus(task.id)}
-                >
-                  {task.status === "completed" ? (
-                    <CheckCircle2 className="h-5 w-5 text-primary" />
-                  ) : (
-                    <Circle className="h-5 w-5" />
-                  )}
-                  <span className="sr-only">Toggle task</span>
-                </Button>
-
-                <div className="flex-1 space-y-1">
-                  <p
-                    className={`text-sm font-medium leading-none ${task.status === "completed" ? "line-through text-muted-foreground" : ""}`}
-                  >
-                    {task.title}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{task.project}</p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Badge variant={getPriorityColor(task.priority)}>{task.priority}</Badge>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap">
-                    <Clock className="h-3 w-3" />
-                    <span>{task.dueDate}</span>
-                  </div>
-                </div>
+    <div className="space-y-4">
+      {filteredTasks.length === 0 ? (
+        <div className="text-center py-4 text-muted-foreground">No tasks found</div>
+      ) : (
+        filteredTasks.map((task) => (
+          <div key={task.id} className="flex items-center justify-between p-3 border rounded-lg">
+            <div className="flex items-center gap-3">
+              <Checkbox checked={task.status === "completed"} onCheckedChange={() => toggleTaskStatus(task.id)} />
+              <div>
+                <p className={task.status === "completed" ? "line-through text-muted-foreground" : ""}>{task.title}</p>
+                <p className="text-xs text-muted-foreground">{task.project}</p>
               </div>
-            ))}
-          </TabsContent>
-
-          <TabsContent value="todo" className="space-y-4">
-            {tasks
-              .filter((t) => t.status === "todo")
-              .map((task) => (
-                <div
-                  key={task.id}
-                  className="flex items-center gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors"
-                >
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 rounded-full p-0 text-muted-foreground"
-                    onClick={() => toggleTaskStatus(task.id)}
-                  >
-                    <Circle className="h-5 w-5" />
-                    <span className="sr-only">Toggle task</span>
-                  </Button>
-
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium leading-none">{task.title}</p>
-                    <p className="text-xs text-muted-foreground">{task.project}</p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Badge variant={getPriorityColor(task.priority)}>{task.priority}</Badge>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap">
-                      <Clock className="h-3 w-3" />
-                      <span>{task.dueDate}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-          </TabsContent>
-
-          <TabsContent value="in-progress" className="space-y-4">
-            {tasks
-              .filter((t) => t.status === "in-progress")
-              .map((task) => (
-                <div
-                  key={task.id}
-                  className="flex items-center gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors"
-                >
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 rounded-full p-0 text-muted-foreground"
-                    onClick={() => toggleTaskStatus(task.id)}
-                  >
-                    <Circle className="h-5 w-5" />
-                    <span className="sr-only">Toggle task</span>
-                  </Button>
-
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium leading-none">{task.title}</p>
-                    <p className="text-xs text-muted-foreground">{task.project}</p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Badge variant={getPriorityColor(task.priority)}>{task.priority}</Badge>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap">
-                      <Clock className="h-3 w-3" />
-                      <span>{task.dueDate}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-          </TabsContent>
-
-          <TabsContent value="completed" className="space-y-4">
-            {tasks
-              .filter((t) => t.status === "completed")
-              .map((task) => (
-                <div
-                  key={task.id}
-                  className="flex items-center gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors"
-                >
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 rounded-full p-0 text-muted-foreground"
-                    onClick={() => toggleTaskStatus(task.id)}
-                  >
-                    <CheckCircle2 className="h-5 w-5 text-primary" />
-                    <span className="sr-only">Toggle task</span>
-                  </Button>
-
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium leading-none line-through text-muted-foreground">{task.title}</p>
-                    <p className="text-xs text-muted-foreground">{task.project}</p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Badge variant={getPriorityColor(task.priority)}>{task.priority}</Badge>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap">
-                      <Clock className="h-3 w-3" />
-                      <span>{task.dueDate}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                <span>{task.dueDate}</span>
+              </Badge>
+              <Badge className={getPriorityColor(task.priority)}>{task.priority}</Badge>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
   )
 }
