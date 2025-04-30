@@ -7,18 +7,20 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Logo } from "@/components/logo"
 
 interface DemoHeaderProps {
-  sidebarOpen: boolean
-  setSidebarOpen: (open: boolean) => void
+  sidebarOpen?: boolean
+  setSidebarOpen?: (open: boolean) => void
 }
 
-export function DemoHeader({ sidebarOpen, setSidebarOpen }: DemoHeaderProps) {
+export function DemoHeader({ sidebarOpen, setSidebarOpen }: DemoHeaderProps = {}) {
   return (
     <header className="fixed top-0 left-0 right-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 md:px-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setSidebarOpen(!sidebarOpen)}>
-          <Menu className="h-5 w-5" />
-          <span className="sr-only">Toggle sidebar</span>
-        </Button>
+        {setSidebarOpen && (
+          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setSidebarOpen(!sidebarOpen)}>
+            <Menu className="h-5 w-5" />
+            <span className="sr-only">Toggle sidebar</span>
+          </Button>
+        )}
         <div className="hidden md:block">
           <Logo />
         </div>

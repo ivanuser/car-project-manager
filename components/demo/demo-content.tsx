@@ -1,10 +1,14 @@
 "use client"
-
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { DemoProjectCard } from "./demo-project-card"
 import { DemoTaskList } from "./demo-task-list"
 import { DemoBudgetChart } from "./demo-budget-chart"
+import { DemoGallery } from "./demo-gallery"
+import { DemoTimeline } from "./demo-timeline"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+import { CalendarIcon, Clock, Settings, Plus } from "lucide-react"
 
 interface DemoContentProps {
   activeTab: string
@@ -17,6 +21,52 @@ export function DemoContent({ activeTab }: DemoContentProps) {
     { title: "Active Tasks", value: "12" },
     { title: "Parts Inventory", value: "47" },
     { title: "Budget Used", value: "68%" },
+  ]
+
+  // Sample projects data with more details
+  const projectsData = [
+    {
+      id: "1",
+      title: "1967 Mustang Restoration",
+      description: "Full restoration of a classic 1967 Ford Mustang Fastback",
+      progress: 75,
+      image: "/vintage-mustang.png",
+      status: "In Progress",
+      budget: "$12,000",
+      spent: "$9,000",
+      tasks: 18,
+      completedTasks: 14,
+      startDate: "Jan 15, 2023",
+      estimatedCompletion: "Aug 30, 2023",
+    },
+    {
+      id: "2",
+      title: "BMW M3 Engine Swap",
+      description: "Swapping an S55 engine into an E46 M3 chassis",
+      progress: 45,
+      image: "/bmw-m3-engine.png",
+      status: "In Progress",
+      budget: "$8,500",
+      spent: "$3,825",
+      tasks: 12,
+      completedTasks: 5,
+      startDate: "Mar 10, 2023",
+      estimatedCompletion: "Oct 15, 2023",
+    },
+    {
+      id: "3",
+      title: "Jeep Wrangler Offroad Build",
+      description: "Building a capable off-road Jeep Wrangler with lift kit and accessories",
+      progress: 30,
+      image: "/jeep-wrangler-offroad.png",
+      status: "In Progress",
+      budget: "$6,000",
+      spent: "$1,800",
+      tasks: 15,
+      completedTasks: 4,
+      startDate: "Apr 5, 2023",
+      estimatedCompletion: "Nov 30, 2023",
+    },
   ]
 
   return (
@@ -94,73 +144,97 @@ export function DemoContent({ activeTab }: DemoContentProps) {
 
       {activeTab === "projects" && (
         <div className="space-y-6">
-          <h2 className="text-3xl font-bold tracking-tight">Your Projects</h2>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            <DemoProjectCard
-              title="1967 Mustang Restoration"
-              progress={75}
-              image="/vintage-mustang.png"
-              description="Full restoration of a classic 1967 Ford Mustang, including engine rebuild, interior restoration, and paint job."
-            />
-            <DemoProjectCard
-              title="BMW M3 Engine Swap"
-              progress={45}
-              image="/bmw-m3-engine.png"
-              description="Swapping the stock engine with an S55 twin-turbo inline-six from a 2018 M3 Competition."
-            />
-            <DemoProjectCard
-              title="Jeep Wrangler Offroad Build"
-              progress={30}
-              image="/jeep-wrangler-offroad.png"
-              description="Converting a stock Jeep Wrangler into an off-road beast with lift kit, winch, and custom bumpers."
-            />
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight">Projects</h2>
+              <p className="text-muted-foreground">Manage and track your vehicle projects</p>
+            </div>
+            <Button className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              New Project
+            </Button>
           </div>
-        </div>
-      )}
 
-      {activeTab === "tasks" && (
-        <div className="space-y-6">
-          <h2 className="text-3xl font-bold tracking-tight">Task Management</h2>
-          <Tabs defaultValue="all">
-            <TabsList>
-              <TabsTrigger value="all">All Tasks</TabsTrigger>
-              <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-              <TabsTrigger value="completed">Completed</TabsTrigger>
-            </TabsList>
-            <TabsContent value="all" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>All Tasks</CardTitle>
-                  <CardDescription>View and manage all your project tasks</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <DemoTaskList limit={10} />
-                </CardContent>
+          <div className="grid gap-6">
+            {projectsData.map((project) => (
+              <Card key={project.id} className="overflow-hidden">
+                <div className="md:grid md:grid-cols-5">
+                  <div className="relative h-48 md:col-span-1 md:h-full">
+                    <img
+                      src={project.image || "/placeholder.svg"}
+                      alt={project.title}
+                      className="h-full w-full object-cover"
+                    />
+                    <Badge className="absolute right-2 top-2">{project.status}</Badge>
+                  </div>
+                  <div className="p-6 md:col-span-4">
+                    <CardHeader className="p-0 pb-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <CardTitle className="text-xl">{project.title}</CardTitle>
+                          <CardDescription className="mt-1">{project.description}</CardDescription>
+                        </div>
+                        <Button variant="ghost" size="icon">
+                          <Settings className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0 pb-4">
+                      <div className="grid gap-6 md:grid-cols-2">
+                        <div className="space-y-4">
+                          <div>
+                            <div className="mb-1 flex items-center justify-between text-sm">
+                              <span>Progress</span>
+                              <span className="font-medium">{project.progress}%</span>
+                            </div>
+                            <Progress value={project.progress} className="h-2" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <p className="text-muted-foreground">Budget</p>
+                              <p className="font-medium">{project.budget}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Spent</p>
+                              <p className="font-medium">{project.spent}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <p className="text-muted-foreground">Tasks</p>
+                            <p className="font-medium">
+                              {project.completedTasks} / {project.tasks}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Start Date</p>
+                            <div className="flex items-center gap-1">
+                              <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                              <p className="font-medium">{project.startDate}</p>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Est. Completion</p>
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                              <p className="font-medium">{project.estimatedCompletion}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="flex justify-end gap-2 p-0">
+                      <Button variant="outline">View Tasks</Button>
+                      <Button variant="outline">View Parts</Button>
+                      <Button variant="outline">View Gallery</Button>
+                      <Button>View Details</Button>
+                    </CardFooter>
+                  </div>
+                </div>
               </Card>
-            </TabsContent>
-            <TabsContent value="upcoming" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Upcoming Tasks</CardTitle>
-                  <CardDescription>Tasks due in the next 7 days</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <DemoTaskList limit={5} filter="upcoming" />
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="completed" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Completed Tasks</CardTitle>
-                  <CardDescription>Tasks you've already completed</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <DemoTaskList limit={5} filter="completed" />
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+            ))}
+          </div>
         </div>
       )}
 
@@ -203,14 +277,37 @@ export function DemoContent({ activeTab }: DemoContentProps) {
         </div>
       )}
 
-      {activeTab !== "dashboard" && activeTab !== "projects" && activeTab !== "tasks" && activeTab !== "budget" && (
-        <div className="flex h-[50vh] items-center justify-center rounded-lg border border-dashed">
-          <div className="text-center">
-            <h3 className="text-lg font-medium">Feature Preview</h3>
-            <p className="text-sm text-muted-foreground">This feature is available in the full version</p>
-          </div>
+      {activeTab === "gallery" && (
+        <div className="space-y-6">
+          <h2 className="text-3xl font-bold tracking-tight">Project Gallery</h2>
+          <p className="text-muted-foreground">Document your build with photos and before/after comparisons</p>
+          <DemoGallery />
         </div>
       )}
+
+      {activeTab === "timeline" && (
+        <div className="space-y-6">
+          <h2 className="text-3xl font-bold tracking-tight">Timeline & Scheduling</h2>
+          <p className="text-muted-foreground">
+            Plan and track your project timeline with milestones and work sessions
+          </p>
+          <DemoTimeline />
+        </div>
+      )}
+
+      {activeTab !== "dashboard" &&
+        activeTab !== "projects" &&
+        activeTab !== "tasks" &&
+        activeTab !== "budget" &&
+        activeTab !== "gallery" &&
+        activeTab !== "timeline" && (
+          <div className="flex h-[50vh] items-center justify-center rounded-lg border border-dashed">
+            <div className="text-center">
+              <h3 className="text-lg font-medium">Feature Preview</h3>
+              <p className="text-sm text-muted-foreground">This feature is available in the full version</p>
+            </div>
+          </div>
+        )}
     </div>
   )
 }

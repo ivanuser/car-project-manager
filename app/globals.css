@@ -122,3 +122,38 @@
 .gradient-text {
   @apply bg-gradient-to-r from-purple-600 via-blue-600 to-blue-400 bg-clip-text text-transparent;
 }
+
+/* Calendar Styles */
+.rbc-calendar {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.rbc-btn-group {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.rbc-toolbar button:active,
+.rbc-toolbar button.rbc-active {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  box-shadow: none;
+}
+
+.rbc-toolbar button:hover {
+  background-color: hsl(var(--muted));
+}
+
+.rbc-event {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.rbc-today {
+  background-color: hsl(var(--muted) / 0.5);
+}
