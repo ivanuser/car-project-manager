@@ -18,6 +18,8 @@ interface SidebarContextValue {
   isOpen: boolean
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>
   toggleSidebar: () => void
+  isHovering: boolean
+  setIsHovering: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 const SidebarContext = React.createContext<SidebarContextValue | undefined>(undefined)
@@ -37,26 +39,33 @@ interface SidebarProviderProps {
 
 export function SidebarProvider({ children, defaultOpen = false }: SidebarProviderProps) {
   const [isOpen, setIsOpen] = React.useState(defaultOpen)
+  const [isHovering, setIsHovering] = React.useState(false)
 
   const toggleSidebar = React.useCallback(() => {
     setIsOpen((prev) => !prev)
   }, [])
 
-  return <SidebarContext.Provider value={{ isOpen, setIsOpen, toggleSidebar }}>{children}</SidebarContext.Provider>
+  return (
+    <SidebarContext.Provider value={{ isOpen, setIsOpen, toggleSidebar, isHovering, setIsHovering }}>
+      {children}
+    </SidebarContext.Provider>
+  )
 }
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 export function Sidebar({ className, ...props }: SidebarProps) {
-  const { isOpen } = useSidebar()
+  const { isOpen, isHovering, setIsHovering } = useSidebar()
 
   return (
     <div
       className={cn(
-        "fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r bg-card transition-transform",
-        isOpen ? "translate-x-0" : "-translate-x-full",
+        "fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r bg-card transition-all duration-300",
+        isOpen ? (isHovering ? "translate-x-0 opacity-100" : "translate-x-[-90%] opacity-70") : "translate-x-full",
         className,
       )}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
       {...props}
     />
   )

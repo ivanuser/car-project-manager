@@ -2,20 +2,26 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { format } from "date-fns"
 import { getVehicleProject } from "@/actions/project-actions"
+import { getPartsByProjectId } from "@/actions/parts-actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, Calendar, DollarSign, Edit, Plus, Tag } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
+import { PartsList } from "@/components/parts/parts-list"
 
 interface ProjectPageProps {
   params: {
     id: string
   }
+  searchParams: {
+    tab?: string
+  }
 }
 
-export default async function ProjectPage({ params }: ProjectPageProps) {
+export default async function ProjectPage({ params, searchParams }: ProjectPageProps) {
   const project = await getVehicleProject(params.id)
+  const parts = await getPartsByProjectId(params.id)
 
   if (!project) {
     notFound()
@@ -38,6 +44,9 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
   const projectType = project.project_type
     ? projectTypeMap[project.project_type] || project.project_type
     : "Not specified"
+
+  // Determine active tab
+  const activeTab = searchParams.tab || "tasks"
 
   return (
     <div className="space-y-6">
@@ -150,7 +159,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         </Card>
       </div>
 
-      <Tabs defaultValue="tasks">
+      <Tabs defaultValue={activeTab}>
         <TabsList>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
           <TabsTrigger value="parts">Parts</TabsTrigger>
@@ -173,16 +182,14 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         <TabsContent value="parts" className="mt-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium">Parts</h3>
-            <Button size="sm" disabled>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Part
+            <Button size="sm" asChild>
+              <Link href={`/dashboard/projects/${project.id}/parts/new`}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Part
+              </Link>
             </Button>
           </div>
-          <Card>
-            <CardContent className="py-8 text-center">
-              <p className="text-muted-foreground mb-4">Parts inventory coming soon</p>
-            </CardContent>
-          </Card>
+          <PartsList parts={parts} projectId={project.id} />
         </TabsContent>
         <TabsContent value="gallery" className="mt-4">
           <div className="flex items-center justify-between mb-4">

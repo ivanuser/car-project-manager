@@ -117,6 +117,35 @@ export interface Database {
           completed_at?: string | null
         }
       }
+      vendors: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          name: string
+          website: string | null
+          notes: string | null
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          name: string
+          website?: string | null
+          notes?: string | null
+          user_id: string
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          name?: string
+          website?: string | null
+          notes?: string | null
+          user_id?: string
+        }
+      }
       project_parts: {
         Row: {
           id: string
@@ -124,12 +153,18 @@ export interface Database {
           updated_at: string
           name: string
           description: string | null
+          part_number: string | null
           price: number | null
           quantity: number
           status: string
+          condition: string | null
+          location: string | null
           project_id: string
+          vendor_id: string | null
           purchase_date: string | null
           purchase_url: string | null
+          image_url: string | null
+          notes: string | null
         }
         Insert: {
           id?: string
@@ -137,12 +172,18 @@ export interface Database {
           updated_at?: string
           name: string
           description?: string | null
+          part_number?: string | null
           price?: number | null
           quantity?: number
           status?: string
+          condition?: string | null
+          location?: string | null
           project_id: string
+          vendor_id?: string | null
           purchase_date?: string | null
           purchase_url?: string | null
+          image_url?: string | null
+          notes?: string | null
         }
         Update: {
           id?: string
@@ -150,12 +191,18 @@ export interface Database {
           updated_at?: string
           name?: string
           description?: string | null
+          part_number?: string | null
           price?: number | null
           quantity?: number
           status?: string
+          condition?: string | null
+          location?: string | null
           project_id?: string
+          vendor_id?: string | null
           purchase_date?: string | null
           purchase_url?: string | null
+          image_url?: string | null
+          notes?: string | null
         }
       }
     }

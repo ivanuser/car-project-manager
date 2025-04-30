@@ -17,9 +17,12 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { signOut } from "@/actions/auth-actions"
+import { ThemeToggle } from "@/components/theme-toggle"
+import { BackgroundToggle } from "@/components/background-toggle"
+import { useToast } from "@/hooks/use-toast"
 
 interface HeaderProps {
-  user: {
+  user?: {
     id: string
     email?: string
     fullName?: string
@@ -29,13 +32,43 @@ interface HeaderProps {
 
 export function Header({ user }: HeaderProps) {
   const [open, setOpen] = useState(false)
-  const initials = user.fullName
+  const { toast } = useToast()
+  const initials = user?.fullName
     ? user.fullName
         .split(" ")
         .map((n) => n[0])
         .join("")
         .toUpperCase()
-    : user.email?.charAt(0).toUpperCase() || "U"
+    : user?.email?.charAt(0).toUpperCase() || "U"
+
+  // Handle background intensity change
+  const handleBackgroundToggle = (intensity: "none" | "light" | "medium" | "strong" | "max") => {
+    // Find the gradient background element and update its class
+    const gradientEl = document.querySelector("[data-gradient-background]")
+    if (gradientEl) {
+      // Remove all intensity classes
+      gradientEl.classList.remove("opacity-0", "opacity-30", "opacity-50", "opacity-70", "opacity-90")
+
+      // Add the appropriate class based on intensity
+      if (intensity === "none") {
+        gradientEl.classList.add("opacity-0")
+      } else if (intensity === "light") {
+        gradientEl.classList.add("opacity-30")
+      } else if (intensity === "medium") {
+        gradientEl.classList.add("opacity-50")
+      } else if (intensity === "strong") {
+        gradientEl.classList.add("opacity-70")
+      } else if (intensity === "max") {
+        gradientEl.classList.add("opacity-90")
+      }
+    }
+
+    toast({
+      title: "Background Updated",
+      description: `Background intensity set to ${intensity}`,
+      duration: 2000,
+    })
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
@@ -56,6 +89,9 @@ export function Header({ user }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-4">
+        <BackgroundToggle onToggle={handleBackgroundToggle} defaultIntensity="strong" />
+        <ThemeToggle />
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="icon" className="rounded-full">
@@ -74,7 +110,7 @@ export function Header({ user }: HeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
               <Avatar>
-                <AvatarImage src={user.avatarUrl || ""} alt={user.fullName || user.email || ""} />
+                <AvatarImage src={user?.avatarUrl || ""} alt={user?.fullName || user?.email || ""} />
                 <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>
             </Button>

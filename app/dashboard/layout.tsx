@@ -6,6 +6,7 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { Header } from "@/components/dashboard/header"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/toaster"
+import { GradientBackground } from "@/components/gradient-background"
 
 export default async function DashboardLayout({
   children,
@@ -72,7 +73,10 @@ export default async function DashboardLayout({
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <div className="flex min-h-screen bg-background">
+      {/* Gradient background with increased intensity */}
+      <GradientBackground intensity="strong" />
+
+      <div className="flex min-h-screen bg-background/80 backdrop-blur-[2px] relative">
         <div className="hidden md:block">
           <DashboardSidebar />
         </div>

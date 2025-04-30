@@ -1,6 +1,9 @@
-import { Card, CardContent } from "@/components/ui/card"
+import { getAllParts } from "@/actions/parts-actions"
+import { PartsList } from "@/components/parts/parts-list"
 
-export default function PartsPage() {
+export default async function PartsPage() {
+  const { data: parts = [], error } = await getAllParts()
+
   return (
     <div className="space-y-6">
       <div>
@@ -8,11 +11,13 @@ export default function PartsPage() {
         <p className="text-muted-foreground">Manage parts inventory across all your vehicle projects.</p>
       </div>
 
-      <Card>
-        <CardContent className="py-8 text-center">
-          <p className="text-muted-foreground mb-4">Parts inventory management coming soon</p>
-        </CardContent>
-      </Card>
+      {error ? (
+        <div className="p-4 bg-destructive/10 text-destructive rounded-md">
+          <p>Error loading parts: {error}</p>
+        </div>
+      ) : (
+        <PartsList parts={parts} showProject={true} />
+      )}
     </div>
   )
 }

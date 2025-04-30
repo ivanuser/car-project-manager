@@ -26,6 +26,9 @@ export function Hero() {
             >
               <Link href="/login?tab=register">Start Your First Project</Link>
             </Button>
+            <Button size="lg" variant="secondary" asChild>
+              <Link href="/demo">Try Demo</Link>
+            </Button>
             <Button size="lg" variant="outline" asChild>
               <Link href="/#features">See Features</Link>
             </Button>

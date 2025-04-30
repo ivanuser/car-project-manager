@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/supabase"
 
 // Get environment variables with fallbacks for development/preview
@@ -15,13 +15,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Client-side singleton pattern
-let supabaseClient: ReturnType<typeof createClient<Database>> | null = null
+let supabaseClient: ReturnType<typeof createSupabaseClient<Database>> | null = null
 
 // Create a browser client (for client components)
 export const createBrowserClient = () => {
   if (supabaseClient) return supabaseClient
 
-  supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  supabaseClient = createSupabaseClient<Database>(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
@@ -35,7 +35,7 @@ export const createBrowserClient = () => {
 // Create a server-side supabase client (for server components and server actions)
 export const createServerClient = () => {
   // For server-side, we always create a new instance to avoid sharing state
-  return createClient<Database>(supabaseUrl, supabaseServiceRoleKey, {
+  return createSupabaseClient<Database>(supabaseUrl, supabaseServiceRoleKey, {
     auth: {
       persistSession: false,
     },
@@ -44,3 +44,9 @@ export const createServerClient = () => {
 
 // Export a singleton instance for client-side usage
 export const supabase = typeof window !== "undefined" ? createBrowserClient() : null
+
+// Re-export createClient for backward compatibility
+// This should be a function that includes the URL and key, not just the raw function
+export const createClient = () => {
+  return createServerClient()
+}
