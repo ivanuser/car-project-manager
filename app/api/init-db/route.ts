@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server"
 import { initializeDatabase } from "@/lib/init-db"
+import { initializeExpenseSchema } from "@/lib/init-expense-schema"
 
 export async function GET() {
   try {
+    // Initialize the main database schema
     const result = await initializeDatabase()
 
     if (!result.success) {
@@ -10,6 +12,19 @@ export async function GET() {
         {
           success: false,
           error: result.error,
+        },
+        { status: 500 },
+      )
+    }
+
+    // Initialize the expense schema
+    const expenseResult = await initializeExpenseSchema()
+
+    if (!expenseResult.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: expenseResult.error,
         },
         { status: 500 },
       )

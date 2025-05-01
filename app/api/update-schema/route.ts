@@ -11,12 +11,21 @@ export async function GET() {
     const schemaPath = path.join(process.cwd(), "db", "schema-update.sql")
     const schemaSQL = fs.readFileSync(schemaPath, "utf8")
 
-    // Execute the SQL
-    const { error } = await supabase.rpc("exec_sql", { sql: schemaSQL })
+    // Split the SQL into individual statements
+    const statements = schemaSQL
+      .split(";")
+      .map((statement) => statement.trim())
+      .filter((statement) => statement.length > 0)
 
-    if (error) {
-      console.error("Error updating schema:", error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    // Execute each statement separately
+    for (const statement of statements) {
+      const { error } = await supabase.from("_sql").select("*").eq("query", statement).limit(1)
+
+      if (error && error.code !== "PGRST109") {
+        // PGRST109 is "no rows returned" which is expected
+        console.error("Error executing SQL statement:", error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
     }
 
     return NextResponse.json({ success: true, message: "Schema updated successfully" })

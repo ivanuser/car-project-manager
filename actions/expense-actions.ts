@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { createServerClient } from "@/lib/supabase"
 import { getBudgetCategories, type BudgetItem } from "@/actions/budget-actions"
+import { initializeExpenseSchema } from "@/lib/init-expense-schema"
 
 export interface ReceiptData {
   vendor: string
@@ -158,6 +159,9 @@ async function suggestExpenseCategory(receiptData: ReceiptData): Promise<string 
 export async function createExpenseReport(formData: FormData) {
   const supabase = createServerClient()
 
+  // Ensure the expense schema is initialized
+  await initializeExpenseSchema()
+
   const title = formData.get("title") as string
   const description = (formData.get("description") as string) || null
   const startDate = formData.get("startDate") as string
@@ -203,6 +207,14 @@ export async function createExpenseReport(formData: FormData) {
 export async function getUserExpenseReports() {
   const supabase = createServerClient()
 
+  // Ensure the expense schema is initialized
+  try {
+    await initializeExpenseSchema()
+  } catch (error) {
+    console.error("Error initializing expense schema:", error)
+    return []
+  }
+
   // Get user ID from session
   const {
     data: { session },
@@ -210,6 +222,19 @@ export async function getUserExpenseReports() {
   const userId = session?.user?.id
 
   if (!userId) {
+    return []
+  }
+
+  // Check if the expense_reports table exists
+  const { data: tableExists, error: checkError } = await supabase
+    .from("information_schema.tables")
+    .select("table_name")
+    .eq("table_name", "expense_reports")
+    .eq("table_schema", "public")
+    .limit(1)
+
+  if (checkError || !tableExists || tableExists.length === 0) {
+    console.error("Expense reports table does not exist:", checkError)
     return []
   }
 
@@ -231,6 +256,27 @@ export async function getUserExpenseReports() {
 export async function getExpenseReport(reportId: string) {
   const supabase = createServerClient()
 
+  // Ensure the expense schema is initialized
+  try {
+    await initializeExpenseSchema()
+  } catch (error) {
+    console.error("Error initializing expense schema:", error)
+    return null
+  }
+
+  // Check if the expense_reports table exists
+  const { data: tableExists, error: checkError } = await supabase
+    .from("information_schema.tables")
+    .select("table_name")
+    .eq("table_name", "expense_reports")
+    .eq("table_schema", "public")
+    .limit(1)
+
+  if (checkError || !tableExists || tableExists.length === 0) {
+    console.error("Expense reports table does not exist:", checkError)
+    return null
+  }
+
   // Get the report
   const { data: report, error: reportError } = await supabase
     .from("expense_reports")
@@ -241,6 +287,22 @@ export async function getExpenseReport(reportId: string) {
   if (reportError) {
     console.error("Error fetching expense report:", reportError)
     return null
+  }
+
+  // Check if budget_items table has expense_report_id column
+  const { data: columnExists, error: columnError } = await supabase
+    .from("information_schema.columns")
+    .select("column_name")
+    .eq("table_name", "budget_items")
+    .eq("column_name", "expense_report_id")
+    .limit(1)
+
+  if (columnError || !columnExists || columnExists.length === 0) {
+    console.error("Expense report ID column does not exist in budget_items:", columnError)
+    return {
+      ...report,
+      items: [],
+    } as ExpenseReport
   }
 
   // Get the report items (budget items linked to this report)
@@ -255,7 +317,10 @@ export async function getExpenseReport(reportId: string) {
 
   if (itemsError) {
     console.error("Error fetching expense report items:", itemsError)
-    return null
+    return {
+      ...report,
+      items: [],
+    } as ExpenseReport
   }
 
   // Format the data to include category_name
@@ -273,6 +338,9 @@ export async function getExpenseReport(reportId: string) {
 // Update expense report status
 export async function updateExpenseReportStatus(reportId: string, status: string) {
   const supabase = createServerClient()
+
+  // Ensure the expense schema is initialized
+  await initializeExpenseSchema()
 
   const { data, error } = await supabase
     .from("expense_reports")
@@ -295,6 +363,22 @@ export async function updateExpenseReportStatus(reportId: string, status: string
 // Add an expense item to a report
 export async function addExpenseToReport(reportId: string, itemId: string) {
   const supabase = createServerClient()
+
+  // Ensure the expense schema is initialized
+  await initializeExpenseSchema()
+
+  // Check if budget_items table has expense_report_id column
+  const { data: columnExists, error: columnError } = await supabase
+    .from("information_schema.columns")
+    .select("column_name")
+    .eq("table_name", "budget_items")
+    .eq("column_name", "expense_report_id")
+    .limit(1)
+
+  if (columnError || !columnExists || columnExists.length === 0) {
+    console.error("Expense report ID column does not exist in budget_items:", columnError)
+    return { error: "Database schema is not properly set up for expense reports" }
+  }
 
   // Update the budget item to link it to the report
   const { data: itemData, error: itemError } = await supabase
@@ -332,6 +416,22 @@ export async function addExpenseToReport(reportId: string, itemId: string) {
 export async function removeExpenseFromReport(reportId: string, itemId: string) {
   const supabase = createServerClient()
 
+  // Ensure the expense schema is initialized
+  await initializeExpenseSchema()
+
+  // Check if budget_items table has expense_report_id column
+  const { data: columnExists, error: columnError } = await supabase
+    .from("information_schema.columns")
+    .select("column_name")
+    .eq("table_name", "budget_items")
+    .eq("column_name", "expense_report_id")
+    .limit(1)
+
+  if (columnError || !columnExists || columnExists.length === 0) {
+    console.error("Expense report ID column does not exist in budget_items:", columnError)
+    return { error: "Database schema is not properly set up for expense reports" }
+  }
+
   // Update the budget item to unlink it from the report
   const { data: itemData, error: itemError } = await supabase
     .from("budget_items")
@@ -367,6 +467,14 @@ export async function removeExpenseFromReport(reportId: string, itemId: string) 
 // Get expense analytics data
 export async function getExpenseAnalytics(projectId?: string, timeframe = "month") {
   const supabase = createServerClient()
+
+  // Ensure the expense schema is initialized
+  try {
+    await initializeExpenseSchema()
+  } catch (error) {
+    console.error("Error initializing expense schema:", error)
+    return null
+  }
 
   // Define the time range based on the timeframe
   let startDate: Date
