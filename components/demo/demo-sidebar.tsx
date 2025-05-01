@@ -9,6 +9,8 @@ import {
   Wrench,
   Receipt,
   ShoppingBag,
+  Package,
+  FileText,
 } from "lucide-react"
 
 interface DemoSidebarProps {
@@ -58,6 +60,18 @@ export function DemoSidebar({ activeTab, onTabChange }: DemoSidebarProps) {
           >
             <Tool className="h-4 w-4" />
             Tasks
+          </button>
+
+          <button
+            onClick={() => onTabChange("parts")}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all ${
+              activeTab === "parts"
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            }`}
+          >
+            <Package className="h-4 w-4" />
+            Parts
           </button>
 
           <button
@@ -118,6 +132,18 @@ export function DemoSidebar({ activeTab, onTabChange }: DemoSidebarProps) {
           >
             <ShoppingBag className="h-4 w-4" />
             Vendors
+          </button>
+
+          <button
+            onClick={() => onTabChange("documents")}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all ${
+              activeTab === "documents"
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            }`}
+          >
+            <FileText className="h-4 w-4" />
+            Documents
           </button>
 
           <button

@@ -8,7 +8,7 @@ import { getProjectMilestones } from "@/actions/timeline-actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Calendar, Camera, Clock, DollarSign, Edit, Plus, Tag, Wrench } from "lucide-react"
+import { ArrowLeft, Calendar, Camera, Clock, DollarSign, Edit, FileText, Plus, Tag, Wrench } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { PartsList } from "@/components/parts/parts-list"
 import { BeforeAfterComparison } from "@/components/gallery/before-after-comparison"
@@ -97,6 +97,12 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
             <Link href={`/dashboard/projects/${project.id}/maintenance`}>
               <Wrench className="mr-2 h-4 w-4" />
               Maintenance
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href={`/dashboard/projects/${project.id}/documents`}>
+              <FileText className="mr-2 h-4 w-4" />
+              Documents
             </Link>
           </Button>
           <Button asChild>

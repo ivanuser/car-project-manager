@@ -13,6 +13,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DemoExpenses } from "./demo-expenses"
 import { DemoVendors } from "./demo-vendors"
+import { DemoParts } from "./demo-parts"
+import { DemoDocuments } from "./demo-documents"
 
 interface DemoContentProps {
   activeTab: string
@@ -189,6 +191,19 @@ export function DemoContent({ activeTab }: DemoContentProps) {
     )
   }
 
+  if (activeTab === "parts") {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Parts</h2>
+          <p className="text-muted-foreground">Manage your project parts and inventory</p>
+        </div>
+
+        <DemoParts />
+      </div>
+    )
+  }
+
   if (activeTab === "gallery") {
     return (
       <div className="space-y-6">
@@ -357,6 +372,10 @@ export function DemoContent({ activeTab }: DemoContentProps) {
         <DemoVendors />
       </div>
     )
+  }
+
+  if (activeTab === "documents") {
+    return <DemoDocuments />
   }
 
   return (
