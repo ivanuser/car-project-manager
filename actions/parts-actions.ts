@@ -522,3 +522,31 @@ export async function getAllVendors() {
     return []
   }
 }
+
+// Add this function to the existing parts-actions.ts file
+
+// Get parts by vendor ID
+export async function getPartsByVendorId(vendorId: string) {
+  try {
+    const supabase = createServerClient()
+
+    const { data, error } = await supabase
+      .from("project_parts")
+      .select(`
+        *,
+        vehicle_projects (id, title, make, model, year)
+      `)
+      .eq("vendor_id", vendorId)
+      .order("created_at", { ascending: false })
+
+    if (error) {
+      console.error("Error fetching parts by vendor:", error)
+      return []
+    }
+
+    return data || []
+  } catch (error) {
+    console.error("Unexpected error fetching parts by vendor:", error)
+    return []
+  }
+}

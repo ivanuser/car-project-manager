@@ -8,6 +8,7 @@ import {
   Truck,
   Wrench,
   Receipt,
+  ShoppingBag,
 } from "lucide-react"
 
 interface DemoSidebarProps {
@@ -105,6 +106,18 @@ export function DemoSidebar({ activeTab, onTabChange }: DemoSidebarProps) {
           >
             <Receipt className="h-4 w-4" />
             Expenses
+          </button>
+
+          <button
+            onClick={() => onTabChange("vendors")}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all ${
+              activeTab === "vendors"
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            }`}
+          >
+            <ShoppingBag className="h-4 w-4" />
+            Vendors
           </button>
 
           <button

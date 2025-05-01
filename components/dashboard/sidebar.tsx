@@ -2,7 +2,19 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BarChart2, Car, Cog, Home, LogOut, Package, PenToolIcon as Tool, User, Wrench, FileText } from "lucide-react"
+import {
+  BarChart2,
+  Car,
+  Cog,
+  Home,
+  LogOut,
+  Package,
+  PenToolIcon as Tool,
+  User,
+  Wrench,
+  FileText,
+  Building2,
+} from "lucide-react"
 
 import { Logo } from "@/components/logo"
 import {
@@ -77,6 +89,14 @@ export function DashboardSidebar() {
               <SidebarMenuButton isActive={isActive("/dashboard/parts")} tooltip="Parts">
                 <Package className="h-5 w-5" />
                 <span>Parts</span>
+              </SidebarMenuButton>
+            </Link>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <Link href="/dashboard/vendors" passHref legacyBehavior>
+              <SidebarMenuButton isActive={isActive("/dashboard/vendors")} tooltip="Vendors">
+                <Building2 className="h-5 w-5" />
+                <span>Vendors</span>
               </SidebarMenuButton>
             </Link>
           </SidebarMenuItem>

@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DemoExpenses } from "./demo-expenses"
+import { DemoVendors } from "./demo-vendors"
 
 interface DemoContentProps {
   activeTab: string
@@ -39,21 +40,21 @@ export function DemoContent({ activeTab }: DemoContentProps) {
             description="Classic car restoration project"
             progress={65}
             status="In Progress"
-            imageSrc="/vintage-mustang.png"
+            image="/vintage-mustang.png"
           />
           <DemoProjectCard
             title="BMW M3 Engine Swap"
             description="Performance upgrade project"
             progress={30}
             status="Planning"
-            imageSrc="/bmw-m3-engine.png"
+            image="/bmw-m3-engine.png"
           />
           <DemoProjectCard
             title="Jeep Wrangler Offroad Build"
             description="Offroad modification project"
             progress={85}
             status="Almost Complete"
-            imageSrc="/jeep-wrangler-offroad.png"
+            image="/jeep-wrangler-offroad.png"
           />
         </div>
 
@@ -85,7 +86,7 @@ export function DemoContent({ activeTab }: DemoContentProps) {
             description="Classic car restoration project"
             progress={65}
             status="In Progress"
-            imageSrc="/vintage-mustang.png"
+            image="/vintage-mustang.png"
             details={{
               make: "Ford",
               model: "Mustang",
@@ -100,7 +101,7 @@ export function DemoContent({ activeTab }: DemoContentProps) {
             description="Performance upgrade project"
             progress={30}
             status="Planning"
-            imageSrc="/bmw-m3-engine.png"
+            image="/bmw-m3-engine.png"
             details={{
               make: "BMW",
               model: "M3",
@@ -115,7 +116,7 @@ export function DemoContent({ activeTab }: DemoContentProps) {
             description="Offroad modification project"
             progress={85}
             status="Almost Complete"
-            imageSrc="/jeep-wrangler-offroad.png"
+            image="/jeep-wrangler-offroad.png"
             details={{
               make: "Jeep",
               model: "Wrangler",
@@ -130,7 +131,7 @@ export function DemoContent({ activeTab }: DemoContentProps) {
             description="Regular maintenance and minor upgrades"
             progress={45}
             status="In Progress"
-            imageSrc="/porsche-911.png"
+            image="/porsche-911.png"
             details={{
               make: "Porsche",
               model: "911",
@@ -145,7 +146,7 @@ export function DemoContent({ activeTab }: DemoContentProps) {
             description="Interior and exterior customization"
             progress={15}
             status="Just Started"
-            imageSrc="/tesla-model-3.png"
+            image="/tesla-model-3.png"
             details={{
               make: "Tesla",
               model: "Model 3",
@@ -160,7 +161,7 @@ export function DemoContent({ activeTab }: DemoContentProps) {
             description="Classic Corvette full restoration"
             progress={5}
             status="Planning"
-            imageSrc="/classic-corvette.png"
+            image="/classic-corvette.png"
             details={{
               make: "Chevrolet",
               model: "Corvette",
@@ -341,6 +342,19 @@ export function DemoContent({ activeTab }: DemoContentProps) {
         </div>
 
         <DemoExpenses />
+      </div>
+    )
+  }
+
+  if (activeTab === "vendors") {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Vendors</h2>
+          <p className="text-muted-foreground">Manage your parts suppliers and service providers</p>
+        </div>
+
+        <DemoVendors />
       </div>
     )
   }
