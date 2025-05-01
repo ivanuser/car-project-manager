@@ -263,28 +263,28 @@ export function DemoContent({ activeTab }: DemoContentProps) {
                       <div className="font-medium">Email Notifications</div>
                       <div className="text-sm text-muted-foreground">Receive email updates about your projects</div>
                     </div>
-                    <Switch checked={true} />
+                    <Switch defaultChecked={true} />
                   </div>
                   <div className="flex items-center justify-between space-x-2 rounded-lg border p-4">
                     <div className="space-y-0.5">
                       <div className="font-medium">Task Reminders</div>
                       <div className="text-sm text-muted-foreground">Get reminders for upcoming tasks</div>
                     </div>
-                    <Switch checked={true} />
+                    <Switch defaultChecked={true} />
                   </div>
                   <div className="flex items-center justify-between space-x-2 rounded-lg border p-4">
                     <div className="space-y-0.5">
                       <div className="font-medium">Budget Alerts</div>
                       <div className="text-sm text-muted-foreground">Alerts when approaching budget limits</div>
                     </div>
-                    <Switch checked={false} />
+                    <Switch defaultChecked={false} />
                   </div>
                   <div className="flex items-center justify-between space-x-2 rounded-lg border p-4">
                     <div className="space-y-0.5">
                       <div className="font-medium">Maintenance Reminders</div>
                       <div className="text-sm text-muted-foreground">Reminders for scheduled maintenance</div>
                     </div>
-                    <Switch checked={true} />
+                    <Switch defaultChecked={true} />
                   </div>
                 </div>
               </CardContent>
