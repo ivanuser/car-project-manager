@@ -10,6 +10,12 @@ export interface Database {
           updated_at: string
           full_name: string | null
           avatar_url: string | null
+          bio: string | null
+          location: string | null
+          website: string | null
+          expertise_level: string | null
+          social_links: Json | null
+          phone: string | null
         }
         Insert: {
           id: string
@@ -17,6 +23,12 @@ export interface Database {
           updated_at?: string
           full_name?: string | null
           avatar_url?: string | null
+          bio?: string | null
+          location?: string | null
+          website?: string | null
+          expertise_level?: string | null
+          social_links?: Json | null
+          phone?: string | null
         }
         Update: {
           id?: string
@@ -24,6 +36,59 @@ export interface Database {
           updated_at?: string
           full_name?: string | null
           avatar_url?: string | null
+          bio?: string | null
+          location?: string | null
+          website?: string | null
+          expertise_level?: string | null
+          social_links?: Json | null
+          phone?: string | null
+        }
+      }
+      user_preferences: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          theme: string
+          color_scheme: string
+          background_intensity: string
+          ui_density: string
+          date_format: string
+          time_format: string
+          measurement_unit: string
+          currency: string
+          notification_preferences: Json
+          display_preferences: Json
+        }
+        Insert: {
+          id: string
+          created_at?: string
+          updated_at?: string
+          theme?: string
+          color_scheme?: string
+          background_intensity?: string
+          ui_density?: string
+          date_format?: string
+          time_format?: string
+          measurement_unit?: string
+          currency?: string
+          notification_preferences?: Json
+          display_preferences?: Json
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          theme?: string
+          color_scheme?: string
+          background_intensity?: string
+          ui_density?: string
+          date_format?: string
+          time_format?: string
+          measurement_unit?: string
+          currency?: string
+          notification_preferences?: Json
+          display_preferences?: Json
         }
       }
       vehicle_projects: {
