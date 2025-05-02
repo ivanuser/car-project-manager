@@ -46,11 +46,6 @@ export function DevLoginButton() {
     }
   }
 
-  // Only show in development
-  if (process.env.NODE_ENV !== "development") {
-    return null
-  }
-
   return (
     <Button
       onClick={handleDevLogin}
