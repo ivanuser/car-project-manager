@@ -6,15 +6,10 @@ import { RecentActivityList } from "@/components/admin/recent-activity-list"
 import { SystemHealthIndicators } from "@/components/admin/system-health-indicators"
 import { UserGrowthChart } from "@/components/admin/user-growth-chart"
 import { StorageChart } from "@/components/admin/storage-chart"
-import { DbInitButton } from "@/components/admin/db-init-button"
 
 export default function AdminPage() {
   return (
     <div className="space-y-6 p-6">
-      <div className="mb-6">
-        <DbInitButton />
-      </div>
-
       <AdminDashboardOverview />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
