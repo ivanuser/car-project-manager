@@ -7,6 +7,8 @@ import { AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
+// Import the DevLoginButton component
+import { DevLoginButton } from "@/components/auth/dev-login-button"
 
 interface LoginPageProps {
   searchParams?: {
@@ -53,6 +55,8 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
         )}
 
         <AuthForm defaultTab={tab as "login" | "register"} />
+        {/* Add the DevLoginButton component below the AuthForm component */}
+        <DevLoginButton />
       </div>
 
       <Toaster />

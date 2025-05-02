@@ -17,10 +17,10 @@ export async function middleware(req: NextRequest) {
 
     // DEVELOPMENT MODE: Skip authentication checks completely
     // IMPORTANT: Remove this in production
-    if (process.env.NODE_ENV === "development") {
-      console.log("[Middleware] Development mode: Bypassing authentication checks")
-      return res
-    }
+    // if (process.env.NODE_ENV === "development") {
+    //   console.log("[Middleware] Development mode: Bypassing authentication checks")
+    //   return res
+    // }
 
     // Skip auth checks for static assets and API routes
     if (
