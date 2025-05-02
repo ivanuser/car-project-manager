@@ -3,12 +3,13 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
+import { Database, RefreshCw } from "lucide-react"
 
 export function DbInitButton() {
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
 
-  const handleInitDb = async () => {
+  const initializeDatabase = async () => {
     setIsLoading(true)
     try {
       const response = await fetch("/api/init-db-direct")
@@ -20,7 +21,7 @@ export function DbInitButton() {
 
       toast({
         title: "Database Initialized",
-        description: data.message || "Database tables created successfully",
+        description: data.message || "Database has been successfully initialized",
       })
     } catch (error) {
       console.error("Database initialization error:", error)
@@ -36,12 +37,22 @@ export function DbInitButton() {
 
   return (
     <Button
-      onClick={handleInitDb}
+      onClick={initializeDatabase}
       disabled={isLoading}
       variant="outline"
       className="bg-blue-100 hover:bg-blue-200 text-blue-800 border-blue-300"
     >
-      {isLoading ? "Initializing..." : "Initialize Database"}
+      {isLoading ? (
+        <>
+          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+          Initializing...
+        </>
+      ) : (
+        <>
+          <Database className="mr-2 h-4 w-4" />
+          Initialize Database
+        </>
+      )}
     </Button>
   )
 }

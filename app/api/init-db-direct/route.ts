@@ -3,18 +3,18 @@ import { createServerClient } from "@/lib/supabase"
 
 // SQL statements to create tables
 const createTablesSQL = `
--- Create profiles table if it doesn't exist
+-- Create profiles table
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   full_name TEXT,
-  email TEXT,
   avatar_url TEXT,
+  email TEXT,
   role TEXT DEFAULT 'user'
 );
 
--- Create vehicle_projects table if it doesn't exist
+-- Create vehicle_projects table with updated fields
 CREATE TABLE IF NOT EXISTS vehicle_projects (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -24,12 +24,17 @@ CREATE TABLE IF NOT EXISTS vehicle_projects (
   make TEXT NOT NULL,
   model TEXT NOT NULL,
   year INTEGER,
+  vin TEXT,
+  project_type TEXT,
+  start_date DATE,
+  end_date DATE,
+  budget DECIMAL(10, 2),
   status TEXT DEFAULT 'planning',
-  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
   thumbnail_url TEXT
 );
 
--- Create project_tasks table if it doesn't exist
+-- Create project_tasks table
 CREATE TABLE IF NOT EXISTS project_tasks (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -37,17 +42,25 @@ CREATE TABLE IF NOT EXISTS project_tasks (
   title TEXT NOT NULL,
   description TEXT,
   status TEXT DEFAULT 'todo',
-  priority TEXT DEFAULT 'medium',
   due_date TIMESTAMP WITH TIME ZONE,
-  completed_at TIMESTAMP WITH TIME ZONE,
-  project_id UUID REFERENCES vehicle_projects(id) ON DELETE CASCADE,
-  assigned_to UUID REFERENCES profiles(id) ON DELETE SET NULL,
-  estimated_hours NUMERIC(10, 2),
-  actual_hours NUMERIC(10, 2),
-  tags TEXT[]
+  project_id UUID NOT NULL REFERENCES vehicle_projects(id) ON DELETE CASCADE,
+  completed_at TIMESTAMP WITH TIME ZONE
 );
 
--- Create project_parts table if it doesn't exist
+-- Create vendors table
+CREATE TABLE IF NOT EXISTS vendors (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  name TEXT NOT NULL,
+  website TEXT,
+  phone TEXT,
+  email TEXT,
+  notes TEXT,
+  user_id UUID NOT NULL
+);
+
+-- Create enhanced project_parts table
 CREATE TABLE IF NOT EXISTS project_parts (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -55,20 +68,88 @@ CREATE TABLE IF NOT EXISTS project_parts (
   name TEXT NOT NULL,
   description TEXT,
   part_number TEXT,
-  manufacturer TEXT,
-  price NUMERIC(10, 2),
+  price DECIMAL(10, 2),
   quantity INTEGER DEFAULT 1,
   status TEXT DEFAULT 'needed',
-  project_id UUID REFERENCES vehicle_projects(id) ON DELETE CASCADE,
+  condition TEXT,
+  location TEXT,
+  project_id UUID NOT NULL REFERENCES vehicle_projects(id) ON DELETE CASCADE,
+  vendor_id UUID REFERENCES vendors(id) ON DELETE SET NULL,
   purchase_date TIMESTAMP WITH TIME ZONE,
-  installation_date TIMESTAMP WITH TIME ZONE,
-  vendor_id UUID,
+  purchase_url TEXT,
+  image_url TEXT,
   notes TEXT,
-  category TEXT,
-  weight NUMERIC(10, 2),
-  dimensions TEXT,
-  compatibility TEXT[]
+  user_id UUID NOT NULL
 );
+
+-- Create RLS policies for parts
+ALTER TABLE project_parts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY IF NOT EXISTS "Users can view parts for their projects" 
+  ON project_parts FOR SELECT 
+  USING (EXISTS (
+    SELECT 1 FROM vehicle_projects 
+    WHERE vehicle_projects.id = project_parts.project_id 
+    AND vehicle_projects.user_id = auth.uid()
+  ));
+
+CREATE POLICY IF NOT EXISTS "Users can create parts for their projects" 
+  ON project_parts FOR INSERT 
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM vehicle_projects 
+    WHERE vehicle_projects.id = project_parts.project_id 
+    AND vehicle_projects.user_id = auth.uid()
+  ));
+
+CREATE POLICY IF NOT EXISTS "Users can update parts for their projects" 
+  ON project_parts FOR UPDATE 
+  USING (EXISTS (
+    SELECT 1 FROM vehicle_projects 
+    WHERE vehicle_projects.id = project_parts.project_id 
+    AND vehicle_projects.user_id = auth.uid()
+  ));
+
+CREATE POLICY IF NOT EXISTS "Users can delete parts for their projects" 
+  ON project_parts FOR DELETE 
+  USING (EXISTS (
+    SELECT 1 FROM vehicle_projects 
+    WHERE vehicle_projects.id = project_parts.project_id 
+    AND vehicle_projects.user_id = auth.uid()
+  ));
+
+-- Create RLS policies for vendors
+ALTER TABLE vendors ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY IF NOT EXISTS "Users can view their own vendors" 
+  ON vendors FOR SELECT 
+  USING (auth.uid() = user_id);
+
+CREATE POLICY IF NOT EXISTS "Users can create their own vendors" 
+  ON vendors FOR INSERT 
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY IF NOT EXISTS "Users can update their own vendors" 
+  ON vendors FOR UPDATE 
+  USING (auth.uid() = user_id);
+
+CREATE POLICY IF NOT EXISTS "Users can delete their own vendors" 
+  ON vendors FOR DELETE 
+  USING (auth.uid() = user_id);
+`
+
+// Function to create the exec_sql function if it doesn't exist
+const createExecSqlFunction = `
+-- Create the exec_sql function that allows executing arbitrary SQL
+CREATE OR REPLACE FUNCTION exec_sql(sql text)
+RETURNS void AS $$
+BEGIN
+  EXECUTE sql;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execute permission to authenticated users
+GRANT EXECUTE ON FUNCTION exec_sql TO authenticated;
+GRANT EXECUTE ON FUNCTION exec_sql TO service_role;
 `
 
 export async function GET() {
@@ -76,42 +157,46 @@ export async function GET() {
     console.log("Initializing database tables directly...")
     const supabase = createServerClient()
 
-    // First, try to create the exec_sql function if it doesn't exist
+    // First, try to create the exec_sql function
     try {
-      await supabase.rpc("exec_sql", {
-        sql: `
-          -- Create the exec_sql function that allows executing arbitrary SQL
-          CREATE OR REPLACE FUNCTION exec_sql(sql text)
-          RETURNS void AS $$
-          BEGIN
-            EXECUTE sql;
-          END;
-          $$ LANGUAGE plpgsql SECURITY DEFINER;
+      console.log("Attempting to create exec_sql function...")
 
-          -- Grant execute permission to authenticated users
-          GRANT EXECUTE ON FUNCTION exec_sql TO authenticated;
-          GRANT EXECUTE ON FUNCTION exec_sql TO service_role;
-        `,
-      })
-    } catch (error) {
-      console.log("Could not create exec_sql function, will try direct SQL execution")
+      // Try to execute SQL directly using the SQL tag
+      const { error: functionError } = await supabase.from("_sql").select("*").sql(createExecSqlFunction)
+
+      if (functionError) {
+        console.log("Error creating exec_sql function:", functionError)
+        // Continue anyway, we'll try other methods
+      } else {
+        console.log("exec_sql function created successfully")
+      }
+    } catch (err) {
+      console.log("Error creating exec_sql function:", err)
+      // Continue anyway, we'll try other methods
     }
 
     // Try to use the exec_sql function
     try {
+      console.log("Attempting to use exec_sql function...")
       const { error } = await supabase.rpc("exec_sql", { sql: createTablesSQL })
 
       if (error) {
-        throw error
+        console.log("Error using exec_sql function:", error)
+        throw error // Move to the next approach
+      } else {
+        console.log("Database tables created successfully using exec_sql")
+        return NextResponse.json({
+          success: true,
+          message: "Database tables initialized successfully using exec_sql",
+        })
       }
+    } catch (err) {
+      console.log("Failed to use exec_sql, trying direct SQL execution...")
+    }
 
-      console.log("Database tables initialized successfully using exec_sql")
-      return NextResponse.json({
-        success: true,
-        message: "Database tables initialized successfully using exec_sql",
-      })
-    } catch (error) {
-      console.log("Error using exec_sql, falling back to direct SQL execution:", error)
+    // If exec_sql fails, try direct SQL execution
+    try {
+      console.log("Attempting direct SQL execution...")
 
       // Split the SQL into individual statements
       const statements = createTablesSQL
@@ -119,52 +204,72 @@ export async function GET() {
         .map((stmt) => stmt.trim())
         .filter((stmt) => stmt.length > 0)
 
-      // Execute each statement separately using raw SQL
+      // Execute each statement separately
       for (const stmt of statements) {
         try {
-          // Use raw SQL query
-          const { error } = await supabase
-            .from("_dummy_")
-            .select("*")
-            .limit(1)
-            .or(`id.eq.0,${stmt.replace(/'/g, "''")}`)
+          const { error } = await supabase.from("_sql").select("*").sql(`${stmt};`)
 
-          if (error && !error.message.includes('relation "_dummy_" does not exist')) {
-            console.error(`Error executing SQL: ${stmt}`, error)
+          if (error) {
+            console.log(`Error executing SQL statement: ${stmt.substring(0, 50)}...`, error)
+            // Continue with other statements
           }
-        } catch (stmtError) {
-          console.error(`Error executing statement: ${stmt}`, stmtError)
+        } catch (stmtErr) {
+          console.log(`Error executing SQL statement: ${stmt.substring(0, 50)}...`, stmtErr)
+          // Continue with other statements
         }
       }
 
-      // Try one more approach - using Postgres functions
+      // Check if at least the profiles table was created
+      const { data: profilesCheck, error: checkError } = await supabase.from("profiles").select("count").limit(1)
+
+      if (checkError) {
+        console.log("Error checking if profiles table exists:", checkError)
+        throw new Error("Failed to create database tables")
+      }
+
+      console.log("Database tables created successfully using direct SQL")
+      return NextResponse.json({
+        success: true,
+        message: "Database tables initialized successfully using direct SQL",
+      })
+    } catch (directErr) {
+      console.log("Failed to use direct SQL execution:", directErr)
+
+      // Last resort: Try to use the SQL API
       try {
-        for (const stmt of statements) {
-          await supabase
-            .from("_dummy_")
-            .select("*")
-            .limit(1)
-            .or(`id.eq.0,${stmt.replace(/'/g, "''")}`)
+        console.log("Attempting to use SQL API...")
+
+        // This is a last resort approach that might work in some Supabase configurations
+        const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+            apikey: process.env.SUPABASE_ANON_KEY || "",
+          },
+          body: JSON.stringify({
+            query: createTablesSQL,
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`SQL API request failed: ${response.statusText}`)
         }
-      } catch (pgError) {
-        console.error("Error with Postgres function approach:", pgError)
-      }
 
-      // Check if tables were created
-      const { data: profilesCheck, error: profilesError } = await supabase.from("profiles").select("count").limit(1)
-
-      if (!profilesError) {
-        console.log("Database tables initialized successfully using fallback method")
+        console.log("Database tables created successfully using SQL API")
         return NextResponse.json({
           success: true,
-          message: "Database tables initialized successfully using fallback method",
+          message: "Database tables initialized successfully using SQL API",
         })
-      } else {
+      } catch (apiErr) {
+        console.log("Failed to use SQL API:", apiErr)
+
+        // All methods failed
         return NextResponse.json(
           {
             success: false,
-            error: "Failed to initialize database tables",
-            details: profilesError,
+            error: "All database initialization methods failed",
+            details: directErr instanceof Error ? directErr.message : String(directErr),
           },
           { status: 500 },
         )
@@ -175,7 +280,7 @@ export async function GET() {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: error instanceof Error ? error.message : String(error),
       },
       { status: 500 },
     )
