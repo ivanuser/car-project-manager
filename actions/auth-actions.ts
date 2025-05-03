@@ -3,6 +3,7 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { createServerClient } from "@/lib/supabase"
+import { ensureUserProfile } from "@/lib/auth-helpers"
 
 export async function signUp(formData: FormData) {
   const email = formData.get("email") as string
@@ -65,6 +66,14 @@ export async function signIn(formData: FormData) {
 
     console.log("Sign in successful for:", email)
     console.log("Session data:", data.session ? "Session exists" : "No session")
+
+    // Ensure a user profile exists
+    if (data.user) {
+      const profileResult = await ensureUserProfile(data.user.id, email)
+      if (!profileResult.success) {
+        console.error("Warning: Failed to ensure user profile exists:", profileResult.error)
+      }
+    }
 
     // Set cookies for client-side auth
     const cookieStore = cookies()

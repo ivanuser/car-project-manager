@@ -31,10 +31,12 @@ export default async function DashboardLayout({
       const cookieStore = cookies()
       const supabase = createServerClient()
 
+      // Get the current session first
+      const { data: sessionData } = await supabase.auth.getSession()
+      console.log("Dashboard layout: Session check:", sessionData.session ? "Session exists" : "No session")
+      
       // Get the current user
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      const { data: { user } } = await supabase.auth.getUser()
       
       console.log("Dashboard layout: Auth user found:", user ? user.email : "No user")
 

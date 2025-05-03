@@ -35,11 +35,17 @@ export const createBrowserClient = () => {
 // Create a server-side supabase client (for server components and server actions)
 export const createServerClient = () => {
   // For server-side, we always create a new instance to avoid sharing state
-  return createSupabaseClient<Database>(supabaseUrl, supabaseServiceRoleKey, {
+  const options = {
     auth: {
-      persistSession: false,
-    },
-  })
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true
+    }
+  }
+  
+  // For safety, we use the anon key for server components instead of service role key
+  // The service role key should only be used for admin operations or direct database access
+  return createSupabaseClient<Database>(supabaseUrl, supabaseAnonKey, options)
 }
 
 // Export a singleton instance for client-side usage

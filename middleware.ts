@@ -27,11 +27,15 @@ export async function middleware(req: NextRequest) {
 
     // Create Supabase client
     const supabase = createMiddlewareClient({ req, res })
-
-    // Get session
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+    
+    // Always refresh the session to ensure cookies are properly set
+    const { data } = await supabase.auth.getSession()
+    const session = data.session
+    
+    // Force a refresh of the session
+    if (session) {
+      await supabase.auth.refreshSession()
+    }
 
     // Check for auth cookie directly as a backup
     const authCookie = req.cookies.get("supabase-auth-token")
