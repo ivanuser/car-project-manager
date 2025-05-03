@@ -88,7 +88,7 @@ export default function DirectLoginPage() {
       setDebugInfo(`Cookies after login:\n${cookies.join('\n')}`)
       
       // Show dashboard link instead of redirect
-      setDebugInfo("Login successful! Please click the link below to go to dashboard.")
+      setDebugInfo("Login successful! Please click the button below to go to dashboard.")
       setShowManualLink(true)
       
     } catch (error) {
@@ -167,21 +167,12 @@ export default function DirectLoginPage() {
               {showManualLink && (
                 <div className="p-4 bg-green-100 dark:bg-green-900 rounded-md text-center">
                   <p className="font-bold mb-2">Login Successful!</p>
-                  <div className="flex space-x-2 justify-center">
-                    <a 
-                      href="/dashboard-page" 
-                      className="inline-block px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                    >
-                      Go to Dashboard
-                    </a>
-                    
-                    <a 
-                      href="/dashboard/" 
-                      className="inline-block px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                    >
-                      Alt Dashboard
-                    </a>
-                  </div>
+                  <a 
+                    href="/dashboard-view" 
+                    className="inline-block px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                  >
+                    Go to Fixed Dashboard
+                  </a>
                 </div>
               )}
 

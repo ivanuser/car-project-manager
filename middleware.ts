@@ -4,20 +4,28 @@ import type { NextRequest } from "next/server";
 // Improved middleware with minimal authentication checking
 export async function middleware(req: NextRequest) {
   try {
-    // For the dashboard route.ts conflict - special handling
-    if (req.nextUrl.pathname === "/dashboard" && req.method === "GET") {
-      // Force Next.js to use the page component instead of route.ts
-      // by slightly modifying the URL to /dashboard/
-      const url = req.nextUrl.clone();
-      url.pathname = "/dashboard/";
-      return NextResponse.rewrite(url);
+    console.log(`[Middleware] Processing: ${req.nextUrl.pathname}`);
+    
+    // For the dashboard route conflict - special handling
+    if (req.nextUrl.pathname === "/dashboard" || 
+        req.nextUrl.pathname === "/dashboard/" || 
+        req.nextUrl.pathname.startsWith("/dashboard/")) {
+      
+      // Redirect to our fixed dashboard view
+      console.log("[Middleware] Redirecting dashboard to fixed view");
+      const fixedUrl = new URL("/dashboard-view", req.url);
+      return NextResponse.redirect(fixedUrl);
     }
     
-    // Basic auth check to enable protected routes
+    // Basic auth check
     const hasAuthCookie = req.cookies.has('sb-dqapklpzcfosobremzfc-auth-token');
     
     // Handle auth redirects
-    const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard");
+    const isProtectedRoute = (
+      req.nextUrl.pathname.startsWith("/dashboard") || 
+      req.nextUrl.pathname.startsWith("/dashboard-view")
+    );
+    
     const isAuthRoute = req.nextUrl.pathname === '/login' || 
                        req.nextUrl.pathname === '/register' || 
                        req.nextUrl.pathname.startsWith("/auth");
@@ -29,8 +37,8 @@ export async function middleware(req: NextRequest) {
     }
 
     if (hasAuthCookie && isAuthRoute && req.nextUrl.pathname !== '/') {
-      console.log("[Middleware] Auth cookie found, redirecting to dashboard");
-      const redirectUrl = new URL('/dashboard', req.url);
+      console.log("[Middleware] Auth cookie found, redirecting to dashboard-view");
+      const redirectUrl = new URL('/dashboard-view', req.url);
       return NextResponse.redirect(redirectUrl);
     }
     
