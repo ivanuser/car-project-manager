@@ -2,27 +2,25 @@
 
 import { revalidatePath } from "next/cache"
 import { createServerClient } from "@/lib/supabase"
-import { redirect } from "next/navigation"
 
 // Get all vehicle projects
 export async function getVehicleProjects() {
   const supabase = createServerClient()
-  const isDevelopment = process.env.NODE_ENV === "development"
 
-  // Get the current user or use development user ID
-  let userId = "dev-user-id"
+  // Get the current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  if (!isDevelopment) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      redirect("/login")
-    }
-
-    userId = user.id
+  if (!user) {
+    console.log("No authenticated user found, returning empty projects array")
+    return []
   }
+
+  // Use the actual user ID from the session
+  const userId = user.id
+
+  console.log("Fetching projects for user ID:", userId)
 
   const { data, error } = await supabase
     .from("vehicle_projects")
@@ -63,22 +61,18 @@ export async function getVehicleProject(id: string) {
 // Create a new vehicle project
 export async function createVehicleProject(formData: FormData) {
   const supabase = createServerClient()
-  const isDevelopment = process.env.NODE_ENV === "development"
 
-  // Get the current user or use development user ID
-  let userId = "dev-user-id"
+  // Get the current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  if (!isDevelopment) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return { error: "You must be logged in to create a project" }
-    }
-
-    userId = user.id
+  if (!user) {
+    return { error: "You must be logged in to create a project" }
   }
+
+  const userId = user.id
+  console.log("Creating project for user ID:", userId)
 
   // Extract form data
   const title = formData.get("title") as string
@@ -150,6 +144,15 @@ export async function createVehicleProject(formData: FormData) {
 // Update an existing vehicle project
 export async function updateVehicleProject(id: string, formData: FormData) {
   const supabase = createServerClient()
+
+  // Get the current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: "You must be logged in to update a project" }
+  }
 
   // Extract form data
   const title = formData.get("title") as string
@@ -224,6 +227,15 @@ export async function updateVehicleProject(id: string, formData: FormData) {
 export async function deleteVehicleProject(id: string) {
   const supabase = createServerClient()
 
+  // Get the current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: "You must be logged in to delete a project" }
+  }
+
   // First, delete all tasks associated with this project
   const { error: tasksError } = await supabase.from("project_tasks").delete().eq("project_id", id)
 
@@ -246,22 +258,28 @@ export async function deleteVehicleProject(id: string) {
 // Get all tasks
 export async function getAllTasks() {
   const supabase = createServerClient()
-  const isDevelopment = process.env.NODE_ENV === "development"
 
-  // Get the current user or use development user ID
-  let userId = "dev-user-id"
+  // Get the current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  if (!isDevelopment) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      redirect("/login")
-    }
-
-    userId = user.id
+  if (!user) {
+    console.log("No authenticated user found, returning empty tasks array")
+    return []
   }
+
+  const userId = user.id
+  console.log("Fetching tasks for user ID:", userId)
+
+  // Get all tasks for projects owned by this user
+  const { data: projects } = await supabase.from("vehicle_projects").select("id").eq("user_id", userId)
+
+  if (!projects || projects.length === 0) {
+    return []
+  }
+
+  const projectIds = projects.map((project) => project.id)
 
   const { data, error } = await supabase
     .from("project_tasks")
@@ -269,6 +287,7 @@ export async function getAllTasks() {
       *,
       vehicle_projects(id, title)
     `)
+    .in("project_id", projectIds)
     .order("due_date", { ascending: true })
 
   if (error) {
@@ -282,6 +301,16 @@ export async function getAllTasks() {
 // Add these functions for tasks
 export async function getProjectTasks(projectId: string) {
   const supabase = createServerClient()
+
+  // Get the current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    console.log("No authenticated user found, returning empty project tasks array")
+    return []
+  }
 
   const { data, error } = await supabase
     .from("project_tasks")
@@ -299,6 +328,15 @@ export async function getProjectTasks(projectId: string) {
 
 export async function createTask(formData: FormData) {
   const supabase = createServerClient()
+
+  // Get the current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: "You must be logged in to create a task" }
+  }
 
   const title = formData.get("title") as string
   const description = formData.get("description") as string
@@ -336,6 +374,15 @@ export async function createTask(formData: FormData) {
 
 export async function updateTask(id: string, formData: FormData) {
   const supabase = createServerClient()
+
+  // Get the current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: "You must be logged in to update a task" }
+  }
 
   const title = formData.get("title") as string
   const description = formData.get("description") as string
@@ -377,6 +424,15 @@ export async function updateTask(id: string, formData: FormData) {
 export async function deleteTask(id: string, projectId: string) {
   const supabase = createServerClient()
 
+  // Get the current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: "You must be logged in to delete a task" }
+  }
+
   const { error } = await supabase.from("project_tasks").delete().eq("id", id)
 
   if (error) {
@@ -390,6 +446,15 @@ export async function deleteTask(id: string, projectId: string) {
 
 export async function updateTaskStatus(id: string, status: string, projectId: string) {
   const supabase = createServerClient()
+
+  // Get the current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: "You must be logged in to update a task status" }
+  }
 
   const { data, error } = await supabase
     .from("project_tasks")
@@ -411,6 +476,16 @@ export async function updateTaskStatus(id: string, status: string, projectId: st
 
 export async function getTaskById(id: string) {
   const supabase = createServerClient()
+
+  // Get the current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    console.log("No authenticated user found, returning null for task")
+    return null
+  }
 
   const { data, error } = await supabase
     .from("project_tasks")

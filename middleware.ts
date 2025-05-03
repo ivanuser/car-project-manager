@@ -15,13 +15,6 @@ export async function middleware(req: NextRequest) {
       return res
     }
 
-    // DEVELOPMENT MODE: Skip authentication checks completely
-    // IMPORTANT: Remove this in production
-    if (process.env.NODE_ENV === "development") {
-      console.log("[Middleware] Development mode: Bypassing authentication checks")
-      return res
-    }
-
     // Skip auth checks for static assets and API routes
     if (
       req.nextUrl.pathname.startsWith("/_next") ||
@@ -51,19 +44,23 @@ export async function middleware(req: NextRequest) {
 
     // Public routes that don't require authentication
     const isPublicRoute =
-      req.nextUrl.pathname === "/" || req.nextUrl.pathname === "/login" || req.nextUrl.pathname.startsWith("/auth/")
+      req.nextUrl.pathname === "/" ||
+      req.nextUrl.pathname === "/login" ||
+      req.nextUrl.pathname.startsWith("/auth/") ||
+      req.nextUrl.pathname === "/demo" ||
+      req.nextUrl.pathname.startsWith("/demo/")
 
     // Protected routes that require authentication
     const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard")
+    const isAdminRoute = req.nextUrl.pathname.startsWith("/admin")
 
-    // IMPORTANT: If we have an auth cookie, allow access to dashboard even without a session
-    // This breaks the redirect loop
-    if (isProtectedRoute && !session && hasAuthCookie) {
-      console.log(`[Middleware] Auth cookie present but no session, allowing access to: ${req.nextUrl.pathname}`)
-      return res
+    // If we have a session, refresh the auth cookie
+    if (session) {
+      // Refresh the auth cookie
+      await supabase.auth.getSession()
     }
 
-    // If accessing a protected route without a session or auth cookie, redirect to login
+    // If accessing a protected route without a session, redirect to login
     if (isProtectedRoute && !session && !hasAuthCookie) {
       console.log(`[Middleware] Redirecting to login from: ${req.nextUrl.pathname}`)
       const redirectUrl = new URL("/login", req.url)
@@ -71,8 +68,28 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(redirectUrl)
     }
 
-    // If accessing a public route with a session or auth cookie, redirect to dashboard
-    if (isPublicRoute && (session || hasAuthCookie) && req.nextUrl.pathname !== "/auth/callback") {
+    // If accessing an admin route without admin privileges, redirect to dashboard
+    if (isAdminRoute) {
+      if (!session) {
+        console.log(`[Middleware] Redirecting to login from admin route: ${req.nextUrl.pathname}`)
+        const redirectUrl = new URL("/login", req.url)
+        redirectUrl.searchParams.set("redirect", "/dashboard")
+        return NextResponse.redirect(redirectUrl)
+      }
+
+      // Check if user is admin (skip in development)
+      if (process.env.NODE_ENV !== "development") {
+        const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).single()
+
+        if (profile?.role !== "admin") {
+          console.log(`[Middleware] User is not admin, redirecting to dashboard`)
+          return NextResponse.redirect(new URL("/dashboard", req.url))
+        }
+      }
+    }
+
+    // If accessing a public route with a session, redirect to dashboard
+    if (isPublicRoute && session && req.nextUrl.pathname !== "/auth/callback") {
       console.log(`[Middleware] Redirecting to dashboard from: ${req.nextUrl.pathname}`)
       return NextResponse.redirect(new URL("/dashboard", req.url))
     }

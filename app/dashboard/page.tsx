@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { getVehicleProjects } from "@/actions/project-actions"
+import { createServerClient } from "@/lib/supabase"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
@@ -10,8 +10,41 @@ export default async function Dashboard() {
   // Check if we're in preview mode
   const isMissingConfig = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  // Get projects only if we have Supabase configured
-  const projects = isMissingConfig ? [] : await getVehicleProjects()
+  // Initialize projects as an empty array
+  let projects = []
+
+  if (!isMissingConfig) {
+    try {
+      const supabase = createServerClient()
+
+      // Get the current user
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (user) {
+        // Use the actual user ID from the session
+        const userId = user.id
+        console.log("Dashboard: Fetching projects for user ID:", userId)
+
+        const { data, error } = await supabase
+          .from("vehicle_projects")
+          .select("*")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+
+        if (error) {
+          console.error("Dashboard: Error fetching projects:", error)
+        } else {
+          projects = data || []
+        }
+      } else {
+        console.log("Dashboard: No authenticated user found")
+      }
+    } catch (error) {
+      console.error("Dashboard: Unexpected error:", error)
+    }
+  }
 
   return (
     <div className="space-y-6">
