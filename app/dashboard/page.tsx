@@ -21,6 +21,8 @@ export default async function Dashboard() {
       const {
         data: { user },
       } = await supabase.auth.getUser()
+      
+      console.log("Dashboard page: Auth user found:", user ? user.email : "No user")
 
       if (user) {
         // Use the actual user ID from the session

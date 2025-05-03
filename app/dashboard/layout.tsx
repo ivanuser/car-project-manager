@@ -25,8 +25,8 @@ export default async function DashboardLayout({
     avatarUrl: undefined,
   }
 
-  // Only try to get real user data if we have Supabase configured and not in development mode
-  if (!isMissingConfig && !isDevelopment) {
+  // Try to get real user data if we have Supabase configured
+  if (!isMissingConfig) {
     try {
       const cookieStore = cookies()
       const supabase = createServerClient()
@@ -35,6 +35,8 @@ export default async function DashboardLayout({
       const {
         data: { user },
       } = await supabase.auth.getUser()
+      
+      console.log("Dashboard layout: Auth user found:", user ? user.email : "No user")
 
       if (user) {
         // Get the user's profile
@@ -57,18 +59,21 @@ export default async function DashboardLayout({
     }
   }
 
-  // In development mode, initialize the database on each layout render
-  if (isDevelopment) {
-    try {
-      // Call the init-db API route to ensure tables are created
-      const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/init-db`, {
-        cache: "no-store",
-      })
-      const data = await response.json()
-      console.log("Database initialization:", data.success ? "Success" : "Failed")
-    } catch (error) {
-      console.error("Failed to initialize database:", error)
-    }
+  // Skip database initialization in development mode to avoid errors
+  // In development mode, we assume the database has been set up already
+  if (isDevelopment && process.env.INITIALIZE_DB === 'true') {
+    console.log("Database initialization skipped - set INITIALIZE_DB=true to enable")
+    // Uncomment this if you want to initialize the database
+    // try {
+    //   // Call the init-db API route to ensure tables are created
+    //   const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/init-db`, {
+    //     cache: "no-store",
+    //   })
+    //   const data = await response.json()
+    //   console.log("Database initialization:", data.success ? "Success" : "Failed")
+    // } catch (error) {
+    //   console.error("Failed to initialize database:", error)
+    // }
   }
 
   return (

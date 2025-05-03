@@ -67,3 +67,157 @@ BEGIN
     ALTER TABLE vehicle_projects ADD COLUMN budget DECIMAL(10, 2);
   END IF;
 END $$;
+
+-- Add RLS policies
+ALTER TABLE budget_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE budget_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_budgets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE budget_allocations ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policies with IF NOT EXISTS checks
+DO $$
+BEGIN
+  -- Budget categories policies
+  IF NOT EXISTS (
+    SELECT FROM pg_policies WHERE tablename = 'budget_categories' AND policyname = 'Users can view budget categories'
+  ) THEN
+    CREATE POLICY "Users can view budget categories" 
+      ON budget_categories FOR SELECT 
+      USING (true);
+  END IF;
+
+  -- Budget items policies
+  IF NOT EXISTS (
+    SELECT FROM pg_policies WHERE tablename = 'budget_items' AND policyname = 'Users can view their own budget items'
+  ) THEN
+    CREATE POLICY "Users can view their own budget items" 
+      ON budget_items FOR SELECT 
+      USING (EXISTS (
+        SELECT 1 FROM vehicle_projects 
+        WHERE vehicle_projects.id = budget_items.project_id 
+        AND vehicle_projects.user_id = auth.uid()
+      ));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT FROM pg_policies WHERE tablename = 'budget_items' AND policyname = 'Users can create budget items for their projects'
+  ) THEN
+    CREATE POLICY "Users can create budget items for their projects" 
+      ON budget_items FOR INSERT 
+      WITH CHECK (EXISTS (
+        SELECT 1 FROM vehicle_projects 
+        WHERE vehicle_projects.id = budget_items.project_id 
+        AND vehicle_projects.user_id = auth.uid()
+      ));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT FROM pg_policies WHERE tablename = 'budget_items' AND policyname = 'Users can update budget items for their projects'
+  ) THEN
+    CREATE POLICY "Users can update budget items for their projects" 
+      ON budget_items FOR UPDATE 
+      USING (EXISTS (
+        SELECT 1 FROM vehicle_projects 
+        WHERE vehicle_projects.id = budget_items.project_id 
+        AND vehicle_projects.user_id = auth.uid()
+      ));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT FROM pg_policies WHERE tablename = 'budget_items' AND policyname = 'Users can delete budget items for their projects'
+  ) THEN
+    CREATE POLICY "Users can delete budget items for their projects" 
+      ON budget_items FOR DELETE 
+      USING (EXISTS (
+        SELECT 1 FROM vehicle_projects 
+        WHERE vehicle_projects.id = budget_items.project_id 
+        AND vehicle_projects.user_id = auth.uid()
+      ));
+  END IF;
+
+  -- Project budgets policies
+  IF NOT EXISTS (
+    SELECT FROM pg_policies WHERE tablename = 'project_budgets' AND policyname = 'Users can view their own project budgets'
+  ) THEN
+    CREATE POLICY "Users can view their own project budgets" 
+      ON project_budgets FOR SELECT 
+      USING (EXISTS (
+        SELECT 1 FROM vehicle_projects 
+        WHERE vehicle_projects.id = project_budgets.project_id 
+        AND vehicle_projects.user_id = auth.uid()
+      ));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT FROM pg_policies WHERE tablename = 'project_budgets' AND policyname = 'Users can create budgets for their projects'
+  ) THEN
+    CREATE POLICY "Users can create budgets for their projects" 
+      ON project_budgets FOR INSERT 
+      WITH CHECK (EXISTS (
+        SELECT 1 FROM vehicle_projects 
+        WHERE vehicle_projects.id = project_budgets.project_id 
+        AND vehicle_projects.user_id = auth.uid()
+      ));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT FROM pg_policies WHERE tablename = 'project_budgets' AND policyname = 'Users can update budgets for their projects'
+  ) THEN
+    CREATE POLICY "Users can update budgets for their projects" 
+      ON project_budgets FOR UPDATE 
+      USING (EXISTS (
+        SELECT 1 FROM vehicle_projects 
+        WHERE vehicle_projects.id = project_budgets.project_id 
+        AND vehicle_projects.user_id = auth.uid()
+      ));
+  END IF;
+
+  -- Budget allocations policies
+  IF NOT EXISTS (
+    SELECT FROM pg_policies WHERE tablename = 'budget_allocations' AND policyname = 'Users can view their own budget allocations'
+  ) THEN
+    CREATE POLICY "Users can view their own budget allocations" 
+      ON budget_allocations FOR SELECT 
+      USING (EXISTS (
+        SELECT 1 FROM vehicle_projects 
+        WHERE vehicle_projects.id = budget_allocations.project_id 
+        AND vehicle_projects.user_id = auth.uid()
+      ));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT FROM pg_policies WHERE tablename = 'budget_allocations' AND policyname = 'Users can create allocations for their projects'
+  ) THEN
+    CREATE POLICY "Users can create allocations for their projects" 
+      ON budget_allocations FOR INSERT 
+      WITH CHECK (EXISTS (
+        SELECT 1 FROM vehicle_projects 
+        WHERE vehicle_projects.id = budget_allocations.project_id 
+        AND vehicle_projects.user_id = auth.uid()
+      ));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT FROM pg_policies WHERE tablename = 'budget_allocations' AND policyname = 'Users can update allocations for their projects'
+  ) THEN
+    CREATE POLICY "Users can update allocations for their projects" 
+      ON budget_allocations FOR UPDATE 
+      USING (EXISTS (
+        SELECT 1 FROM vehicle_projects 
+        WHERE vehicle_projects.id = budget_allocations.project_id 
+        AND vehicle_projects.user_id = auth.uid()
+      ));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT FROM pg_policies WHERE tablename = 'budget_allocations' AND policyname = 'Users can delete allocations for their projects'
+  ) THEN
+    CREATE POLICY "Users can delete allocations for their projects" 
+      ON budget_allocations FOR DELETE 
+      USING (EXISTS (
+        SELECT 1 FROM vehicle_projects 
+        WHERE vehicle_projects.id = budget_allocations.project_id 
+        AND vehicle_projects.user_id = auth.uid()
+      ));
+  END IF;
+END $$;

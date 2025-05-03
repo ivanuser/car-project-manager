@@ -10,9 +10,22 @@ export function DevLoginButton() {
   const router = useRouter()
   const { toast } = useToast()
 
+  // Disable dev login in this build to force real user authentication
+  const isDisabled = true;
+
   const handleDevLogin = async () => {
     setIsLoading(true)
     try {
+      if (isDisabled) {
+        toast({
+          title: "Dev Login Disabled",
+          description: "Dev login has been disabled. Please use your real Supabase account.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+      
       const response = await fetch("/api/auth/dev-login", {
         method: "POST",
         headers: {
@@ -49,11 +62,12 @@ export function DevLoginButton() {
   return (
     <Button
       onClick={handleDevLogin}
-      disabled={isLoading}
+      disabled={isLoading || isDisabled}
       variant="outline"
-      className="mt-4 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border-yellow-300"
+      className="mt-4 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border-yellow-300 opacity-50"
+      title="Dev login is disabled"
     >
-      {isLoading ? "Logging in..." : "Dev Login (Admin)"}
+      {isLoading ? "Logging in..." : "Dev Login (Disabled)"}
     </Button>
   )
 }
