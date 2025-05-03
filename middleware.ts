@@ -1,20 +1,22 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Extremely simplified middleware that doesn't use Supabase client
+// Improved middleware with minimal authentication checking
 export async function middleware(req: NextRequest) {
-  // Bypass middleware for all routes for now, to fix the infinite loop
-  return NextResponse.next();
-  
-  /* We'll comment out all of this code to stop the infinite loops
-  
   try {
-    console.log(`[Middleware] Processing: ${req.nextUrl.pathname}`);
+    // For the dashboard route.ts conflict - special handling
+    if (req.nextUrl.pathname === "/dashboard" && req.method === "GET") {
+      // Force Next.js to use the page component instead of route.ts
+      // by slightly modifying the URL to /dashboard/
+      const url = req.nextUrl.clone();
+      url.pathname = "/dashboard/";
+      return NextResponse.rewrite(url);
+    }
     
-    // Basic auth check based on cookie existence only, no Supabase client
+    // Basic auth check to enable protected routes
     const hasAuthCookie = req.cookies.has('sb-dqapklpzcfosobremzfc-auth-token');
     
-    // Handle redirects based on simple cookie check
+    // Handle auth redirects
     const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard");
     const isAuthRoute = req.nextUrl.pathname === '/login' || 
                        req.nextUrl.pathname === '/register' || 
@@ -22,20 +24,22 @@ export async function middleware(req: NextRequest) {
     
     if (!hasAuthCookie && isProtectedRoute) {
       console.log("[Middleware] No auth cookie, redirecting to login");
-      return NextResponse.redirect(new URL('/login', req.url));
+      const redirectUrl = new URL('/login', req.url);
+      return NextResponse.redirect(redirectUrl);
     }
 
     if (hasAuthCookie && isAuthRoute && req.nextUrl.pathname !== '/') {
       console.log("[Middleware] Auth cookie found, redirecting to dashboard");
-      return NextResponse.redirect(new URL('/dashboard', req.url));
+      const redirectUrl = new URL('/dashboard', req.url);
+      return NextResponse.redirect(redirectUrl);
     }
     
+    // Default handling
     return NextResponse.next();
   } catch (error) {
     console.error("[Middleware] Error:", error);
     return NextResponse.next();
   }
-  */
 }
 
 export const config = {
