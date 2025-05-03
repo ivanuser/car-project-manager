@@ -17,13 +17,8 @@ export default async function DashboardLayout({
   const isMissingConfig = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   const isDevelopment = process.env.NODE_ENV === "development"
 
-  // Create mock user data for preview or development
-  let userData = {
-    id: "dev-user-id",
-    email: "dev@example.com",
-    fullName: "Development User",
-    avatarUrl: undefined,
-  }
+  // Initialize user data as null - no default/mock user
+  let userData = null
 
   // Try to get real user data if we have Supabase configured
   if (!isMissingConfig) {
@@ -54,6 +49,10 @@ export default async function DashboardLayout({
           fullName: profile?.full_name || undefined,
           avatarUrl: profile?.avatar_url || undefined,
         }
+        
+        console.log("Using authenticated user:", userData.email)
+      } else {
+        console.log("No authenticated user found - showing guest view")
       }
     } catch (error) {
       console.error("Error getting user data:", error)
@@ -89,7 +88,24 @@ export default async function DashboardLayout({
         </div>
         <div className="flex w-full flex-col">
           <Header user={userData} />
-          <main className="flex-1 p-4 md:p-6">{children}</main>
+          <main className="flex-1 p-4 md:p-6">
+            {userData ? (
+              // Show regular content for authenticated users
+              children
+            ) : (
+              // Show guest view with authentication warning
+              <div className="space-y-4">
+                <div className="p-4 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded-md">
+                  <h2 className="text-lg font-semibold">Not Authenticated</h2>
+                  <p>You're currently viewing the dashboard as a guest. Some features may be limited.</p>
+                  <div className="mt-3">
+                    <a href="/login" className="underline">Sign in</a> to access all features.
+                  </div>
+                </div>
+                {children}
+              </div>
+            )}
+          </main>
         </div>
       </div>
       <Toaster />

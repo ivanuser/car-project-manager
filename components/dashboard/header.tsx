@@ -33,13 +33,17 @@ interface HeaderProps {
 export function Header({ user }: HeaderProps) {
   const [open, setOpen] = useState(false)
   const { toast } = useToast()
+  
+  // Handle null user
+  const displayName = user?.email || "Guest"
+  
   const initials = user?.fullName
     ? user.fullName
         .split(" ")
         .map((n) => n[0])
         .join("")
         .toUpperCase()
-    : user?.email?.charAt(0).toUpperCase() || "U"
+    : user?.email?.charAt(0).toUpperCase() || "G"
 
   // Handle background intensity change
   const handleBackgroundToggle = (intensity: "none" | "light" | "medium" | "strong" | "max") => {
