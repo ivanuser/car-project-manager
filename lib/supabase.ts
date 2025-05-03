@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient as supabaseCreateClient } from "@supabase/supabase-js";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import type { Database } from "@/types/supabase";
 
@@ -30,7 +30,7 @@ export const createBrowserClient = () => {
 
 // Create a standard client for server contexts without cookies
 export const createServerClient = () => {
-  return createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  return supabaseCreateClient<Database>(supabaseUrl, supabaseAnonKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -41,7 +41,7 @@ export const createServerClient = () => {
 // Export a singleton instance for client-side usage
 export const supabase = typeof window !== "undefined" ? createBrowserClient() : null;
 
-// Re-export createClient for backward compatibility
-export const createClient = () => {
+// Re-export createClient for backward compatibility with a different name
+export const createCompatClient = () => {
   return createServerClient();
 };
