@@ -1,7 +1,8 @@
 import type React from "react"
 import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
+import { createClient } from "@supabase/supabase-js"
 
-import { createServerClient } from "@/lib/supabase"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { Header } from "@/components/dashboard/header"
 import { SidebarProvider } from "@/components/ui/sidebar"
@@ -23,58 +24,117 @@ export default async function DashboardLayout({
   // Try to get real user data if we have Supabase configured
   if (!isMissingConfig) {
     try {
-      const cookieStore = cookies()
-      const supabase = createServerClient()
-
-      // Get the current session first
-      const { data: sessionData } = await supabase.auth.getSession()
-      console.log("Dashboard layout: Session check:", sessionData.session ? "Session exists" : "No session")
+      // Get Supabase config
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
       
-      // Get the current user
-      const { data: { user } } = await supabase.auth.getUser()
+      // Get cookies manually
+      const cookieStore = cookies();
+      const allCookies = cookieStore.getAll();
       
-      console.log("Dashboard layout: Auth user found:", user ? user.email : "No user")
-
-      if (user) {
-        // Get the user's profile
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("full_name, avatar_url")
-          .eq("id", user.id)
-          .single()
-
-        userData = {
-          id: user.id,
-          email: user.email,
-          fullName: profile?.full_name || undefined,
-          avatarUrl: profile?.avatar_url || undefined,
+      console.log("Dashboard: Available cookies:", allCookies.map(c => c.name).join(', '));
+      
+      // Check for auth token directly
+      const projectRef = supabaseUrl.split('//')[1].split('.')[0];
+      const authCookie = cookieStore.get(`sb-${projectRef}-auth-token`);
+      
+      let accessToken = "";
+      let user = null;
+      
+      if (authCookie) {
+        try {
+          // Try to parse the session cookie
+          const sessionData = JSON.parse(authCookie.value);
+          console.log("Dashboard: Found session cookie with data");
+          
+          if (sessionData.access_token) {
+            accessToken = sessionData.access_token;
+            user = sessionData.user;
+            console.log("Dashboard: Using token from session cookie");
+          }
+        } catch (parseError) {
+          // If parsing fails, the cookie might be the token itself
+          console.log("Dashboard: Session cookie parse error:", 
+            parseError instanceof Error ? parseError.message : String(parseError));
+          accessToken = authCookie.value;
+          console.log("Dashboard: Using cookie value as token");
         }
-        
-        console.log("Using authenticated user:", userData.email)
       } else {
-        console.log("No authenticated user found - showing guest view")
+        // Try fallback cookies
+        const accessTokenCookie = cookieStore.get('sb-access-token');
+        if (accessTokenCookie) {
+          accessToken = accessTokenCookie.value;
+          console.log("Dashboard: Using fallback access token cookie");
+        }
+      }
+      
+      // Create Supabase client with the token if we have one
+      if (accessToken) {
+        const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        });
+        
+        // Use the token to get user info
+        const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
+        
+        if (userError) {
+          console.error("Dashboard: Error getting user data:", userError.message);
+        } else if (userData.user) {
+          user = userData.user;
+          console.log("Dashboard: Found user via token:", user.email);
+          
+          // Get the user's profile
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name, avatar_url")
+            .eq("id", user.id)
+            .single();
+          
+          userData = {
+            id: user.id,
+            email: user.email,
+            fullName: profile?.full_name || undefined,
+            avatarUrl: profile?.avatar_url || undefined,
+          };
+          
+          console.log("Dashboard: Using authenticated user:", userData.email);
+        }
+      }
+      
+      if (!user) {
+        console.log("Dashboard: No authenticated user found - will redirect");
+        
+        // Return content that will redirect client-side
+        // This is more reliable than server-side redirect in this case
+        return (
+          <html lang="en">
+            <body>
+              <div className="flex min-h-screen items-center justify-center bg-background">
+                <div className="text-center">
+                  <h1 className="text-2xl font-bold">Authentication Required</h1>
+                  <p className="mt-2">Redirecting to login page...</p>
+                  <script dangerouslySetInnerHTML={{ __html: `
+                    console.log("Redirecting to login due to missing authentication");
+                    window.location.href = '/login';
+                  `}} />
+                </div>
+              </div>
+            </body>
+          </html>
+        );
       }
     } catch (error) {
-      console.error("Error getting user data:", error)
+      console.error("Error in dashboard auth check:", error);
       // Continue with preview user data
     }
   }
 
-  // Skip database initialization in development mode to avoid errors
-  // In development mode, we assume the database has been set up already
-  if (isDevelopment && process.env.INITIALIZE_DB === 'true') {
-    console.log("Database initialization skipped - set INITIALIZE_DB=true to enable")
-    // Uncomment this if you want to initialize the database
-    // try {
-    //   // Call the init-db API route to ensure tables are created
-    //   const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/init-db`, {
-    //     cache: "no-store",
-    //   })
-    //   const data = await response.json()
-    //   console.log("Database initialization:", data.success ? "Success" : "Failed")
-    // } catch (error) {
-    //   console.error("Failed to initialize database:", error)
-    // }
+  // Database initialization check
+  if (isDevelopment) {
+    console.log("Database initialization skipped - set INITIALIZE_DB=true to enable");
   }
 
   return (
@@ -89,22 +149,7 @@ export default async function DashboardLayout({
         <div className="flex w-full flex-col">
           <Header user={userData} />
           <main className="flex-1 p-4 md:p-6">
-            {userData ? (
-              // Show regular content for authenticated users
-              children
-            ) : (
-              // Redirect to login - this is a fallback, middleware should handle this
-              <div className="space-y-4">
-                <div className="p-4 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded-md">
-                  <h2 className="text-lg font-semibold">Authentication Required</h2>
-                  <p>You must be signed in to access the dashboard.</p>
-                  <div className="mt-3">
-                    <a href="/login" className="underline font-bold">Sign in now</a>
-                  </div>
-                </div>
-                <script dangerouslySetInnerHTML={{ __html: `window.location.href = '/login';` }} />
-              </div>
-            )}
+            {children}
           </main>
         </div>
       </div>

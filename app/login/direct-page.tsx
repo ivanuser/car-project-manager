@@ -82,16 +82,37 @@ export default function DirectLoginPage() {
         description: "You have been logged in successfully",
       })
 
-      // Manual approach to check login status - just log cookies
-      setDebugInfo("Verifying login status...")
+      // Check cookies after login
+      const cookies = document.cookie.split(';').map(c => c.trim());
+      setDebugInfo(`Cookies after login:\n${cookies.join('\n')}`)
       
       // Delay redirect to ensure cookies are properly set
-      setDebugInfo("Redirecting to dashboard in 3 seconds...")
+      setDebugInfo("Redirecting to dashboard in 3 seconds...\nPlease do not close or refresh the page.")
       
       setTimeout(() => {
         setDebugInfo("Executing redirect now...")
-        // Use window.location for a full page reload 
-        window.location.href = "/dashboard"
+        
+        // Create a form and submit it - this creates a full POST request that preserves cookies better than location.href
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/dashboard';
+        
+        // Add a timestamp to prevent caching
+        const timestampField = document.createElement('input');
+        timestampField.type = 'hidden';
+        timestampField.name = 'timestamp';
+        timestampField.value = Date.now().toString();
+        form.appendChild(timestampField);
+        
+        // Add the user email as verification
+        const emailField = document.createElement('input');
+        emailField.type = 'hidden';
+        emailField.name = 'email';
+        emailField.value = data.email;
+        form.appendChild(emailField);
+        
+        document.body.appendChild(form);
+        form.submit();
       }, 3000)
     } catch (error) {
       console.error("Login error:", error)
@@ -187,7 +208,7 @@ export default function DirectLoginPage() {
                   className="text-blue-500 hover:underline"
                   onClick={() => {
                     setDebugInfo("Checking cookies in browser...\n" + 
-                      "Cookies: " + document.cookie.split(';').map(c => c.trim()).join('\n'))
+                      document.cookie.split(';').map(c => c.trim()).join('\n'))
                   }}
                 >
                   Check Cookies
