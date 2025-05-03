@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from 'next/headers'
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 export async function middleware(req: NextRequest) {
   try {
+    console.log(`[Middleware] Processing request for: ${req.nextUrl.pathname}`)
     const res = NextResponse.next()
 
     // Skip auth checks if we're in a development/preview environment without Supabase config
@@ -40,43 +40,16 @@ export async function middleware(req: NextRequest) {
     const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard")
     
     if (isProtectedRoute) {
-      console.log(`[Middleware] Checking auth for protected route: ${req.nextUrl.pathname}`)
-      
-      // IMPORTANT: For NextJS middleware, we need to use cookies() instead of the request's cookies
-      // Using createRouteHandlerClient will require a workaround for middleware
-      
-      // TEMPORARY BYPASS - Uncomment this and comment out the authentication code below
-      // to bypass authentication while debugging
+      // TEMPORARY: Bypass auth checks while we fix authentication
       console.log(`[Middleware] Path: ${req.nextUrl.pathname}, Bypassing auth check temporarily`)
       return res
-      
-      /* 
-      // Uncomment this block when ready to enforce authentication
-
-      // Extract the session cookie directly
-      const cookieStore = req.cookies
-      const supabaseAuthCookie = cookieStore.get("sb-access-token") || 
-                                 cookieStore.get("sb-refresh-token") || 
-                                 cookieStore.get("supabase-auth-token")
-      
-      if (!supabaseAuthCookie) {
-        console.log("[Middleware] No auth cookies found, redirecting to login")
-        return NextResponse.redirect(new URL("/login", req.url))
-      }
-      
-      console.log(`[Middleware] Found auth cookie, allowing access to ${req.nextUrl.pathname}`)
-      */
     }
     
     // Return the response with any modified cookies 
     return res
   } catch (error) {
     console.error("[Middleware] Error:", error)
-    // If there's an error, redirect to login for protected routes
-    if (req.nextUrl.pathname.startsWith("/dashboard")) {
-      return NextResponse.redirect(new URL("/login", req.url))
-    }
-    // Otherwise, allow the request to continue
+    // If there's an error, allow the request to continue
     return NextResponse.next()
   }
 }

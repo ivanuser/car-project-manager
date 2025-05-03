@@ -17,23 +17,23 @@ export const createAuthClient = () => {
     auth: {
       autoRefreshToken: true,
       persistSession: true,
-      storageKey: 'supabase-auth',
-      storage: {
-        getItem: (key) => {
-          if (typeof window === 'undefined') return null
-          return window.localStorage.getItem(key)
-        },
-        setItem: (key, value) => {
-          if (typeof window === 'undefined') return
-          window.localStorage.setItem(key, value)
-        },
-        removeItem: (key) => {
-          if (typeof window === 'undefined') return
-          window.localStorage.removeItem(key)
-        },
-      },
       detectSessionInUrl: true,
       flowType: 'pkce',
     }
   })
+}
+
+// Export a singleton instance that can be used throughout the app
+let clientInstance: ReturnType<typeof createClient<Database>> | null = null
+
+export const getClient = () => {
+  if (typeof window === 'undefined') {
+    throw new Error('getClient should only be used in client components')
+  }
+  
+  if (!clientInstance) {
+    clientInstance = createAuthClient()
+  }
+  
+  return clientInstance
 }
