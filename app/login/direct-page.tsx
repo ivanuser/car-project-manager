@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { redirectToDashboard } from "@/actions/auth-redirect"
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
@@ -89,30 +90,22 @@ export default function DirectLoginPage() {
       // Delay redirect to ensure cookies are properly set
       setDebugInfo("Redirecting to dashboard in 3 seconds...\nPlease do not close or refresh the page.")
       
-      setTimeout(() => {
-        setDebugInfo("Executing redirect now...")
-        
-        // Create a form and submit it - this creates a full POST request that preserves cookies better than location.href
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '/dashboard';
-        
-        // Add a timestamp to prevent caching
-        const timestampField = document.createElement('input');
-        timestampField.type = 'hidden';
-        timestampField.name = 'timestamp';
-        timestampField.value = Date.now().toString();
-        form.appendChild(timestampField);
-        
-        // Add the user email as verification
-        const emailField = document.createElement('input');
-        emailField.type = 'hidden';
-        emailField.name = 'email';
-        emailField.value = data.email;
-        form.appendChild(emailField);
-        
-        document.body.appendChild(form);
-        form.submit();
+      setTimeout(async () => {
+        try {
+          // The simplest approach - direct window location change
+          setDebugInfo("Executing redirect now - using direct navigation")
+          window.location.href = '/dashboard'
+        } catch (redirectError) {
+          setDebugInfo(`Redirect error: ${redirectError instanceof Error ? redirectError.message : String(redirectError)}`)
+          
+          // Fallback approach using regular link
+          setDebugInfo("Redirecting failed. Please click the link below to go to dashboard:")
+          
+          // Add a clickable link
+          const linkDiv = document.createElement('div')
+          linkDiv.innerHTML = '<a href="/dashboard" class="text-blue-500 underline">Click here to go to dashboard</a>'
+          document.body.appendChild(linkDiv)
+        }
       }, 3000)
     } catch (error) {
       console.error("Login error:", error)
