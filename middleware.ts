@@ -4,9 +4,10 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
 export async function middleware(req: NextRequest) {
   try {
-    console.log(`[Middleware] Processing request for: ${req.nextUrl.pathname}`);
+    // Only log the path, not every cookie operation
+    console.log(`[Middleware] Processing: ${req.nextUrl.pathname}`);
     
-    // Create response and get cookies
+    // Create response
     const res = NextResponse.next();
     
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -17,60 +18,47 @@ export async function middleware(req: NextRequest) {
       return res;
     }
 
-    // Create Supabase client with enhanced error handling
-    try {
-      const supabase = createServerClient(
-        supabaseUrl,
-        supabaseAnonKey,
-        {
-          cookies: {
-            get(name: string) {
-              console.log(`[Middleware] Retrieving cookie: ${name}`);
-              return req.cookies.get(name)?.value;
-            },
-            set(name: string, value: string, options: CookieOptions) {
-              console.log(`[Middleware] Setting cookie: ${name}`);
-              res.cookies.set({ name, value, ...options });
-            },
-            remove(name: string, options: CookieOptions) {
-              console.log(`[Middleware] Removing cookie: ${name}`);
-              res.cookies.set({ name, value: '', ...options });
-            },
+    // Create Supabase client with minimal cookie operations logging
+    const supabase = createServerClient(
+      supabaseUrl,
+      supabaseAnonKey,
+      {
+        cookies: {
+          get(name: string) {
+            // Don't log every cookie retrieval
+            return req.cookies.get(name)?.value;
           },
-        }
-      );
-
-      // Refresh session with error handling
-      console.log("[Middleware] Getting session");
-      const sessionResult = await supabase.auth.getSession();
-      if (sessionResult.error) {
-        console.error("[Middleware] Session error:", sessionResult.error.message);
-      } else {
-        console.log("[Middleware] Session found:", !!sessionResult.data.session);
+          set(name: string, value: string, options: CookieOptions) {
+            // Only set cookies, don't remove them in middleware
+            res.cookies.set({ name, value, ...options });
+          },
+          remove(name: string, options: CookieOptions) {
+            // *** CRITICAL: Don't remove cookies in middleware to prevent infinite loops ***
+            // Instead, just log that a removal was attempted but not executed
+            console.log(`[Middleware] Cookie removal prevented for: ${name} to avoid infinite loops`);
+          },
+        },
       }
-      
-      const session = sessionResult.data.session;
+    );
 
-      // Authentication Logic
-      const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard");
-      const isAuthRoute = req.nextUrl.pathname === '/login' || 
-                         req.nextUrl.pathname === '/register' || 
-                         req.nextUrl.pathname.startsWith("/auth");
+    // Get session but don't manipulate cookies
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    // Simple authentication checks without manipulating cookies
+    const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard");
+    const isAuthRoute = req.nextUrl.pathname === '/login' || 
+                       req.nextUrl.pathname === '/register' || 
+                       req.nextUrl.pathname.startsWith("/auth");
 
-      if (!session && isProtectedRoute) {
-        console.log("[Middleware] No session, redirecting to login");
-        const redirectUrl = req.nextUrl.clone();
-        redirectUrl.pathname = '/login';
-        redirectUrl.searchParams.set(`redirectedFrom`, req.nextUrl.pathname);
-        return NextResponse.redirect(redirectUrl);
-      }
+    // Handle redirects based on auth state
+    if (!session && isProtectedRoute) {
+      console.log("[Middleware] No session, redirecting to login");
+      return NextResponse.redirect(new URL('/login', req.url));
+    }
 
-      if (session && isAuthRoute && req.nextUrl.pathname !== '/') {
-        console.log("[Middleware] Session found, redirecting to dashboard");
-        return NextResponse.redirect(new URL('/dashboard', req.url));
-      }
-    } catch (clientError) {
-      console.error("[Middleware] Supabase client error:", clientError);
+    if (session && isAuthRoute && req.nextUrl.pathname !== '/') {
+      console.log("[Middleware] Session found, redirecting to dashboard");
+      return NextResponse.redirect(new URL('/dashboard', req.url));
     }
 
     return res;
