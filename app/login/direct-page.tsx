@@ -1,11 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
-import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,7 +13,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { checkAuthStatus } from "@/lib/auth-utils"
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
@@ -27,25 +25,7 @@ export default function DirectLoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [debugInfo, setDebugInfo] = useState<string | null>(null)
-  const router = useRouter()
   const { toast } = useToast()
-
-  // Check if already authenticated on mount
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const { authenticated } = await checkAuthStatus()
-        if (authenticated) {
-          // If already authenticated, redirect to dashboard
-          router.push("/dashboard")
-        }
-      } catch (error) {
-        console.error("Auth check error:", error)
-      }
-    }
-
-    checkAuth()
-  }, [router])
 
   async function onLoginSubmit(data: LoginFormValues) {
     setIsLoading(true)
@@ -102,6 +82,7 @@ export default function DirectLoginPage() {
       setDebugInfo("Login successful! Redirecting to dashboard in 2 seconds...")
       
       setTimeout(() => {
+        // Use window.location for a full page reload with the cookies
         window.location.href = "/dashboard"
       }, 2000)
     } catch (error) {

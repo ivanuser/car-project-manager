@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Simplified middleware that only handles auth redirects
+// Simplified middleware that only redirects unauthenticated users from protected routes
 export async function middleware(req: NextRequest) {
   try {
     // Skip middleware for API routes (to avoid interference with API handlers)
@@ -15,18 +15,8 @@ export async function middleware(req: NextRequest) {
     const hasAuthCookie = req.cookies.has('sb-dqapklpzcfosobremzfc-auth-token');
     console.log(`[Middleware] Auth cookie present: ${hasAuthCookie}`);
     
-    // Define route types
+    // Only protect dashboard routes - do not redirect away from login pages
     const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard");
-    const isAuthRoute = req.nextUrl.pathname === '/login' || 
-                         req.nextUrl.pathname === '/register' || 
-                         req.nextUrl.pathname.startsWith("/auth");
-    
-    // Auth redirects only - no interference with dashboard route
-    if (hasAuthCookie && isAuthRoute) {
-      // Redirect authenticated users from login pages to dashboard
-      console.log("[Middleware] User is authenticated, redirecting from auth page to dashboard");
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
     
     if (!hasAuthCookie && isProtectedRoute) {
       // Redirect unauthenticated users from protected routes to login
@@ -34,7 +24,7 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL('/login', req.url));
     }
     
-    // Allow all other routes to proceed normally
+    // Allow all other routes to proceed normally - including login pages
     return NextResponse.next();
   } catch (error) {
     console.error("[Middleware] Error:", error);
