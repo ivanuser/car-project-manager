@@ -13,7 +13,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { redirectToDashboard } from "@/actions/auth-redirect"
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
@@ -26,6 +25,7 @@ export default function DirectLoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [debugInfo, setDebugInfo] = useState<string | null>(null)
+  const [showManualLink, setShowManualLink] = useState(false)
   const { toast } = useToast()
 
   const loginForm = useForm<LoginFormValues>({
@@ -87,26 +87,10 @@ export default function DirectLoginPage() {
       const cookies = document.cookie.split(';').map(c => c.trim());
       setDebugInfo(`Cookies after login:\n${cookies.join('\n')}`)
       
-      // Delay redirect to ensure cookies are properly set
-      setDebugInfo("Redirecting to dashboard in 3 seconds...\nPlease do not close or refresh the page.")
+      // Show dashboard link instead of redirect
+      setDebugInfo("Login successful! Please click the link below to go to dashboard.")
+      setShowManualLink(true)
       
-      setTimeout(async () => {
-        try {
-          // The simplest approach - direct window location change
-          setDebugInfo("Executing redirect now - using direct navigation")
-          window.location.href = '/dashboard'
-        } catch (redirectError) {
-          setDebugInfo(`Redirect error: ${redirectError instanceof Error ? redirectError.message : String(redirectError)}`)
-          
-          // Fallback approach using regular link
-          setDebugInfo("Redirecting failed. Please click the link below to go to dashboard:")
-          
-          // Add a clickable link
-          const linkDiv = document.createElement('div')
-          linkDiv.innerHTML = '<a href="/dashboard" class="text-blue-500 underline">Click here to go to dashboard</a>'
-          document.body.appendChild(linkDiv)
-        }
-      }, 3000)
     } catch (error) {
       console.error("Login error:", error)
       setDebugInfo(`Login error: ${error instanceof Error ? error.message : String(error)}`)
@@ -179,6 +163,18 @@ export default function DirectLoginPage() {
                   <p className="text-sm text-error">{loginForm.formState.errors.password.message}</p>
                 )}
               </div>
+
+              {showManualLink && (
+                <div className="p-4 bg-green-100 dark:bg-green-900 rounded-md text-center">
+                  <p className="font-bold mb-2">Login Successful!</p>
+                  <a 
+                    href="/dashboard" 
+                    className="inline-block px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                  >
+                    Go to Dashboard
+                  </a>
+                </div>
+              )}
 
               {debugInfo && (
                 <Alert variant="outline" className="bg-yellow-50 dark:bg-yellow-900/30 text-xs">
