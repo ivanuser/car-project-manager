@@ -1,5 +1,6 @@
 import { AuthForm } from "@/components/auth/auth-form"
 import { DevLoginButton } from "@/components/auth/dev-login-button"
+import Link from "next/link"
 
 export default function LoginPage() {
   return (
@@ -14,8 +15,18 @@ export default function LoginPage() {
 
         {/* Only show in development */}
         {process.env.NODE_ENV === "development" && (
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-3">
             <DevLoginButton />
+            
+            <div className="flex justify-center gap-2 text-sm mt-4">
+              <Link href="/api/auth/debug" target="_blank" className="text-blue-500 hover:underline">
+                Auth Debug
+              </Link>
+              <span>|</span>
+              <Link href="/api/auth/reset" target="_blank" className="text-red-500 hover:underline">
+                Reset Auth
+              </Link>
+            </div>
           </div>
         )}
       </div>

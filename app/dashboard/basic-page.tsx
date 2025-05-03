@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info } from "lucide-react";
+import { AuthStatusIndicator } from "@/components/auth-status-indicator";
 
 export default function BasicDashboard() {
   return (
@@ -22,6 +23,9 @@ export default function BasicDashboard() {
           This is a temporary measure while we fix session handling.
         </AlertDescription>
       </Alert>
+
+      {/* Auth Status Indicator */}
+      <AuthStatusIndicator />
 
       <div className="grid gap-6">
         <div className="flex items-center justify-between">

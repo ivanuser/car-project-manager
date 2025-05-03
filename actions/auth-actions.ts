@@ -4,7 +4,6 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { createServerClient } from "@/lib/supabase"
 import { createAdminClient } from "@/lib/admin-client"
-import { ensureUserProfile } from "@/lib/auth-helpers"
 
 export async function signUp(formData: FormData) {
   const email = formData.get("email") as string
@@ -56,7 +55,7 @@ export async function signIn(formData: FormData) {
 
     const supabase = createServerClient()
 
-    // Attempt to sign in directly - no need to check if user exists first
+    // Attempt to sign in with credentials
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -72,25 +71,52 @@ export async function signIn(formData: FormData) {
 
     // Ensure a user profile exists
     if (data.user) {
-      const profileResult = await ensureUserProfile(data.user.id, email)
-      if (!profileResult.success) {
-        console.error("Warning: Failed to ensure user profile exists:", profileResult.error)
+      try {
+        // Use admin client to bypass RLS
+        const adminClient = createAdminClient()
+        
+        // Check if profile exists
+        const { data: profile, error: profileError } = await adminClient
+          .from('profiles')
+          .select()
+          .eq('id', data.user.id)
+          .single()
+          
+        if (profileError || !profile) {
+          // Create profile if it doesn't exist
+          const { error: insertError } = await adminClient.from('profiles').insert({
+            id: data.user.id,
+            full_name: email.split('@')[0], // Use email username as fallback
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          
+          if (insertError) {
+            console.error("Error creating profile:", insertError)
+          } else {
+            console.log("Created new profile for user")
+          }
+        } else {
+          console.log("Existing profile found for user")
+        }
+      } catch (profileError) {
+        console.error("Error managing user profile:", profileError)
       }
     }
 
-    // Do not manually set cookies here - let Supabase handle its own cookies
-    console.log("Using supabase session management - not setting manual cookies")
+    // Note: Supabase handles its own cookies - we don't need to manually set them
 
-    // Set a debug cookie just for logging/debugging
+    // Set a debug cookie just for logging
     const cookieStore = cookies()
-    cookieStore.set("auth-debug", new Date().toISOString(), {
+    cookieStore.set("auth-debug-time", new Date().toISOString(), {
       path: "/",
       maxAge: 300, // 5 minutes
     })
 
+    // Redirect after successful login
     return {
       success: true,
-      shouldRedirect: true,
+      redirectUrl: "/dashboard",
       user: {
         id: data.user.id,
         email: data.user.email,
@@ -103,13 +129,37 @@ export async function signIn(formData: FormData) {
 }
 
 export async function signOut() {
-  const supabase = createServerClient()
-  await supabase.auth.signOut()
+  try {
+    const supabase = createServerClient()
+    await supabase.auth.signOut()
 
-  // Clear cookies
-  const cookieStore = cookies()
-  cookieStore.delete("supabase-auth-token")
-  cookieStore.delete("auth-debug")
+    // Clear cookies
+    const cookieStore = cookies()
+    
+    // Try to clear common auth cookies
+    const cookiesToClear = [
+      "supabase-auth-token",
+      "sb-access-token",
+      "sb-refresh-token",
+      "next-auth.session-token",
+      "next-auth.csrf-token",
+      "next-auth.callback-url",
+      "__supabase_auth_token",
+      "auth-debug",
+      "auth-debug-time"
+    ]
+    
+    for (const cookieName of cookiesToClear) {
+      try {
+        cookieStore.delete(cookieName)
+      } catch (e) {
+        // Ignore errors when clearing cookies
+      }
+    }
 
-  redirect("/login")
+    redirect("/login")
+  } catch (error) {
+    console.error("Error during sign out:", error)
+    redirect("/login")
+  }
 }
