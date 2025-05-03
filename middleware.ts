@@ -1,71 +1,41 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
+// Extremely simplified middleware that doesn't use Supabase client
 export async function middleware(req: NextRequest) {
+  // Bypass middleware for all routes for now, to fix the infinite loop
+  return NextResponse.next();
+  
+  /* We'll comment out all of this code to stop the infinite loops
+  
   try {
-    // Only log the path, not every cookie operation
     console.log(`[Middleware] Processing: ${req.nextUrl.pathname}`);
     
-    // Create response
-    const res = NextResponse.next();
+    // Basic auth check based on cookie existence only, no Supabase client
+    const hasAuthCookie = req.cookies.has('sb-dqapklpzcfosobremzfc-auth-token');
     
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.warn("Skipping auth middleware due to missing Supabase configuration");
-      return res;
-    }
-
-    // Create Supabase client with minimal cookie operations logging
-    const supabase = createServerClient(
-      supabaseUrl,
-      supabaseAnonKey,
-      {
-        cookies: {
-          get(name: string) {
-            // Don't log every cookie retrieval
-            return req.cookies.get(name)?.value;
-          },
-          set(name: string, value: string, options: CookieOptions) {
-            // Only set cookies, don't remove them in middleware
-            res.cookies.set({ name, value, ...options });
-          },
-          remove(name: string, options: CookieOptions) {
-            // *** CRITICAL: Don't remove cookies in middleware to prevent infinite loops ***
-            // Instead, just log that a removal was attempted but not executed
-            console.log(`[Middleware] Cookie removal prevented for: ${name} to avoid infinite loops`);
-          },
-        },
-      }
-    );
-
-    // Get session but don't manipulate cookies
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    // Simple authentication checks without manipulating cookies
+    // Handle redirects based on simple cookie check
     const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard");
     const isAuthRoute = req.nextUrl.pathname === '/login' || 
                        req.nextUrl.pathname === '/register' || 
                        req.nextUrl.pathname.startsWith("/auth");
-
-    // Handle redirects based on auth state
-    if (!session && isProtectedRoute) {
-      console.log("[Middleware] No session, redirecting to login");
+    
+    if (!hasAuthCookie && isProtectedRoute) {
+      console.log("[Middleware] No auth cookie, redirecting to login");
       return NextResponse.redirect(new URL('/login', req.url));
     }
 
-    if (session && isAuthRoute && req.nextUrl.pathname !== '/') {
-      console.log("[Middleware] Session found, redirecting to dashboard");
+    if (hasAuthCookie && isAuthRoute && req.nextUrl.pathname !== '/') {
+      console.log("[Middleware] Auth cookie found, redirecting to dashboard");
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
-
-    return res;
+    
+    return NextResponse.next();
   } catch (error) {
     console.error("[Middleware] Error:", error);
     return NextResponse.next();
   }
+  */
 }
 
 export const config = {

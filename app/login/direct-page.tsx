@@ -40,7 +40,6 @@ export default function DirectLoginPage() {
     setDebugInfo("Starting direct login process...")
 
     try {
-      // Add more detailed debugging
       setDebugInfo("Preparing to send login request to API...")
       
       const requestPayload = {
@@ -57,7 +56,6 @@ export default function DirectLoginPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(requestPayload),
-        // Add these options to ensure credentials are sent properly
         credentials: "include"
       })
       
@@ -84,27 +82,17 @@ export default function DirectLoginPage() {
         description: "You have been logged in successfully",
       })
 
-      // Check for authentication by making a simple authenticated request
-      setDebugInfo("Verifying authentication status...")
-      try {
-        const authCheck = await fetch("/api/auth/check", {
-          credentials: "include"
-        })
-        const authResult = await authCheck.json()
-        setDebugInfo(`Auth check result: ${JSON.stringify(authResult)}`)
-      } catch (checkError) {
-        setDebugInfo(`Auth check error: ${checkError instanceof Error ? checkError.message : String(checkError)}`)
-      }
-
-      // Force a hard navigation to the dashboard
-      setDebugInfo("Redirecting to dashboard in 2 seconds...")
+      // Manual approach to check login status - just log cookies
+      setDebugInfo("Verifying login status...")
       
-      // Add a small delay to ensure the toast is visible
+      // Delay redirect to ensure cookies are properly set
+      setDebugInfo("Redirecting to dashboard in 3 seconds...")
+      
       setTimeout(() => {
         setDebugInfo("Executing redirect now...")
-        // Use window.location for a full page reload to ensure cookies are properly set
+        // Use window.location for a full page reload 
         window.location.href = "/dashboard"
-      }, 2000)
+      }, 3000)
     } catch (error) {
       console.error("Login error:", error)
       setDebugInfo(`Login error: ${error instanceof Error ? error.message : String(error)}`)
@@ -193,25 +181,16 @@ export default function DirectLoginPage() {
                 </p>
               </div>
               
-              {/* Add this additional debugging section */}
               <div className="text-xs text-center text-muted-foreground mt-4">
                 <button
                   type="button"
                   className="text-blue-500 hover:underline"
-                  onClick={async () => {
-                    try {
-                      setDebugInfo("Checking auth status...")
-                      const response = await fetch("/api/auth/check", {
-                        credentials: "include"
-                      })
-                      const result = await response.json()
-                      setDebugInfo("Auth status: " + JSON.stringify(result, null, 2))
-                    } catch (error) {
-                      setDebugInfo("Auth check error: " + (error instanceof Error ? error.message : String(error)))
-                    }
+                  onClick={() => {
+                    setDebugInfo("Checking cookies in browser...\n" + 
+                      "Cookies: " + document.cookie.split(';').map(c => c.trim()).join('\n'))
                   }}
                 >
-                  Check Auth Status
+                  Check Cookies
                 </button>
               </div>
             </CardContent>

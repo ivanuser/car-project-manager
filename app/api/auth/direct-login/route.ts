@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createClient } from "@supabase/supabase-js";
 import { ensureUserProfile } from "@/lib/auth-helpers";
 
 export async function POST(request: Request) {
@@ -14,12 +14,23 @@ export async function POST(request: Request) {
 
     console.log(`Attempting direct login for: ${email}`);
 
-    // Create server client with cookies using the correct helper for Route Handlers
-    const cookieStore = cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    // Create a standard Supabase client without automatic cookie handling
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return NextResponse.json({ error: "Supabase configuration is missing" }, { status: 500 });
+    }
+    
+    // Use the direct client without cookie handling to avoid middleware loops
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
 
-    // Add a debug log to verify Supabase client creation
-    console.log("Supabase client created successfully");
+    console.log("Supabase client created without cookie handling");
 
     // Sign in with detailed error logging
     console.log("Attempting signInWithPassword...");
@@ -50,6 +61,18 @@ export async function POST(request: Request) {
     console.log(`Session expires at: ${new Date(data.session.expires_at * 1000).toISOString()}`);
     console.log("Session ID:", data.session.id);
 
+    // Manually set the auth cookies
+    const cookieStore = cookies();
+    
+    // Set the access token cookie
+    cookieStore.set(`sb-${supabaseUrl.split('//')[1].split('.')[0]}-auth-token`, data.session.access_token, {
+      path: "/",
+      maxAge: 3600, // 1 hour (typical for access tokens)
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      sameSite: "lax"
+    });
+    
     // Set a debug cookie to verify cookie setting is working
     cookieStore.set("auth-debug-direct", new Date().toISOString(), {
       path: "/",

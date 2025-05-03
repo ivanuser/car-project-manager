@@ -1,29 +1,50 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createClient } from "@supabase/supabase-js";
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const cookieStore = cookies();
     const allCookies = cookieStore.getAll();
     
-    // Create Supabase client
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    // Get Supabase config
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
     
-    // Get session and user info
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    // Check for Supabase auth cookies manually
+    let authCookie = null;
+    const projectRef = supabaseUrl.split('//')[1]?.split('.')[0];
+    if (projectRef) {
+      authCookie = cookieStore.get(`sb-${projectRef}-auth-token`);
+    }
+    
+    // Create a simple Supabase client without cookie handling
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
+    
+    // Check session using the API, don't rely on cookie handling
+    const sessionData = authCookie ? 
+      // If we have an auth cookie, try to get the session
+      await supabase.auth.getUser(authCookie.value) : 
+      { data: { user: null }, error: null };
     
     return NextResponse.json({
-      authenticated: !!sessionData?.session,
-      cookieCount: allCookies.length,
-      cookieNames: allCookies.map(c => c.name),
-      sessionError: sessionError?.message,
-      user: sessionData?.session?.user ? {
-        id: sessionData.session.user.id,
-        email: sessionData.session.user.email,
+      cookieCheck: {
+        cookieCount: allCookies.length,
+        cookieNames: allCookies.map(c => c.name),
+        authCookieExists: !!authCookie,
+        authCookieValue: authCookie ? "[REDACTED FOR SECURITY]" : null
+      },
+      authenticated: !!sessionData.data.user,
+      user: sessionData.data.user ? {
+        id: sessionData.data.user.id,
+        email: sessionData.data.user.email,
       } : null,
-      sessionExpires: sessionData?.session?.expires_at ? 
-        new Date(sessionData.session.expires_at * 1000).toISOString() : null,
+      error: sessionData.error?.message
     });
   } catch (error) {
     console.error("Auth check error:", error);
