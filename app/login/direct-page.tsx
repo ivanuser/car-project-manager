@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +14,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { checkAuthStatus } from "@/lib/auth-utils"
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
@@ -25,16 +27,25 @@ export default function DirectLoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [debugInfo, setDebugInfo] = useState<string | null>(null)
-  const [showManualLink, setShowManualLink] = useState(false)
+  const router = useRouter()
   const { toast } = useToast()
 
-  const loginForm = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
-  })
+  // Check if already authenticated on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { authenticated } = await checkAuthStatus()
+        if (authenticated) {
+          // If already authenticated, redirect to dashboard
+          router.push("/dashboard")
+        }
+      } catch (error) {
+        console.error("Auth check error:", error)
+      }
+    }
+
+    checkAuth()
+  }, [router])
 
   async function onLoginSubmit(data: LoginFormValues) {
     setIsLoading(true)
@@ -87,10 +98,12 @@ export default function DirectLoginPage() {
       const cookies = document.cookie.split(';').map(c => c.trim());
       setDebugInfo(`Cookies after login:\n${cookies.join('\n')}`)
       
-      // Show dashboard link instead of redirect
-      setDebugInfo("Login successful! Please click the button below to go to dashboard.")
-      setShowManualLink(true)
+      // Delay redirect to ensure cookies are properly set
+      setDebugInfo("Login successful! Redirecting to dashboard in 2 seconds...")
       
+      setTimeout(() => {
+        window.location.href = "/dashboard"
+      }, 2000)
     } catch (error) {
       console.error("Login error:", error)
       setDebugInfo(`Login error: ${error instanceof Error ? error.message : String(error)}`)
@@ -163,18 +176,6 @@ export default function DirectLoginPage() {
                   <p className="text-sm text-error">{loginForm.formState.errors.password.message}</p>
                 )}
               </div>
-
-              {showManualLink && (
-                <div className="p-4 bg-green-100 dark:bg-green-900 rounded-md text-center">
-                  <p className="font-bold mb-2">Login Successful!</p>
-                  <a 
-                    href="/dashboard-view" 
-                    className="inline-block px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                  >
-                    Go to Fixed Dashboard
-                  </a>
-                </div>
-              )}
 
               {debugInfo && (
                 <Alert variant="outline" className="bg-yellow-50 dark:bg-yellow-900/30 text-xs">
