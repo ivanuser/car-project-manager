@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, ShieldCheck, ShieldOff } from "lucide-react"
+import { Loader2, ShieldCheck, ShieldOff, LogOut } from "lucide-react"
+import { createAuthClient } from "@/lib/client-auth"
 
 export function AuthStatusIndicator() {
   const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading')
@@ -13,6 +14,23 @@ export function AuthStatusIndicator() {
   const checkAuth = async () => {
     try {
       setIsChecking(true)
+      
+      // First try client-side auth
+      try {
+        const supabase = createAuthClient()
+        const { data } = await supabase.auth.getSession()
+        
+        if (data.session) {
+          setStatus('authenticated')
+          setUserEmail(data.session.user.email)
+          setIsChecking(false)
+          return
+        }
+      } catch (clientError) {
+        console.error('Error checking client auth:', clientError)
+      }
+      
+      // Fall back to API endpoint
       const response = await fetch('/api/auth/debug')
       const data = await response.json()
       
@@ -28,6 +46,16 @@ export function AuthStatusIndicator() {
       setStatus('unauthenticated')
     } finally {
       setIsChecking(false)
+    }
+  }
+  
+  const handleSignOut = async () => {
+    try {
+      const supabase = createAuthClient()
+      await supabase.auth.signOut()
+      checkAuth()
+    } catch (error) {
+      console.error('Error signing out:', error)
     }
   }
 
@@ -55,30 +83,65 @@ export function AuthStatusIndicator() {
         <div className="text-sm">
           {status === 'loading' && <p>Checking authentication status...</p>}
           {status === 'authenticated' && (
-            <p className="font-medium">Authenticated as: <span className="text-green-600 dark:text-green-400">{userEmail}</span></p>
+            <div>
+              <p className="font-medium">Authenticated as: <span className="text-green-600 dark:text-green-400">{userEmail}</span></p>
+              <div className="mt-3 flex justify-between">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={checkAuth} 
+                  disabled={isChecking}
+                  className="text-xs"
+                >
+                  {isChecking ? (
+                    <>
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      Checking...
+                    </>
+                  ) : (
+                    'Refresh'
+                  )}
+                </Button>
+                
+                <Button 
+                  size="sm" 
+                  variant="destructive" 
+                  onClick={handleSignOut} 
+                  className="text-xs"
+                >
+                  <LogOut className="w-3 h-3 mr-1" />
+                  Sign Out
+                </Button>
+              </div>
+            </div>
           )}
           {status === 'unauthenticated' && (
-            <p className="font-medium text-red-600 dark:text-red-400">Not authenticated</p>
+            <div>
+              <p className="font-medium text-red-600 dark:text-red-400">Not authenticated</p>
+              <div className="mt-3 flex justify-between">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={checkAuth} 
+                  disabled={isChecking}
+                  className="text-xs"
+                >
+                  {isChecking ? (
+                    <>
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      Checking...
+                    </>
+                  ) : (
+                    'Check Status'
+                  )}
+                </Button>
+                
+                <a href="/login" className="text-xs inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-white">
+                  Sign In
+                </a>
+              </div>
+            </div>
           )}
-
-          <div className="mt-3 flex justify-end">
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={checkAuth} 
-              disabled={isChecking}
-              className="text-xs"
-            >
-              {isChecking ? (
-                <>
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                  Checking...
-                </>
-              ) : (
-                'Check Status'
-              )}
-            </Button>
-          </div>
         </div>
       </CardContent>
     </Card>

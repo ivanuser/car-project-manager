@@ -1,5 +1,6 @@
 import { AuthForm } from "@/components/auth/auth-form"
 import { DevLoginButton } from "@/components/auth/dev-login-button"
+import { ClientAuthForm } from "@/components/auth/client-auth-form"
 import Link from "next/link"
 
 export default function LoginPage() {
@@ -10,8 +11,12 @@ export default function LoginPage() {
           <h1 className="text-3xl font-bold">Welcome to CAJPRO</h1>
           <p className="text-gray-600 mt-2">Sign in to your account</p>
         </div>
-
-        <AuthForm />
+        
+        {/* Server-side auth form - has issues with cookies */}
+        {/*<AuthForm />*/}
+        
+        {/* Client-side auth form - try this to fix cookie issues */}
+        <ClientAuthForm />
 
         {/* Only show in development */}
         {process.env.NODE_ENV === "development" && (
