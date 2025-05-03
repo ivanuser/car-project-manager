@@ -19,7 +19,7 @@ export default async function DashboardLayout({
   const isDevelopment = process.env.NODE_ENV === "development"
 
   // Initialize user data as null - no default/mock user
-  let userData = null
+  let userProfile = null
 
   // Try to get real user data if we have Supabase configured
   if (!isMissingConfig) {
@@ -78,12 +78,12 @@ export default async function DashboardLayout({
         });
         
         // Use the token to get user info
-        const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
+        const { data: userResponse, error: userError } = await supabase.auth.getUser(accessToken);
         
         if (userError) {
           console.error("Dashboard: Error getting user data:", userError.message);
-        } else if (userData.user) {
-          user = userData.user;
+        } else if (userResponse.user) {
+          user = userResponse.user;
           console.log("Dashboard: Found user via token:", user.email);
           
           // Get the user's profile
@@ -93,14 +93,14 @@ export default async function DashboardLayout({
             .eq("id", user.id)
             .single();
           
-          userData = {
+          userProfile = {
             id: user.id,
             email: user.email,
             fullName: profile?.full_name || undefined,
             avatarUrl: profile?.avatar_url || undefined,
           };
           
-          console.log("Dashboard: Using authenticated user:", userData.email);
+          console.log("Dashboard: Using authenticated user:", userProfile.email);
         }
       }
       
@@ -147,7 +147,7 @@ export default async function DashboardLayout({
           <DashboardSidebar />
         </div>
         <div className="flex w-full flex-col">
-          <Header user={userData} />
+          <Header user={userProfile} />
           <main className="flex-1 p-4 md:p-6">
             {children}
           </main>
