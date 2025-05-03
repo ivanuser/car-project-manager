@@ -17,10 +17,12 @@ export default async function Dashboard() {
     try {
       const supabase = createServerClient()
 
+      // First get the session
+      const { data: sessionData } = await supabase.auth.getSession()
+      console.log("Dashboard page: Session check:", sessionData.session ? "Session exists" : "No session")
+      
       // Get the current user
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      const { data: { user } } = await supabase.auth.getUser()
       
       console.log("Dashboard page: Auth user found:", user ? user.email : "No user")
 

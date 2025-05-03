@@ -65,7 +65,7 @@ export async function middleware(req: NextRequest) {
     }
 
     // If accessing a protected route without a session, redirect to login
-    if (isProtectedRoute && !session && !hasAuthCookie) {
+    if (isProtectedRoute && !session) {
       console.log(`[Middleware] Redirecting to login from: ${req.nextUrl.pathname}`)
       const redirectUrl = new URL("/login", req.url)
       redirectUrl.searchParams.set("redirect", req.nextUrl.pathname)

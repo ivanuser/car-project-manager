@@ -1,4 +1,4 @@
-import { createServerClient } from "@/lib/supabase"
+import { createAdminClient } from "@/lib/admin-client"
 
 /**
  * Ensures a user profile exists in the database
@@ -6,7 +6,8 @@ import { createServerClient } from "@/lib/supabase"
  */
 export async function ensureUserProfile(userId: string, email: string) {
   try {
-    const supabase = createServerClient()
+    // Use the admin client to bypass RLS
+    const supabase = createAdminClient()
     
     // Check if a profile exists for this user
     const { data: existingProfile, error: profileQueryError } = await supabase

@@ -3,6 +3,7 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { createServerClient } from "@/lib/supabase"
+import { createAdminClient } from "@/lib/admin-client"
 import { ensureUserProfile } from "@/lib/auth-helpers"
 
 export async function signUp(formData: FormData) {
@@ -30,7 +31,9 @@ export async function signUp(formData: FormData) {
 
   // Create a profile record
   if (data.user) {
-    const { error: profileError } = await supabase.from("profiles").insert({
+    // Use admin client to bypass RLS
+    const adminClient = createAdminClient()
+    const { error: profileError } = await adminClient.from("profiles").insert({
       id: data.user.id,
       full_name: fullName,
     })
