@@ -130,8 +130,20 @@ export async function signIn(formData: FormData) {
 
 export async function signOut() {
   try {
+    console.log("Server-side signOut function called")
     const supabase = createServerClient()
-    await supabase.auth.signOut()
+    
+    // Check the session before signing out
+    const { data: sessionData } = await supabase.auth.getSession()
+    console.log("Current session before signOut:", sessionData.session ? "Session exists" : "No session")
+    
+    // Sign out from Supabase
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      console.error("Error during Supabase signOut:", error.message)
+    } else {
+      console.log("Supabase signOut successful")
+    }
 
     // Clear cookies
     const cookieStore = cookies()
@@ -146,14 +158,17 @@ export async function signOut() {
       "next-auth.callback-url",
       "__supabase_auth_token",
       "auth-debug",
-      "auth-debug-time"
+      "auth-debug-time",
+      "supabase-auth"
     ]
     
+    console.log("Clearing cookies:")
     for (const cookieName of cookiesToClear) {
       try {
         cookieStore.delete(cookieName)
+        console.log(`Cookie deleted: ${cookieName}`)
       } catch (e) {
-        // Ignore errors when clearing cookies
+        console.error(`Error clearing cookie ${cookieName}:`, e)
       }
     }
 

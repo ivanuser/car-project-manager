@@ -93,16 +93,16 @@ export default async function DashboardLayout({
               // Show regular content for authenticated users
               children
             ) : (
-              // Show guest view with authentication warning
+              // Redirect to login - this is a fallback, middleware should handle this
               <div className="space-y-4">
-                <div className="p-4 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded-md">
-                  <h2 className="text-lg font-semibold">Not Authenticated</h2>
-                  <p>You're currently viewing the dashboard as a guest. Some features may be limited.</p>
+                <div className="p-4 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded-md">
+                  <h2 className="text-lg font-semibold">Authentication Required</h2>
+                  <p>You must be signed in to access the dashboard.</p>
                   <div className="mt-3">
-                    <a href="/login" className="underline">Sign in</a> to access all features.
+                    <a href="/login" className="underline font-bold">Sign in now</a>
                   </div>
                 </div>
-                {children}
+                <script dangerouslySetInnerHTML={{ __html: `window.location.href = '/login';` }} />
               </div>
             )}
           </main>

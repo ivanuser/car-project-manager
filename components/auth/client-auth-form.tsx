@@ -123,7 +123,13 @@ export function ClientAuthForm({ defaultTab = "login" }: ClientAuthFormProps) {
       setTimeout(() => {
         // Use window.location for a full page reload to ensure cookies are properly set
         window.location.href = "/dashboard"
-      }, 1000)
+        
+        // Additional debugging
+        console.log("AUTH DEBUG: Redirecting to dashboard after successful login", {
+          user: authData.user,
+          sessionExists: !!sessionData.session
+        })
+      }, 1500)
     } catch (error) {
       console.error("Login error:", error)
       setDebugInfo(`Login error: ${error instanceof Error ? error.message : String(error)}`)

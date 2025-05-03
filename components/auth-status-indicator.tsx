@@ -14,15 +14,18 @@ export function AuthStatusIndicator() {
   const checkAuth = async () => {
     try {
       setIsChecking(true)
+      console.log('Checking auth status...')
       
       // First try client-side auth
       try {
         const supabase = createAuthClient()
         const { data } = await supabase.auth.getSession()
+        console.log('Client auth check result:', data.session ? `Authenticated as ${data.session.user.email}` : 'No session')
         
         if (data.session) {
           setStatus('authenticated')
           setUserEmail(data.session.user.email)
+          console.log('Successfully authenticated as:', data.session.user.email)
           setIsChecking(false)
           return
         }

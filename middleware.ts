@@ -25,15 +25,29 @@ export async function middleware(req: NextRequest) {
       return res
     }
 
-    // For now, just log the path and return response - skip auth checks until we fix authentication
-    console.log(`[Middleware] Path: ${req.nextUrl.pathname}, Bypassing auth check temporarily`)
-    
     // Protected routes that require authentication
     const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard")
+    const isAuthRoute = req.nextUrl.pathname.startsWith("/login") || 
+                        req.nextUrl.pathname.startsWith("/register") || 
+                        req.nextUrl.pathname.startsWith("/auth")
     
-    // Temporary bypass for dashboard in development mode
-    if (process.env.NODE_ENV === "development" && isProtectedRoute) {
-      return res
+    if (isProtectedRoute) {
+      console.log(`[Middleware] Checking auth for protected route: ${req.nextUrl.pathname}`)
+      
+      // Get the session
+      const { data: { session }, error } = await supabase.auth.getSession()
+      
+      if (error) {
+        console.error("[Middleware] Auth error:", error)
+      }
+      
+      // If there's no session, redirect to login
+      if (!session) {
+        console.log("[Middleware] No auth session found, redirecting to login")
+        return NextResponse.redirect(new URL("/login", req.url))
+      }
+      
+      console.log(`[Middleware] Authenticated access to ${req.nextUrl.pathname} for user: ${session.user.email}`)
     }
     
     // Return the response with any modified cookies 
