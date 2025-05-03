@@ -50,7 +50,7 @@ export function ClientAuthForm({ defaultTab = "login" }: ClientAuthFormProps) {
 
   async function onLoginSubmit(data: LoginFormValues) {
     setIsLoading(true)
-    setDebugInfo(null)
+    setDebugInfo("Starting login process...")
 
     try {
       if (isMissingConfig) {
@@ -86,7 +86,23 @@ export function ClientAuthForm({ defaultTab = "login" }: ClientAuthFormProps) {
       
       // Check if session is set
       const { data: sessionData } = await supabase.auth.getSession()
+      
+      // Enhanced logging
+      console.log("AUTH DEBUG - Login successful:", {
+        user: authData.user.email,
+        userId: authData.user.id,
+        sessionExists: !!sessionData.session,
+        sessionId: sessionData.session?.id,
+        expiresAt: sessionData.session ? new Date(sessionData.session.expires_at * 1000).toLocaleString() : null
+      })
+      
       setDebugInfo(`Session check: ${sessionData.session ? "Session exists" : "No session"}`)
+      
+      // Store session in localStorage as a backup
+      if (typeof window !== 'undefined' && sessionData.session) {
+        localStorage.setItem('supabase-auth-user-email', authData.user.email || '')
+        localStorage.setItem('supabase-auth-user-id', authData.user.id || '')
+      }
       
       toast({
         title: "Success",
@@ -135,7 +151,7 @@ export function ClientAuthForm({ defaultTab = "login" }: ClientAuthFormProps) {
       setDebugInfo(`Login error: ${error instanceof Error ? error.message : String(error)}`)
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: "An unexpected error occurred during login. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -158,7 +174,7 @@ export function ClientAuthForm({ defaultTab = "login" }: ClientAuthFormProps) {
             <CardContent className="space-y-4">
               <CardTitle className="text-2xl text-center mb-2">Client-Side Login</CardTitle>
               <CardDescription className="text-center mb-4">
-                This form uses client-side authentication to fix cookie issues
+                Enter your email and password to sign in
               </CardDescription>
 
               <div className="space-y-2">
@@ -212,6 +228,15 @@ export function ClientAuthForm({ defaultTab = "login" }: ClientAuthFormProps) {
                   <AlertDescription className="font-mono break-all">{debugInfo}</AlertDescription>
                 </Alert>
               )}
+              
+              <div className="text-xs text-center text-muted-foreground">
+                <p>
+                  Need help? Visit the <a href="/api/auth/debug" target="_blank" className="underline hover:text-primary">Auth Debug</a> page
+                </p>
+                <p className="mt-1">
+                  Issues with sign in? Try <a href="/api/auth/reset" className="underline hover:text-primary">Reset Auth</a>
+                </p>
+              </div>
             </CardContent>
 
             <CardFooter>
@@ -223,10 +248,10 @@ export function ClientAuthForm({ defaultTab = "login" }: ClientAuthFormProps) {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Logging in...
+                    Signing in...
                   </>
                 ) : (
-                  "Client Login"
+                  "Sign In"
                 )}
               </Button>
             </CardFooter>

@@ -3,50 +3,42 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, ShieldCheck, ShieldOff, LogOut } from "lucide-react"
-import { createAuthClient } from "@/lib/client-auth"
+import { Loader2, ShieldCheck, ShieldOff, LogOut, RefreshCw } from "lucide-react"
+import { checkAuthStatus, forceSignOut } from "@/lib/auth-utils"
+import { useRouter } from "next/navigation"
 
 export function AuthStatusIndicator() {
   const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading')
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [expiresAt, setExpiresAt] = useState<string | null>(null)
   const [isChecking, setIsChecking] = useState(false)
+  const router = useRouter()
 
   const checkAuth = async () => {
     try {
       setIsChecking(true)
+      console.log('-------- AUTH STATUS CHECK --------')
       console.log('Checking auth status...')
       
-      // First try client-side auth
-      try {
-        const supabase = createAuthClient()
-        const { data } = await supabase.auth.getSession()
-        console.log('Client auth check result:', data.session ? `Authenticated as ${data.session.user.email}` : 'No session')
-        
-        if (data.session) {
-          setStatus('authenticated')
-          setUserEmail(data.session.user.email)
-          console.log('Successfully authenticated as:', data.session.user.email)
-          setIsChecking(false)
-          return
-        }
-      } catch (clientError) {
-        console.error('Error checking client auth:', clientError)
-      }
+      const { authenticated, user, expiresAt } = await checkAuthStatus()
       
-      // Fall back to API endpoint
-      const response = await fetch('/api/auth/debug')
-      const data = await response.json()
-      
-      if (data.user?.exists) {
+      if (authenticated && user) {
         setStatus('authenticated')
-        setUserEmail(data.user.email)
+        setUserEmail(user.email || null)
+        setExpiresAt(expiresAt ? expiresAt.toLocaleString() : null)
+        console.log('Successfully authenticated as:', user.email)
+        console.log('Session expires at:', expiresAt ? expiresAt.toLocaleString() : 'unknown')
       } else {
+        console.log('Not authenticated')
         setStatus('unauthenticated')
         setUserEmail(null)
+        setExpiresAt(null)
       }
     } catch (error) {
       console.error('Error checking auth status:', error)
       setStatus('unauthenticated')
+      setUserEmail(null)
+      setExpiresAt(null)
     } finally {
       setIsChecking(false)
     }
@@ -54,14 +46,19 @@ export function AuthStatusIndicator() {
   
   const handleSignOut = async () => {
     try {
-      const supabase = createAuthClient()
-      await supabase.auth.signOut()
-      checkAuth()
+      setIsChecking(true)
+      console.log('Starting sign-out process...')
+      // Use our improved sign-out function
+      forceSignOut()
+      // The above function will redirect to /api/auth/reset
     } catch (error) {
       console.error('Error signing out:', error)
+      // If there's an error, still try to redirect to login
+      window.location.href = '/login'
     }
   }
 
+  // Check auth on mount and when navigating
   useEffect(() => {
     checkAuth()
   }, [])
@@ -88,6 +85,9 @@ export function AuthStatusIndicator() {
           {status === 'authenticated' && (
             <div>
               <p className="font-medium">Authenticated as: <span className="text-green-600 dark:text-green-400">{userEmail}</span></p>
+              {expiresAt && (
+                <p className="text-xs text-muted-foreground mt-1">Session expires: {expiresAt}</p>
+              )}
               <div className="mt-3 flex justify-between">
                 <Button 
                   size="sm" 
@@ -102,7 +102,10 @@ export function AuthStatusIndicator() {
                       Checking...
                     </>
                   ) : (
-                    'Refresh'
+                    <>
+                      <RefreshCw className="w-3 h-3 mr-1" />
+                      Refresh
+                    </>
                   )}
                 </Button>
                 
@@ -111,9 +114,19 @@ export function AuthStatusIndicator() {
                   variant="destructive" 
                   onClick={handleSignOut} 
                   className="text-xs"
+                  disabled={isChecking}
                 >
-                  <LogOut className="w-3 h-3 mr-1" />
-                  Sign Out
+                  {isChecking ? (
+                    <>
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      Signing out...
+                    </>
+                  ) : (
+                    <>
+                      <LogOut className="w-3 h-3 mr-1" />
+                      Sign Out
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -135,13 +148,21 @@ export function AuthStatusIndicator() {
                       Checking...
                     </>
                   ) : (
-                    'Check Status'
+                    <>
+                      <RefreshCw className="w-3 h-3 mr-1" />
+                      Check Status
+                    </>
                   )}
                 </Button>
                 
-                <a href="/login" className="text-xs inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-white">
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() => window.location.href = '/login'}
+                  className="text-xs"
+                >
                   Sign In
-                </a>
+                </Button>
               </div>
             </div>
           )}
