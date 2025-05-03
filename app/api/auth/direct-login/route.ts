@@ -1,86 +1,73 @@
-import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
-import { createServerClient } from "@/lib/supabase"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+// Removed: import { createServerClient } from "@/lib/supabase" // No longer needed here
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { ensureUserProfile } from "@/lib/auth-helpers"; // <-- Import the helper
 
 export async function POST(request: Request) {
   try {
     // Parse request body
-    const { email, password } = await request.json()
-    
+    const { email, password } = await request.json();
+
     if (!email || !password) {
-      return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
+      return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
-    
-    console.log(`Attempting direct login for: ${email}`)
-    
-    // Create server client with cookies
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
-    
+
+    console.log(`Attempting direct login for: ${email}`);
+
+    // Create server client with cookies using the correct helper for Route Handlers
+    const cookieStore = cookies();
+    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+
     // Sign in
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
-      password
-    })
-    
+      password,
+    });
+
     if (error) {
-      console.error("Direct login error:", error.message)
-      return NextResponse.json({ error: error.message }, { status: 401 })
+      console.error("Direct login error:", error.message);
+      return NextResponse.json({ error: error.message }, { status: 401 });
     }
-    
+
     if (!data.session) {
-      return NextResponse.json({ error: "No session created" }, { status: 500 })
+      // This case should ideally not happen if signInWithPassword doesn't error, but good to check
+      console.error("Direct login succeeded but no session data received.");
+      return NextResponse.json({ error: "Login successful but failed to establish session" }, { status: 500 });
     }
-    
-    console.log(`Direct login successful for: ${email}`)
-    console.log(`Session expires at: ${new Date(data.session.expires_at * 1000).toISOString()}`)
-    
+
+    console.log(`Direct login successful for: ${email}`);
+    console.log(`Session expires at: ${new Date(data.session.expires_at * 1000).toISOString()}`);
+
     // The session cookies are automatically handled by the createRouteHandlerClient
-    
-    // Create user profile if it doesn't exist (bypass RLS)
-    try {
-      const adminClient = createServerClient()
-      
-      const { data: profile } = await adminClient
-        .from('profiles')
-        .select('id')
-        .eq('id', data.user.id)
-        .single()
-        
-      if (!profile) {
-        const { error: profileError } = await adminClient
-          .from('profiles')
-          .insert({
-            id: data.user.id,
-            full_name: email.split('@')[0],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          
-        if (profileError) {
-          console.error("Error creating profile:", profileError)
-        } else {
-          console.log("Created profile for user")
-        }
-      }
-    } catch (profileError) {
-      console.error("Error checking/creating profile:", profileError)
+
+    // Ensure user profile exists using the helper function
+    // This handles the logic including potential profile creation safely
+    const profileResult = await ensureUserProfile(data.user.id, email);
+    if (!profileResult.success) {
+      // Log the error but don't necessarily block the login process
+      console.error("Error ensuring user profile exists:", profileResult.error);
+      // You might decide to return an error here if a profile is absolutely required immediately
+      // return NextResponse.json({ error: "Failed to setup user profile." }, { status: 500 });
+    } else {
+        console.log("User profile ensured for:", email);
     }
-    
+
+    // Return success response
     return NextResponse.json({
       success: true,
       user: {
         id: data.user.id,
-        email: data.user.email
+        email: data.user.email,
       },
-      sessionExpires: new Date(data.session.expires_at * 1000).toISOString()
-    })
+      sessionExpires: new Date(data.session.expires_at * 1000).toISOString(),
+    });
   } catch (error) {
-    console.error("Unexpected error during direct login:", error)
+    console.error("Unexpected error during direct login:", error);
+    // Generic error for security
     return NextResponse.json(
-      { error: "An unexpected error occurred" },
+      { error: "An internal server error occurred during login." },
       { status: 500 }
-    )
+    );
   }
 }
