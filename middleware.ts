@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
+import { createServerClient } from "@supabase/auth-helpers-nextjs"
 
 export async function middleware(req: NextRequest) {
   try {
@@ -26,25 +26,14 @@ export async function middleware(req: NextRequest) {
     }
 
     // Create Supabase client
-    const supabase = createMiddlewareClient({ req, res })
-    
-    // Always refresh the session to ensure cookies are properly set
+    const supabase = createServerClient({ req, res })
+
+    // Try to get the session - this updates the response cookies if needed
     const { data } = await supabase.auth.getSession()
-    const session = data.session
+    const session = data?.session
     
-    // Force a refresh of the session
-    if (session) {
-      await supabase.auth.refreshSession()
-    }
-
-    // Check for auth cookie directly as a backup
-    const authCookie = req.cookies.get("supabase-auth-token")
-    const hasAuthCookie = !!authCookie?.value
-
-    // Debug session information
-    console.log(
-      `[Middleware] Path: ${req.nextUrl.pathname}, Session: ${session ? "Yes" : "No"}, Auth Cookie: ${hasAuthCookie ? "Yes" : "No"}`,
-    )
+    // Log session status with user email if available
+    console.log(`[Middleware] Path: ${req.nextUrl.pathname}, Session: ${session ? `Yes (${session.user.email})` : "No"}`)
 
     // Public routes that don't require authentication
     const isPublicRoute =
@@ -58,10 +47,10 @@ export async function middleware(req: NextRequest) {
     const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard")
     const isAdminRoute = req.nextUrl.pathname.startsWith("/admin")
 
-    // If we have a session, refresh the auth cookie
-    if (session) {
-      // Refresh the auth cookie
-      await supabase.auth.getSession()
+    // Temporary debug skip for development - comment this out in production
+    if (process.env.NODE_ENV === "development" && isProtectedRoute && req.nextUrl.pathname === "/dashboard") {
+      console.log("[DEV MODE] Skipping auth check for dashboard in development")
+      return res
     }
 
     // If accessing a protected route without a session, redirect to login

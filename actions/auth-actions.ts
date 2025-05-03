@@ -78,29 +78,15 @@ export async function signIn(formData: FormData) {
       }
     }
 
-    // Set cookies for client-side auth
+    // Do not manually set cookies here - let Supabase handle its own cookies
+    console.log("Using supabase session management - not setting manual cookies")
+
+    // Set a debug cookie just for logging/debugging
     const cookieStore = cookies()
-
-    if (data.session) {
-      // Set the auth cookie
-      cookieStore.set("supabase-auth-token", data.session.access_token, {
-        path: "/",
-        maxAge: 60 * 60 * 24 * 7, // 1 week
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-      })
-
-      // Set a debug cookie to verify cookie setting works
-      cookieStore.set("auth-debug", new Date().toISOString(), {
-        path: "/",
-        maxAge: 300, // 5 minutes
-      })
-
-      console.log("Auth cookies set successfully")
-    } else {
-      console.error("No session data available after successful login")
-      return { error: "Authentication succeeded but no session was created" }
-    }
+    cookieStore.set("auth-debug", new Date().toISOString(), {
+      path: "/",
+      maxAge: 300, // 5 minutes
+    })
 
     return {
       success: true,
