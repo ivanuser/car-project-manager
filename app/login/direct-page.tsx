@@ -40,21 +40,40 @@ export default function DirectLoginPage() {
     setDebugInfo("Starting direct login process...")
 
     try {
+      // Add more detailed debugging
+      setDebugInfo("Preparing to send login request to API...")
+      
+      const requestPayload = {
+        email: data.email,
+        password: data.password,
+      }
+      
+      setDebugInfo(`Sending login request for: ${data.email}`)
+      
       // Call our direct login API endpoint
       const response = await fetch("/api/auth/direct-login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          email: data.email,
-          password: data.password,
-        }),
+        body: JSON.stringify(requestPayload),
+        // Add these options to ensure credentials are sent properly
+        credentials: "include"
       })
-
-      const result = await response.json()
+      
+      setDebugInfo(`Received status ${response.status} ${response.statusText}`)
+      
+      let result
+      try {
+        result = await response.json()
+        setDebugInfo(`Parsed response: ${JSON.stringify(result)}`)
+      } catch (parseError) {
+        setDebugInfo(`Error parsing response: ${parseError instanceof Error ? parseError.message : String(parseError)}`)
+        throw new Error("Failed to parse login response")
+      }
 
       if (!response.ok) {
+        setDebugInfo(`Login failed: ${result.error || 'Unknown error'}`)
         throw new Error(result.error || "Login failed")
       }
 
@@ -65,14 +84,27 @@ export default function DirectLoginPage() {
         description: "You have been logged in successfully",
       })
 
+      // Check for authentication by making a simple authenticated request
+      setDebugInfo("Verifying authentication status...")
+      try {
+        const authCheck = await fetch("/api/auth/check", {
+          credentials: "include"
+        })
+        const authResult = await authCheck.json()
+        setDebugInfo(`Auth check result: ${JSON.stringify(authResult)}`)
+      } catch (checkError) {
+        setDebugInfo(`Auth check error: ${checkError instanceof Error ? checkError.message : String(checkError)}`)
+      }
+
       // Force a hard navigation to the dashboard
-      setDebugInfo("Redirecting to dashboard...")
+      setDebugInfo("Redirecting to dashboard in 2 seconds...")
       
       // Add a small delay to ensure the toast is visible
       setTimeout(() => {
+        setDebugInfo("Executing redirect now...")
         // Use window.location for a full page reload to ensure cookies are properly set
         window.location.href = "/dashboard"
-      }, 1500)
+      }, 2000)
     } catch (error) {
       console.error("Login error:", error)
       setDebugInfo(`Login error: ${error instanceof Error ? error.message : String(error)}`)
@@ -148,7 +180,7 @@ export default function DirectLoginPage() {
 
               {debugInfo && (
                 <Alert variant="outline" className="bg-yellow-50 dark:bg-yellow-900/30 text-xs">
-                  <AlertDescription className="font-mono break-all">{debugInfo}</AlertDescription>
+                  <AlertDescription className="font-mono break-all whitespace-pre-wrap">{debugInfo}</AlertDescription>
                 </Alert>
               )}
               
@@ -159,6 +191,28 @@ export default function DirectLoginPage() {
                 <p className="mt-1">
                   Issues with sign in? Try <a href="/api/auth/reset" className="underline hover:text-primary">Reset Auth</a>
                 </p>
+              </div>
+              
+              {/* Add this additional debugging section */}
+              <div className="text-xs text-center text-muted-foreground mt-4">
+                <button
+                  type="button"
+                  className="text-blue-500 hover:underline"
+                  onClick={async () => {
+                    try {
+                      setDebugInfo("Checking auth status...")
+                      const response = await fetch("/api/auth/check", {
+                        credentials: "include"
+                      })
+                      const result = await response.json()
+                      setDebugInfo("Auth status: " + JSON.stringify(result, null, 2))
+                    } catch (error) {
+                      setDebugInfo("Auth check error: " + (error instanceof Error ? error.message : String(error)))
+                    }
+                  }}
+                >
+                  Check Auth Status
+                </button>
               </div>
             </CardContent>
 

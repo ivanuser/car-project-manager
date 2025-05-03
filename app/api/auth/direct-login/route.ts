@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-// Removed: import { createServerClient } from "@/lib/supabase" // No longer needed here
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { ensureUserProfile } from "@/lib/auth-helpers"; // <-- Import the helper
+import { ensureUserProfile } from "@/lib/auth-helpers";
 
 export async function POST(request: Request) {
   try {
@@ -19,38 +18,51 @@ export async function POST(request: Request) {
     const cookieStore = cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
 
-    // Sign in
-    const { data, error } = await supabase.auth.signInWithPassword({
+    // Add a debug log to verify Supabase client creation
+    console.log("Supabase client created successfully");
+
+    // Sign in with detailed error logging
+    console.log("Attempting signInWithPassword...");
+    const signInResult = await supabase.auth.signInWithPassword({
       email,
       password,
     });
+    
+    console.log("Sign in result received:", 
+      signInResult.error ? 
+        `Error: ${signInResult.error.message}` : 
+        "Success"
+    );
+
+    const { data, error } = signInResult;
 
     if (error) {
-      console.error("Direct login error:", error.message);
+      console.error("Direct login error:", error.message, error);
       return NextResponse.json({ error: error.message }, { status: 401 });
     }
 
     if (!data.session) {
-      // This case should ideally not happen if signInWithPassword doesn't error, but good to check
       console.error("Direct login succeeded but no session data received.");
       return NextResponse.json({ error: "Login successful but failed to establish session" }, { status: 500 });
     }
 
     console.log(`Direct login successful for: ${email}`);
     console.log(`Session expires at: ${new Date(data.session.expires_at * 1000).toISOString()}`);
+    console.log("Session ID:", data.session.id);
 
-    // The session cookies are automatically handled by the createRouteHandlerClient
+    // Set a debug cookie to verify cookie setting is working
+    cookieStore.set("auth-debug-direct", new Date().toISOString(), {
+      path: "/",
+      maxAge: 300, // 5 minutes
+      httpOnly: false,
+    });
 
-    // Ensure user profile exists using the helper function
-    // This handles the logic including potential profile creation safely
-    const profileResult = await ensureUserProfile(data.user.id, email);
-    if (!profileResult.success) {
-      // Log the error but don't necessarily block the login process
-      console.error("Error ensuring user profile exists:", profileResult.error);
-      // You might decide to return an error here if a profile is absolutely required immediately
-      // return NextResponse.json({ error: "Failed to setup user profile." }, { status: 500 });
-    } else {
-        console.log("User profile ensured for:", email);
+    try {
+      // Ensure user profile exists
+      const profileResult = await ensureUserProfile(data.user.id, email);
+      console.log("Profile result:", profileResult.success ? "Success" : "Failed");
+    } catch (profileError) {
+      console.error("Error in profile creation (non-blocking):", profileError);
     }
 
     // Return success response
@@ -64,9 +76,11 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Unexpected error during direct login:", error);
-    // Generic error for security
     return NextResponse.json(
-      { error: "An internal server error occurred during login." },
+      { 
+        error: "An internal server error occurred during login.",
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     );
   }
