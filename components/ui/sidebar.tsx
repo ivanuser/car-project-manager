@@ -106,15 +106,13 @@ interface SidebarMenuButtonProps extends React.ButtonHTMLAttributes<HTMLButtonEl
   tooltip?: string
 }
 
-export function SidebarMenuButton({
-  className,
-  isActive = false,
-  tooltip,
-  children,
-  ...props
-}: SidebarMenuButtonProps) {
+export const SidebarMenuButton = React.forwardRef<HTMLButtonElement, SidebarMenuButtonProps>((
+  {className, isActive = false, tooltip, children, ...props},
+  ref
+) => {
   return (
     <button
+      ref={ref}
       className={cn(
         "group relative flex w-full items-center rounded-md px-2 py-2 text-sm font-medium transition-colors",
         isActive ? "bg-primary text-primary-foreground" : "text-foreground/60 hover:bg-muted hover:text-foreground",
@@ -130,7 +128,8 @@ export function SidebarMenuButton({
       )}
     </button>
   )
-}
+})
+SidebarMenuButton.displayName = "SidebarMenuButton"
 
 interface SidebarSeparatorProps extends React.HTMLAttributes<HTMLDivElement> {}
 
