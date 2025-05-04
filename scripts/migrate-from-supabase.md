@@ -36,7 +36,7 @@ npm install --save-dev @types/jsonwebtoken @types/bcryptjs
 The `update-env.sh` script will create a new `.env.local` file with the necessary environment variables. Make sure it includes:
 
 ```
-DATABASE_URL=postgresql://cajpro:CAJPRO2025@localhost:5432/cajpro
+DATABASE_URL=postgresql://cajpro:22@@jesusistheLORD@localhost:5432/cajpro
 JWT_SECRET=your_jwt_secret
 JWT_EXPIRATION=3600
 REFRESH_TOKEN_EXPIRATION=604800

@@ -15,7 +15,7 @@ else
     # Default configuration if the file doesn't exist
     DB_NAME="cajpro"
     DB_USER="cajpro"
-    DB_PASSWORD="CAJPRO2025"
+    DB_PASSWORD="22@@jesusistheLORD"
     DB_HOST="localhost"
     DB_PORT="5432"
 fi
