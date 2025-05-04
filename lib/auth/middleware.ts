@@ -186,16 +186,16 @@ export const setAuthCookies = (
   
   response.cookies.set(AUTH_COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: true, // Always use secure cookies with Cloudflare tunnel
+    sameSite: 'lax', // Use 'lax' instead of 'strict' for better compatibility with Cloudflare
     path: '/',
     maxAge: jwtExpiration,
   });
   
   response.cookies.set(REFRESH_COOKIE_NAME, refreshToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: true, // Always use secure cookies with Cloudflare tunnel
+    sameSite: 'lax', // Use 'lax' instead of 'strict' for better compatibility with Cloudflare
     path: '/',
     maxAge: refreshTokenExpiration,
   });

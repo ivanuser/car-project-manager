@@ -47,7 +47,8 @@ POSTGRES_HOST=$DB_HOST
 POSTGRES_PORT=$DB_PORT
 
 # Site Configuration
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_SITE_URL=https://dev.customautojourney.com
+NEXT_PUBLIC_CLOUDFLARE_TUNNEL=true
 
 # JWT Configuration
 # Generate a secure JWT secret with: openssl rand -base64 32
