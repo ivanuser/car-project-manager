@@ -4,61 +4,31 @@
  * Created on: May 4, 2025
  */
 
-// This file provides mock implementations of database functions for client-side code.
-// It prevents the pg module from being imported on the client side, which would
-// cause issues with Next.js bundling and Cloudflare integration.
+// This file provides empty implementations of database functions for client-side code.
+// It prevents the pg module from being imported on the client side.
 
-// Mock PoolClient interface for type compatibility
-export interface MockPoolClient {
-  query: (text: string, params?: any[]) => Promise<any>;
-  release: () => void;
-}
-
-// Mock query result for type compatibility
-export interface MockQueryResult {
-  rows: any[];
-  rowCount: number;
-  command: string;
-  oid: number;
-  fields: any[];
-}
-
-/**
- * Mock query function that always throws an error when called on client side
- */
-export const query = async (text: string, params: any[] = []): Promise<MockQueryResult> => {
-  console.error('Attempted to use database query on client side');
+// Mock query function that throws an error
+export const query = async () => {
   throw new Error('Database operations are not available on client side');
 };
 
-/**
- * Mock getClient function that always throws an error when called on client side
- */
-export const getClient = async (): Promise<MockPoolClient> => {
-  console.error('Attempted to use database client on client side');
+// Mock getClient function that throws an error
+export const getClient = async () => {
   throw new Error('Database operations are not available on client side');
 };
 
-/**
- * Mock transaction function that always throws an error when called on client side
- */
-export const transaction = async (callback: (client: MockPoolClient) => Promise<any>): Promise<any> => {
-  console.error('Attempted to use database transaction on client side');
+// Mock transaction function that throws an error
+export const transaction = async () => {
   throw new Error('Database operations are not available on client side');
 };
 
-/**
- * Mock initPool function that always throws an error when called on client side
- */
-export const initPool = (): void => {
-  console.error('Attempted to initialize database pool on client side');
+// Mock initPool function that throws an error
+export const initPool = () => {
   throw new Error('Database operations are not available on client side');
 };
 
-/**
- * Mock closePool function that does nothing when called on client side
- */
-export const closePool = async (): Promise<void> => {
+// Mock closePool function that does nothing
+export const closePool = async () => {
   // No-op
 };
 

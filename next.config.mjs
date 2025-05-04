@@ -9,48 +9,27 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  webpack: (config, { isServer, dev }) => {
-    // Handle Cloudflare sockets specifically
-    config.module = config.module || {};
-    config.module.rules = config.module.rules || [];
-    
-    // This handles the cloudflare:sockets error
-    config.module.rules.push({
-      test: /cloudflare:sockets/,
-      use: 'null-loader',
-    });
-    
-    // Also mock the pg-native module
-    config.module.rules.push({
-      test: /pg-native/,
-      use: 'null-loader',
-    });
-    
-    // Add fallbacks for Node.js modules
-    config.resolve = config.resolve || {};
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      net: false,
-      tls: false,
-      fs: false,
-      dns: false,
-      child_process: false,
-      path: false,
-    };
-    
-    // Handle pg module on client side
+  webpack: (config, { isServer }) => {
+    // This fixes the "cloudflare:sockets" error by ignoring it in webpack
     if (!isServer) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        pg: false, // Prevent pg from being imported on the client side
+      config.resolve = config.resolve || {};
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        net: false,
+        tls: false,
+        fs: false,
+        dns: false,
+        pg: false,
+        'pg-native': false,
+        'cloudflare:sockets': false,
       };
     }
     
     return config;
   },
-  // Exclude specific server-only modules from client bundles
+  // Prevent server-only modules from being included in client bundles
   experimental: {
-    serverComponentsExternalPackages: ['pg', 'pg-native', 'pg-cloudflare'],
+    serverComponentsExternalPackages: ['pg'],
   },
 }
 
