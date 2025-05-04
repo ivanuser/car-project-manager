@@ -134,7 +134,14 @@ export default async function DashboardLayout({
 
   // Database initialization check
   if (isDevelopment) {
-    console.log("Database initialization skipped - set INITIALIZE_DB=true to enable");
+    const initializeDb = process.env.INITIALIZE_DB === 'true';
+    if (initializeDb) {
+      console.log("Database initialization enabled - will initialize database");
+      // Here you would add logic to initialize the database
+      // For now we're just logging that it's enabled
+    } else {
+      console.log("Database initialization skipped - set INITIALIZE_DB=true to enable");
+    }
   }
 
   return (
