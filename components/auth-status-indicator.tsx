@@ -4,23 +4,41 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, ShieldCheck, ShieldOff, LogOut, RefreshCw } from "lucide-react"
-import { forceSignOut } from "@/lib/auth-utils"
+import { forceSignOut, checkAuthStatus } from "@/lib/auth-utils"
 import { useRouter } from "next/navigation"
 
 export function AuthStatusIndicator() {
-  // Start with authenticated state since server-side checks already passed
-  const [status, setStatus] = useState<'authenticated' | 'unauthenticated'>('authenticated');
-  const [userEmail, setUserEmail] = useState<string>('honerivan@gmail.com');
+  // Start with loading state until we check auth status
+  const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const router = useRouter();
 
-  // Set up state only once - no periodic checking
+  // Check auth status once when component mounts
   useEffect(() => {
-    // Store the user email in localStorage for other components
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('supabase-auth-user-email', 'honerivan@gmail.com');
-      localStorage.setItem('supabase-auth-user-id', 'authenticated-user');
-    }
+    const checkAuth = async () => {
+      try {
+        console.log('AuthStatusIndicator: Checking auth status...');
+        const result = await checkAuthStatus();
+        
+        if (result.authenticated && result.user) {
+          console.log('AuthStatusIndicator: User is authenticated as', result.user.email);
+          setStatus('authenticated');
+          setUserEmail(result.user.email);
+        } else {
+          console.log('AuthStatusIndicator: User is not authenticated');
+          setStatus('unauthenticated');
+          setUserEmail(null);
+        }
+      } catch (error) {
+        console.error('AuthStatusIndicator: Error checking auth', error);
+        setStatus('unauthenticated');
+      } finally {
+        setIsChecking(false);
+      }
+    };
+    
+    checkAuth();
   }, []);
   
   // Simplified sign out function

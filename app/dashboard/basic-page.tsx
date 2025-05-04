@@ -10,12 +10,37 @@ import { AuthStatusIndicator } from "@/components/auth-status-indicator";
 import { checkAuthStatus } from "@/lib/auth-utils";
 
 export default function BasicDashboard() {
-  // Hard-code authenticated state - the server has already verified auth
-  const [authStatus] = useState<'authenticated' | 'unauthenticated'>('authenticated');
-  const [userInfo] = useState<{email?: string; id?: string}>({email: 'honerivan@gmail.com'});
-  
-  // No useEffect or auth checking logic - we're confident the user is authenticated
-  // by the time they reach this page as the server-side checks have passed
+  // Start with loading state
+  const [authStatus, setAuthStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
+  const [userInfo, setUserInfo] = useState<{email?: string; id?: string} | null>(null);
+
+  // Check auth status when component mounts
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        console.log('Dashboard: Checking auth status...');
+        const result = await checkAuthStatus();
+        
+        if (result.authenticated && result.user) {
+          console.log('Dashboard: User is authenticated as', result.user.email);
+          setAuthStatus('authenticated');
+          setUserInfo({
+            email: result.user.email,
+            id: result.user.id
+          });
+        } else {
+          console.log('Dashboard: User is not authenticated');
+          setAuthStatus('unauthenticated');
+          setUserInfo(null);
+        }
+      } catch (error) {
+        console.error('Dashboard: Error checking auth', error);
+        setAuthStatus('unauthenticated');
+      }
+    };
+    
+    fetchUserData();
+  }, []);
 
   return (
     <div className="space-y-6">
