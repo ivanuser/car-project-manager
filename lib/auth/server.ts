@@ -1,26 +1,23 @@
 /**
- * index.ts - Authentication module exports
+ * server.ts - Server-side authentication exports
  * For Caj-pro car project build tracking application
  * Created on: May 4, 2025
  */
 
-// Conditionally import database implementations
-import serverDb from './db';
-import clientDb from './db-client';
+// This file contains exports that should only be used on the server
+// to prevent including database modules on the client side.
 
-// Import other auth modules
+// Force server-side only import
+import 'server-only';
+
+// Import server components
+import db from './db';
 import authService from './auth-service';
 import jwtUtils from './jwt';
 import passwordUtils from './password';
 import authMiddleware from './middleware';
 
-// Determine if we're on the server or client
-const isServer = typeof window === 'undefined';
-
-// Use the appropriate database implementation
-const db = isServer ? serverDb : clientDb;
-
-// Export all auth components
+// Re-export everything for server-side use
 export {
   db,
   authService,

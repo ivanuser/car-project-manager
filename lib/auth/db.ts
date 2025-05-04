@@ -5,6 +5,7 @@
  */
 
 import { Pool, PoolClient } from 'pg';
+import { getPgConfig } from './db-config';
 
 // Initialize connection pool
 let pool: Pool;
@@ -18,23 +19,30 @@ export const initPool = () => {
       throw new Error('DATABASE_URL environment variable is not set');
     }
     
-    pool = new Pool({
-      connectionString,
-      max: 20, // Maximum number of clients in the pool
-      idleTimeoutMillis: 30000, // How long a client is allowed to remain idle before being closed
-      connectionTimeoutMillis: 2000, // How long to wait for a connection to become available
-    });
-    
-    // Log when the pool establishes a new connection
-    pool.on('connect', () => {
-      console.log('PostgreSQL pool connection established');
-    });
-    
-    // Log errors
-    pool.on('error', (err) => {
-      console.error('Unexpected error on idle PostgreSQL client', err);
-      process.exit(-1);
-    });
+    try {
+      // Get environment-specific configuration
+      const pgConfig = getPgConfig(connectionString);
+      
+      // Create pool with config
+      pool = new Pool(pgConfig);
+      
+      // Log when the pool establishes a new connection
+      pool.on('connect', () => {
+        console.log('PostgreSQL pool connection established');
+      });
+      
+      // Log errors
+      pool.on('error', (err) => {
+        console.error('Unexpected error on idle PostgreSQL client', err);
+        // Don't exit process on error in development, just log it
+        if (process.env.NODE_ENV === 'production') {
+          process.exit(-1);
+        }
+      });
+    } catch (error) {
+      console.error('Failed to initialize PostgreSQL pool:', error);
+      throw error;
+    }
   }
   
   return pool;
@@ -56,15 +64,21 @@ export const query = async (text: string, params: any[] = []) => {
   }
   
   const start = Date.now();
-  const result = await pool.query(text, params);
-  const duration = Date.now() - start;
   
-  // Log slow queries for debugging (>100ms)
-  if (duration > 100) {
-    console.log('Slow query:', { text, duration, rows: result.rowCount });
+  try {
+    const result = await pool.query(text, params);
+    const duration = Date.now() - start;
+    
+    // Log slow queries for debugging (>100ms)
+    if (duration > 100) {
+      console.log('Slow query:', { text, duration, rows: result.rowCount });
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Query error:', { text, params, error });
+    throw error;
   }
-  
-  return result;
 };
 
 // Execute a transaction
@@ -93,10 +107,19 @@ export const closePool = async () => {
   }
 };
 
-export default {
-  initPool,
-  getClient,
-  query,
-  transaction,
-  closePool
+// Server-side only database module - to avoid client-side imports
+export const isServer = () => typeof window === 'undefined';
+
+// Empty fallback for client-side
+const clientSideFallback = {
+  query: async () => { throw new Error('Database not available on client-side'); },
+  getClient: async () => { throw new Error('Database not available on client-side'); },
+  transaction: async () => { throw new Error('Database not available on client-side'); },
+  initPool: () => { throw new Error('Database not available on client-side'); },
+  closePool: async () => { /* no-op */ },
 };
+
+// Export server-side methods or client-side fallbacks
+export default isServer() 
+  ? { initPool, getClient, query, transaction, closePool }
+  : clientSideFallback;
