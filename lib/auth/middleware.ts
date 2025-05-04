@@ -81,16 +81,16 @@ export const requireAuth = async (req: NextRequest): Promise<NextResponse | null
         const response = NextResponse.next();
         response.cookies.set(AUTH_COOKIE_NAME, refreshResult.token, {
           httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict',
+          secure: true, // Always use secure cookies with Cloudflare tunnel
+          sameSite: 'lax', // Use 'lax' instead of 'strict' for better compatibility with Cloudflare
           path: '/',
           maxAge: 3600, // 1 hour
         });
         
         response.cookies.set(REFRESH_COOKIE_NAME, refreshResult.refreshToken, {
           httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict',
+          secure: true, // Always use secure cookies with Cloudflare tunnel
+          sameSite: 'lax', // Use 'lax' instead of 'strict' for better compatibility with Cloudflare
           path: '/',
           maxAge: 604800, // 7 days
         });
