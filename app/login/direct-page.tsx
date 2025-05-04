@@ -27,6 +27,14 @@ export default function DirectLoginPage() {
   const [debugInfo, setDebugInfo] = useState<string | null>(null)
   const { toast } = useToast()
 
+  const loginForm = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  })
+
   async function onLoginSubmit(data: LoginFormValues) {
     setIsLoading(true)
     setDebugInfo("Starting direct login process...")
