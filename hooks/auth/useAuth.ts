@@ -1,0 +1,330 @@
+/**
+ * useAuth.ts - React hook for authentication
+ * For Caj-pro car project build tracking application
+ * Created on: May 4, 2025
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+
+// User interface
+export interface User {
+  id: string;
+  email: string;
+  isAdmin: boolean;
+}
+
+// Session interface
+export interface Session {
+  user: User | null;
+  authenticated: boolean;
+}
+
+// Login data interface
+export interface LoginData {
+  email: string;
+  password: string;
+}
+
+// Registration data interface
+export interface RegistrationData {
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
+
+// Auth hook result interface
+export interface UseAuthResult {
+  user: User | null;
+  loading: boolean;
+  authenticated: boolean;
+  error: string | null;
+  login: (data: LoginData) => Promise<void>;
+  register: (data: RegistrationData) => Promise<void>;
+  logout: () => Promise<void>;
+  refreshSession: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  confirmResetPassword: (token: string, password: string, confirmPassword: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<void>;
+}
+
+/**
+ * Custom hook for authentication
+ */
+export const useAuth = (): UseAuthResult => {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [authenticated, setAuthenticated] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Get current session
+   */
+  const getSession = useCallback(async (): Promise<Session> => {
+    try {
+      const response = await fetch('/api/auth/session');
+      if (!response.ok) {
+        throw new Error('Failed to get session');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error getting session:', error);
+      return { user: null, authenticated: false };
+    }
+  }, []);
+
+  /**
+   * Refresh session
+   */
+  const refreshSession = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const session = await getSession();
+      setUser(session.user);
+      setAuthenticated(session.authenticated);
+    } catch (error: any) {
+      console.error('Error refreshing session:', error);
+      setError(error.message || 'Failed to refresh session');
+    } finally {
+      setLoading(false);
+    }
+  }, [getSession]);
+
+  /**
+   * Login user
+   */
+  const login = useCallback(async (data: LoginData): Promise<void> => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Login failed');
+      }
+
+      const result = await response.json();
+      setUser(result.user);
+      setAuthenticated(true);
+      
+      // Redirect to dashboard
+      router.push('/dashboard');
+    } catch (error: any) {
+      console.error('Login error:', error);
+      setError(error.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  }, [router]);
+
+  /**
+   * Register user
+   */
+  const register = useCallback(async (data: RegistrationData): Promise<void> => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Registration failed');
+      }
+
+      const result = await response.json();
+      setUser(result.user);
+      setAuthenticated(true);
+      
+      // Redirect to dashboard
+      router.push('/dashboard');
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      setError(error.message || 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
+  }, [router]);
+
+  /**
+   * Logout user
+   */
+  const logout = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Logout failed');
+      }
+
+      setUser(null);
+      setAuthenticated(false);
+      
+      // Redirect to login page
+      router.push('/login');
+    } catch (error: any) {
+      console.error('Logout error:', error);
+      setError(error.message || 'Logout failed');
+    } finally {
+      setLoading(false);
+    }
+  }, [router]);
+
+  /**
+   * Reset password
+   */
+  const resetPassword = useCallback(async (email: string): Promise<void> => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Password reset request failed');
+      }
+    } catch (error: any) {
+      console.error('Password reset request error:', error);
+      setError(error.message || 'Password reset request failed');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
+   * Confirm password reset with token
+   */
+  const confirmResetPassword = useCallback(
+    async (
+      token: string,
+      password: string,
+      confirmPassword: string
+    ): Promise<void> => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch('/api/auth/reset-password', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ token, password, confirmPassword }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Password reset failed');
+        }
+
+        // Redirect to login page
+        router.push('/login?reset=success');
+      } catch (error: any) {
+        console.error('Password reset error:', error);
+        setError(error.message || 'Password reset failed');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [router]
+  );
+
+  /**
+   * Change password
+   */
+  const changePassword = useCallback(
+    async (
+      currentPassword: string,
+      newPassword: string,
+      confirmPassword: string
+    ): Promise<void> => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch('/api/auth/change-password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            currentPassword,
+            newPassword,
+            confirmPassword,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Password change failed');
+        }
+
+        // Redirect to login page (user needs to log in again)
+        setUser(null);
+        setAuthenticated(false);
+        router.push('/login?passwordChanged=true');
+      } catch (error: any) {
+        console.error('Password change error:', error);
+        setError(error.message || 'Password change failed');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [router]
+  );
+
+  // Initialize auth state on mount
+  useEffect(() => {
+    const initAuth = async () => {
+      await refreshSession();
+    };
+
+    initAuth();
+  }, [refreshSession]);
+
+  return {
+    user,
+    loading,
+    authenticated,
+    error,
+    login,
+    register,
+    logout,
+    refreshSession,
+    resetPassword,
+    confirmResetPassword,
+    changePassword,
+  };
+};
+
+export default useAuth;

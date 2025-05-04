@@ -1,134 +1,88 @@
 "use client"
 
-// We're not using this import anymore but keeping it for compatibility
-// import { createAuthClient } from "@/lib/client-auth"
-
 /**
- * Client-side utility to check if a user is authenticated
- * @returns Promise<{ authenticated: boolean, user: any | null }>
+ * Super simplified auth checker that only looks for auth cookies
  */
 export async function checkAuthStatus() {
+  console.log("Using ultra-simple auth check...")
+  
+  // Check if running on client
+  if (typeof window === 'undefined') {
+    return { authenticated: false, user: null };
+  }
+  
   try {
-    console.log("Checking client-side auth status using simplified method...")
+    // Simply check for Supabase auth cookies - any auth cookie means authenticated
+    const cookies = document.cookie.split(';').map(c => c.trim());
+    console.log("Available cookies:", cookies);
+
+    // If we have ANY auth-related cookie, we're authenticated
+    const hasAuthCookie = cookies.some(c => 
+      c.includes('sb-') || 
+      c.includes('auth')
+    );
     
-    // First, check for cookies directly - this is most reliable
-    if (typeof document !== 'undefined') {
-      const cookies = document.cookie.split(';').map(c => c.trim())
-      console.log("Available cookies:", cookies)
+    if (hasAuthCookie) {
+      // Try to get user email from localStorage or use a default
+      const email = localStorage.getItem('supabase-auth-user-email') || 
+                   localStorage.getItem('auth-user-email') ||
+                   'authenticated-user@example.com';
+                   
+      // Store this email for next time
+      localStorage.setItem('auth-user-email', email);
       
-      // Try to parse the session cookie to get the real user email
-      const hasAuthCookie = cookies.some(c => c.startsWith('sb-') || c.includes('auth-token'))
-      const projectRef = 'dqapklpzcfosobremzfc' // This should be extracted from your SUPABASE_URL
-      const authCookie = cookies.find(c => c.startsWith(`sb-${projectRef}-auth-token=`))
+      console.log("Auth check: Authenticated as", email);
       
-      let userEmail = null
-      let userId = null
-      
-      if (authCookie) {
-        // Try to extract email from the auth cookie
-        try {
-          const cookieValue = authCookie.split('=')[1]
-          const decodedValue = decodeURIComponent(cookieValue)
-          const sessionData = JSON.parse(decodedValue)
-          
-          if (sessionData && sessionData.user) {
-            userEmail = sessionData.user.email
-            userId = sessionData.user.id
-            console.log("Extracted user email from auth cookie:", userEmail)
-          }
-        } catch (e) {
-          console.error("Error parsing auth cookie:", e)
-        }
-      }
-      
-      // Fallback to localStorage if cookie parsing failed
-      if (!userEmail) {
-        userEmail = localStorage.getItem('supabase-auth-user-email')
-        userId = localStorage.getItem('supabase-auth-user-id')
-        console.log("Using email from localStorage:", userEmail)
-      } else {
-        // Store the email in localStorage for future use
-        localStorage.setItem('supabase-auth-user-email', userEmail)
-        localStorage.setItem('supabase-auth-user-id', userId || 'authenticated-user')
-      }
-      
-      if (hasAuthCookie) {
-        console.log("Found auth cookies - user is authenticated")
-        return {
-          authenticated: true,
-          user: { 
-            email: userEmail || 'authenticated@user.com', 
-            id: userId || 'authenticated-user' 
-          },
-          source: 'cookies'
-        }
-      }
+      return {
+        authenticated: true,
+        user: { email, id: 'authenticated-user' }
+      };
     }
     
-    console.log("No authentication indicators found")
-    return { authenticated: false, user: null }
+    console.log("Auth check: No auth cookies found");
+    return { authenticated: false, user: null };
   } catch (error) {
-    console.error("Error in simplified auth check:", error)
-    return { authenticated: false, user: null, error }
+    console.error("Error in simple auth check:", error);
+    return { authenticated: false, user: null, error };
   }
 }
 
 /**
  * Client-side utility to sign out
- * @returns Promise<{ success: boolean, error?: any }>
  */
 export async function signOutClient() {
+  if (typeof window === 'undefined') return { success: false };
+  
   try {
-    console.log("Signing out client-side...")
+    console.log("Signing out...");
     
-    // Clear any auth state from localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('supabase-auth-user-email')
-      localStorage.removeItem('supabase-auth-user-id')
-    }
+    // Clear auth-related items from localStorage
+    localStorage.removeItem('auth-user-email');
+    localStorage.removeItem('supabase-auth-user-email');
+    localStorage.removeItem('supabase-auth-user-id');
     
-    console.log("Client-side sign out successful")
-    return { success: true }
+    return { success: true };
   } catch (error) {
-    console.error("Unexpected error signing out:", error)
-    return { success: false, error }
+    console.error("Sign out error:", error);
+    return { success: false, error };
   }
 }
 
 /**
- * Client-side utility to force a hard sign out and redirect to login
+ * Force sign out and redirect to login
  */
 export function forceSignOut() {
-  // First try regular sign out
   signOutClient().finally(() => {
-    // Then perform a hard reset of auth state
     if (typeof window !== 'undefined') {
-      // Clear any auth-related items from localStorage
-      const keysToRemove = [];
+      // Clear ALL auth-related localStorage items
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && (
-          key.includes('supabase') || 
-          key.includes('sb-') || 
-          key.includes('auth') ||
-          key.startsWith('next-auth')
-        )) {
-          keysToRemove.push(key);
+        if (key && (key.includes('auth') || key.includes('supabase'))) {
+          localStorage.removeItem(key);
         }
       }
       
-      keysToRemove.forEach(key => {
-        localStorage.removeItem(key);
-      });
-      
-      // Clear our custom auth items
-      localStorage.removeItem('supabase-auth-user-email');
-      localStorage.removeItem('supabase-auth-user-id');
-      
-      // Clear session storage
-      sessionStorage.clear();
-      
-      // Redirect to the auth reset page which will clear server-side cookies
+      // Redirect to the auth reset page
       window.location.href = '/api/auth/reset';
     }
   });

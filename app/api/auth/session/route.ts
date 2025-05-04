@@ -1,54 +1,83 @@
-import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
-import { createServerClient } from "@/lib/supabase"
+/**
+ * session/route.ts - API endpoint for getting current session
+ * For Caj-pro car project build tracking application
+ * Created on: May 4, 2025
+ */
 
-export async function GET() {
+import { NextRequest, NextResponse } from 'next/server';
+import { authService, authMiddleware } from '@/lib/auth';
+
+export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
-    const supabase = createServerClient()
-    const cookieStore = cookies()
-
-    // Check for auth debug cookie
-    const debugCookie = cookieStore.get("auth-debug")
-
-    // Check for auth token cookie
-    const authCookie = cookieStore.get("supabase-auth-token")
-
-    // Get the session
-    const { data, error } = await supabase.auth.getSession()
-
-    if (error) {
+    // Get token from cookies or headers
+    const token = authMiddleware.getToken(req);
+    
+    if (!token) {
       return NextResponse.json(
-        {
-          error: error.message,
-          debugCookie: debugCookie?.value,
-          hasAuthCookie: !!authCookie,
-        },
-        { status: 500 },
-      )
+        { user: null, authenticated: false },
+        { status: 200 }
+      );
     }
-
-    return NextResponse.json({
-      session: data.session
-        ? {
+    
+    // Validate session
+    const user = await authService.validateSession(token);
+    
+    if (!user) {
+      // Try to refresh token
+      const refreshToken = authMiddleware.getRefreshToken(req);
+      
+      if (refreshToken) {
+        try {
+          const refreshResult = await authService.refreshAuth(refreshToken);
+          
+          // Set new auth cookies
+          const response = NextResponse.json({
             user: {
-              id: data.session.user.id,
-              email: data.session.user.email,
+              id: refreshResult.user.id,
+              email: refreshResult.user.email,
+              isAdmin: refreshResult.user.isAdmin,
             },
-            expires_at: data.session.expires_at,
-          }
-        : null,
-      debugCookie: debugCookie?.value,
-      hasAuthCookie: !!authCookie,
-      cookieValue: authCookie ? "Present (hidden)" : null,
-    })
-  } catch (error) {
-    console.error("Session check error:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to check session",
-        errorDetails: error instanceof Error ? error.message : String(error),
+            authenticated: true,
+          });
+          
+          return authMiddleware.setAuthCookies(
+            response,
+            refreshResult.token,
+            refreshResult.refreshToken
+          );
+        } catch (error) {
+          // Failed to refresh token
+          const response = NextResponse.json(
+            { user: null, authenticated: false },
+            { status: 200 }
+          );
+          
+          return authMiddleware.clearAuthCookies(response);
+        }
+      }
+      
+      // No refresh token or failed to refresh
+      return NextResponse.json(
+        { user: null, authenticated: false },
+        { status: 200 }
+      );
+    }
+    
+    // User is authenticated
+    return NextResponse.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
       },
-      { status: 500 },
-    )
+      authenticated: true,
+    });
+  } catch (error) {
+    console.error('Session check error:', error);
+    
+    return NextResponse.json(
+      { user: null, authenticated: false, error: 'Failed to check session' },
+      { status: 500 }
+    );
   }
 }
