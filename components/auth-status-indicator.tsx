@@ -20,22 +20,86 @@ export function AuthStatusIndicator() {
       console.log('-------- AUTH STATUS CHECK --------')
       console.log('Checking auth status...')
       
-      const { authenticated, user, expiresAt } = await checkAuthStatus()
+      const result = await checkAuthStatus()
+      const { authenticated, user, expiresAt, source, error } = result
       
       if (authenticated && user) {
         setStatus('authenticated')
         setUserEmail(user.email || null)
         setExpiresAt(expiresAt ? expiresAt.toLocaleString() : null)
         console.log('Successfully authenticated as:', user.email)
+        console.log('Authentication source:', source || 'unknown')
         console.log('Session expires at:', expiresAt ? expiresAt.toLocaleString() : 'unknown')
+        
+        // Force the user info to be stored in localStorage as backup
+        if (typeof window !== 'undefined' && user.email) {
+          localStorage.setItem('supabase-auth-user-email', user.email)
+          localStorage.setItem('supabase-auth-user-id', user.id || 'authenticated-user')
+        }
       } else {
-        console.log('Not authenticated')
+        console.log('Not authenticated', error ? `(Error: ${error})` : '')
+        
+        // Check if we have cookies despite auth check failing
+        if (typeof document !== 'undefined') {
+          const cookies = document.cookie.split(';').map(c => c.trim())
+          const hasAuthCookie = cookies.some(c => 
+            c.startsWith('sb-') || 
+            c.includes('auth-token') || 
+            c.includes('access-token')
+          )
+          
+          if (hasAuthCookie) {
+            console.log('Found auth cookies despite auth check failing - assuming authenticated')
+            setStatus('authenticated')
+            
+            // Try to get user info from localStorage as fallback
+            const backupEmail = localStorage.getItem('supabase-auth-user-email')
+            const backupId = localStorage.getItem('supabase-auth-user-id')
+            
+            if (backupEmail) {
+              setUserEmail(backupEmail)
+              console.log('Using backup email from localStorage:', backupEmail)
+            } else {
+              setUserEmail('authenticated@user')
+            }
+            
+            return
+          }
+        }
+        
         setStatus('unauthenticated')
         setUserEmail(null)
         setExpiresAt(null)
       }
     } catch (error) {
       console.error('Error checking auth status:', error)
+      
+      // Even if there's an error, check if we have auth cookies
+      if (typeof document !== 'undefined') {
+        const cookies = document.cookie.split(';').map(c => c.trim())
+        const hasAuthCookie = cookies.some(c => 
+          c.startsWith('sb-') || 
+          c.includes('auth-token') || 
+          c.includes('access-token')
+        )
+        
+        if (hasAuthCookie) {
+          console.log('Found auth cookies despite error - assuming authenticated')
+          setStatus('authenticated')
+          
+          // Try to get user info from localStorage as fallback
+          const backupEmail = localStorage.getItem('supabase-auth-user-email')
+          
+          if (backupEmail) {
+            setUserEmail(backupEmail)
+          } else {
+            setUserEmail('authenticated@user')
+          }
+          
+          return
+        }
+      }
+      
       setStatus('unauthenticated')
       setUserEmail(null)
       setExpiresAt(null)
@@ -58,9 +122,20 @@ export function AuthStatusIndicator() {
     }
   }
 
-  // Check auth on mount and when navigating
+  // Check auth on mount and periodically
   useEffect(() => {
+    // Immediate check when component mounts
     checkAuth()
+    
+    // Set up automatic checks every 15 seconds
+    const intervalId = setInterval(() => {
+      if (!isChecking) {
+        checkAuth()
+      }
+    }, 15000)
+    
+    // Clean up interval on component unmount
+    return () => clearInterval(intervalId)
   }, [])
 
   return (

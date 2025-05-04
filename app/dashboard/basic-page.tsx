@@ -1,28 +1,75 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info } from "lucide-react";
+import { Info, AlertTriangle, ShieldCheck } from "lucide-react";
 import { AuthStatusIndicator } from "@/components/auth-status-indicator";
+import { checkAuthStatus } from "@/lib/auth-utils";
 
 export default function BasicDashboard() {
+  const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'unauthenticated'>('checking');
+  const [userInfo, setUserInfo] = useState<{email?: string; id?: string} | null>(null);
+
+  // Check authentication status when component mounts
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        console.log('Dashboard component checking auth status...');
+        const result = await checkAuthStatus();
+        
+        if (result.authenticated && result.user) {
+          console.log('Dashboard auth check: Authenticated as', result.user.email);
+          setAuthStatus('authenticated');
+          setUserInfo({
+            email: result.user.email,
+            id: result.user.id
+          });
+        } else {
+          console.log('Dashboard auth check: Not authenticated');
+          setAuthStatus('unauthenticated');
+          setUserInfo(null);
+        }
+      } catch (error) {
+        console.error('Dashboard auth check error:', error);
+        setAuthStatus('unauthenticated');
+      }
+    };
+    
+    checkAuth();
+  }, []);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-muted-foreground">Welcome to CAJPRO, your vehicle project management platform.</p>
+          <p className="text-muted-foreground">
+            Welcome{userInfo?.email ? ` ${userInfo.email}` : ''} to CAJPRO, your vehicle project management platform.
+          </p>
         </div>
       </div>
 
-      <Alert>
-        <Info className="h-4 w-4" />
-        <AlertTitle>Authentication Notice</AlertTitle>
-        <AlertDescription>
-          You're seeing this simplified dashboard because we're working on authentication issues.
-          This is a temporary measure while we fix session handling.
-        </AlertDescription>
-      </Alert>
+      {authStatus === 'authenticated' ? (
+        <Alert className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-900">
+          <ShieldCheck className="h-4 w-4 text-green-600" />
+          <AlertTitle>Authentication Successful</AlertTitle>
+          <AlertDescription>
+            You're now logged in and can access all features of the application.
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <Alert className="bg-yellow-50 dark:bg-yellow-900/20">
+          <AlertTriangle className="h-4 w-4 text-yellow-600" />
+          <AlertTitle>Authentication Notice</AlertTitle>
+          <AlertDescription>
+            You're seeing this simplified dashboard because we're working on authentication issues.
+            This is a temporary measure while we fix session handling.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Auth Status Indicator */}
       <AuthStatusIndicator />
