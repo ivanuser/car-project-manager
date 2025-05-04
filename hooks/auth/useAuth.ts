@@ -6,19 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-
-// User interface
-export interface User {
-  id: string;
-  email: string;
-  isAdmin: boolean;
-}
-
-// Session interface
-export interface Session {
-  user: User | null;
-  authenticated: boolean;
-}
+import { clientAuth, User } from '@/lib/auth';
 
 // Login data interface
 export interface LoginData {
@@ -39,8 +27,8 @@ export interface UseAuthResult {
   loading: boolean;
   authenticated: boolean;
   error: string | null;
-  login: (data: LoginData) => Promise<void>;
-  register: (data: RegistrationData) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, confirmPassword: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -59,22 +47,6 @@ export const useAuth = (): UseAuthResult => {
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Get current session
-   */
-  const getSession = useCallback(async (): Promise<Session> => {
-    try {
-      const response = await fetch('/api/auth/session');
-      if (!response.ok) {
-        throw new Error('Failed to get session');
-      }
-      return await response.json();
-    } catch (error) {
-      console.error('Error getting session:', error);
-      return { user: null, authenticated: false };
-    }
-  }, []);
-
-  /**
    * Refresh session
    */
   const refreshSession = useCallback(async (): Promise<void> => {
@@ -82,7 +54,7 @@ export const useAuth = (): UseAuthResult => {
     setError(null);
 
     try {
-      const session = await getSession();
+      const session = await clientAuth.getSession();
       setUser(session.user);
       setAuthenticated(session.authenticated);
     } catch (error: any) {
@@ -91,30 +63,17 @@ export const useAuth = (): UseAuthResult => {
     } finally {
       setLoading(false);
     }
-  }, [getSession]);
+  }, []);
 
   /**
    * Login user
    */
-  const login = useCallback(async (data: LoginData): Promise<void> => {
+  const login = useCallback(async (email: string, password: string): Promise<void> => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Login failed');
-      }
-
-      const result = await response.json();
+      const result = await clientAuth.loginUser(email, password);
       setUser(result.user);
       setAuthenticated(true);
       
@@ -131,25 +90,16 @@ export const useAuth = (): UseAuthResult => {
   /**
    * Register user
    */
-  const register = useCallback(async (data: RegistrationData): Promise<void> => {
+  const register = useCallback(async (
+    email: string, 
+    password: string, 
+    confirmPassword: string
+  ): Promise<void> => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Registration failed');
-      }
-
-      const result = await response.json();
+      const result = await clientAuth.registerUser(email, password, confirmPassword);
       setUser(result.user);
       setAuthenticated(true);
       
@@ -171,15 +121,7 @@ export const useAuth = (): UseAuthResult => {
     setError(null);
 
     try {
-      const response = await fetch('/api/auth/logout', {
-        method: 'POST',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Logout failed');
-      }
-
+      await clientAuth.logoutUser();
       setUser(null);
       setAuthenticated(false);
       

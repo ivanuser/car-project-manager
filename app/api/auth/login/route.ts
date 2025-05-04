@@ -5,18 +5,18 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authService, authMiddleware } from '@/lib/auth';
+import { getServerAuth, setAuthCookies, createErrorResponse } from '@/lib/auth/api-helpers';
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
+    // Safely import server-side auth modules
+    const { authService } = await getServerAuth();
+    
     const body = await req.json();
     
     // Validate request body
     if (!body.email || !body.password) {
-      return NextResponse.json(
-        { error: 'Email and password are required' },
-        { status: 400 }
-      );
+      return createErrorResponse('Email and password are required', 400);
     }
     
     // Login user
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       message: 'Login successful',
     });
     
-    return authMiddleware.setAuthCookies(
+    return setAuthCookies(
       response,
       result.token,
       result.refreshToken
@@ -45,15 +45,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     
     // Handle known errors
     if (error.message === 'Invalid email or password') {
-      return NextResponse.json(
-        { error: 'Invalid email or password' },
-        { status: 401 }
-      );
+      return createErrorResponse('Invalid email or password', 401);
     }
     
-    return NextResponse.json(
-      { error: 'Login failed' },
-      { status: 500 }
-    );
+    return createErrorResponse('Login failed', 500);
   }
 }

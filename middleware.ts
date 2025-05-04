@@ -6,9 +6,8 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { jwtUtils } from "./lib/auth";
 
-// Authentication middleware
+// A simplified version of middleware that doesn't import pg
 export async function middleware(req: NextRequest) {
   try {
     // Skip middleware for API routes (handled by route handlers)
@@ -22,9 +21,6 @@ export async function middleware(req: NextRequest) {
     const authToken = req.cookies.get('cajpro_auth_token')?.value;
     console.log(`[Middleware] Auth token present: ${!!authToken}`);
     
-    // Get refresh token
-    const refreshToken = req.cookies.get('cajpro_refresh_token')?.value;
-    
     // Only protect dashboard routes
     const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard");
     const isAuthRoute = (
@@ -34,16 +30,8 @@ export async function middleware(req: NextRequest) {
       req.nextUrl.pathname === "/reset-password"
     );
     
-    // Check if token is valid (if present)
-    let isValidToken = false;
-    if (authToken) {
-      const decoded = jwtUtils.verifyToken(authToken);
-      isValidToken = !!decoded && !jwtUtils.isTokenExpired(authToken);
-      console.log(`[Middleware] Token valid: ${isValidToken}`);
-    }
-    
-    // Redirect logic
-    if (isProtectedRoute && (!authToken || !isValidToken)) {
+    // Basic redirect logic
+    if (isProtectedRoute && !authToken) {
       // If user is trying to access protected route but is not authenticated
       console.log("[Middleware] User is not authenticated, redirecting to login");
       
@@ -54,13 +42,12 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(url);
     }
     
-    if (isAuthRoute && authToken && isValidToken) {
+    if (isAuthRoute && authToken) {
       // If user is already authenticated and trying to access auth routes
       console.log("[Middleware] User is already authenticated, redirecting to dashboard");
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
     
-    // Client-side token refresh will handle expired tokens via our API endpoints
     return NextResponse.next();
   } catch (error) {
     console.error("[Middleware] Error:", error);
