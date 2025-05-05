@@ -1,39 +1,222 @@
-import { createClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/supabase'
+/**
+ * client-auth.ts - Client-side authentication utilities
+ * For Caj-pro car project build tracking application
+ * Created on: May 5, 2025
+ */
 
-// Get environment variables with fallbacks for development/preview
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+// User interface
+export interface User {
+  id: string;
+  email: string;
+  isAdmin: boolean;
+  createdAt: string;
+  updatedAt: string;
+  emailConfirmedAt?: string;
+  lastSignInAt?: string;
+}
 
-// Create a client specifically for authentication
-// This client is designed to be used in client components
-export const createAuthClient = () => {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error("Missing Supabase credentials - Authentication will not work")
-    throw new Error("Missing required environment variables for authentication")
+// Session interface
+export interface Session {
+  user: User | null;
+  authenticated: boolean;
+}
+
+// Login data interface
+export interface LoginData {
+  email: string;
+  password: string;
+}
+
+// Login result interface
+export interface LoginResult {
+  user: User;
+  message: string;
+}
+
+// Registration data interface
+export interface RegistrationData {
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
+
+// Registration result interface
+export interface RegistrationResult {
+  user: User;
+  message: string;
+}
+
+/**
+ * Login user
+ * @param email - User email
+ * @param password - User password
+ * @returns Login result
+ */
+export const loginUser = async (
+  email: string,
+  password: string
+): Promise<LoginResult> => {
+  const response = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Login failed');
   }
-  
-  return createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-      flowType: 'pkce',
+
+  return await response.json();
+};
+
+/**
+ * Register user
+ * @param email - User email
+ * @param password - User password
+ * @param confirmPassword - Password confirmation
+ * @returns Registration result
+ */
+export const registerUser = async (
+  email: string,
+  password: string,
+  confirmPassword: string
+): Promise<RegistrationResult> => {
+  const response = await fetch('/api/auth/register', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email, password, confirmPassword }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Registration failed');
+  }
+
+  return await response.json();
+};
+
+/**
+ * Logout user
+ */
+export const logoutUser = async (): Promise<void> => {
+  const response = await fetch('/api/auth/logout', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Logout failed');
+  }
+};
+
+/**
+ * Get current session
+ * @returns Session information
+ */
+export const getSession = async (): Promise<Session> => {
+  try {
+    const response = await fetch('/api/auth/user', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      return { user: null, authenticated: false };
     }
-  })
-}
 
-// Export a singleton instance that can be used throughout the app
-let clientInstance: ReturnType<typeof createClient<Database>> | null = null
+    const data = await response.json();
+    return { user: data.user, authenticated: true };
+  } catch (error) {
+    console.error('Error getting session:', error);
+    return { user: null, authenticated: false };
+  }
+};
 
-export const getClient = () => {
-  if (typeof window === 'undefined') {
-    throw new Error('getClient should only be used in client components')
+/**
+ * Request password reset
+ * @param email - User email
+ */
+export const requestPasswordReset = async (email: string): Promise<void> => {
+  const response = await fetch('/api/auth/password-reset/request', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Password reset request failed');
   }
-  
-  if (!clientInstance) {
-    clientInstance = createAuthClient()
+};
+
+/**
+ * Reset password
+ * @param token - Reset token
+ * @param password - New password
+ * @param confirmPassword - Password confirmation
+ */
+export const resetPassword = async (
+  token: string,
+  password: string,
+  confirmPassword: string
+): Promise<void> => {
+  const response = await fetch('/api/auth/password-reset/reset', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ token, password, confirmPassword }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Password reset failed');
   }
-  
-  return clientInstance
-}
+};
+
+/**
+ * Change password
+ * @param currentPassword - Current password
+ * @param newPassword - New password
+ * @param confirmPassword - Password confirmation
+ */
+export const changePassword = async (
+  currentPassword: string,
+  newPassword: string,
+  confirmPassword: string
+): Promise<void> => {
+  const response = await fetch('/api/auth/password', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Password change failed');
+  }
+};
+
+export default {
+  loginUser,
+  registerUser,
+  logoutUser,
+  getSession,
+  requestPasswordReset,
+  resetPassword,
+  changePassword,
+};

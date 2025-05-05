@@ -15,11 +15,8 @@ export async function middleware(req: NextRequest) {
       return NextResponse.next();
     }
     
-    console.log(`[Middleware] Processing: ${req.nextUrl.pathname}`);
-    
     // Get auth token from cookies
     const authToken = req.cookies.get('cajpro_auth_token')?.value;
-    console.log(`[Middleware] Auth token present: ${!!authToken}`);
     
     // Only protect dashboard routes
     const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard");
@@ -33,7 +30,6 @@ export async function middleware(req: NextRequest) {
     // Basic redirect logic
     if (isProtectedRoute && !authToken) {
       // If user is trying to access protected route but is not authenticated
-      console.log("[Middleware] User is not authenticated, redirecting to login");
       
       // Keep the original URL to redirect back after login
       const url = new URL('/login', req.url);
@@ -44,7 +40,6 @@ export async function middleware(req: NextRequest) {
     
     if (isAuthRoute && authToken) {
       // If user is already authenticated and trying to access auth routes
-      console.log("[Middleware] User is already authenticated, redirecting to dashboard");
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
     
@@ -58,6 +53,6 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     // Match all routes except static files, api routes, and public assets
-    '/((?!_next/static|_next/image|favicon.ico|public/|api/).*)',
+    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
   ],
 };

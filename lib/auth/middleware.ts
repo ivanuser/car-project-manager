@@ -7,7 +7,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import jwtUtils from './jwt';
-import authService from './auth-service';
 
 // Cookie name for the authentication token
 const AUTH_COOKIE_NAME = 'cajpro_auth_token';
@@ -21,11 +20,9 @@ const REFRESH_COOKIE_NAME = 'cajpro_refresh_token';
  */
 export const getToken = (req: NextRequest): string | null => {
   // Try to get token from cookies
-  const cookieStore = cookies();
-  const tokenCookie = cookieStore.get(AUTH_COOKIE_NAME);
-
-  if (tokenCookie) {
-    return tokenCookie.value;
+  const token = req.cookies.get(AUTH_COOKIE_NAME)?.value;
+  if (token) {
+    return token;
   }
 
   // Try to get token from Authorization header
@@ -43,13 +40,10 @@ export const getToken = (req: NextRequest): string | null => {
  * @returns Refresh token or null if not found
  */
 export const getRefreshToken = (req: NextRequest): string | null => {
-  const cookieStore = cookies();
-  const refreshTokenCookie = cookieStore.get(REFRESH_COOKIE_NAME);
-
-  if (refreshTokenCookie) {
-    return refreshTokenCookie.value;
+  const refreshToken = req.cookies.get(REFRESH_COOKIE_NAME)?.value;
+  if (refreshToken) {
+    return refreshToken;
   }
-
   return null;
 };
 
@@ -69,33 +63,15 @@ export const requireAuth = async (req: NextRequest): Promise<NextResponse | null
   }
 
   // Verify token
-  const user = await authService.validateSession(token);
-  if (!user) {
+  const payload = jwtUtils.verifyToken(token);
+  if (!payload || jwtUtils.isTokenExpired(token)) {
     // Try to refresh token
     const refreshToken = getRefreshToken(req);
     if (refreshToken) {
       try {
-        const refreshResult = await authService.refreshAuth(refreshToken);
-        
-        // Set new tokens in cookies
-        const response = NextResponse.next();
-        response.cookies.set(AUTH_COOKIE_NAME, refreshResult.token, {
-          httpOnly: true,
-          secure: true, // Always use secure cookies with Cloudflare tunnel
-          sameSite: 'lax', // Use 'lax' instead of 'strict' for better compatibility with Cloudflare
-          path: '/',
-          maxAge: 3600, // 1 hour
-        });
-        
-        response.cookies.set(REFRESH_COOKIE_NAME, refreshResult.refreshToken, {
-          httpOnly: true,
-          secure: true, // Always use secure cookies with Cloudflare tunnel
-          sameSite: 'lax', // Use 'lax' instead of 'strict' for better compatibility with Cloudflare
-          path: '/',
-          maxAge: 604800, // 7 days
-        });
-        
-        return response;
+        // We'll need to implement this in a server action or API route
+        // since middleware cannot directly access the database
+        return NextResponse.redirect(new URL('/api/auth/refresh', req.url));
       } catch (error) {
         // Failed to refresh token
         const response = NextResponse.json(
@@ -118,47 +94,6 @@ export const requireAuth = async (req: NextRequest): Promise<NextResponse | null
   }
 
   // User is authenticated
-  return null;
-};
-
-/**
- * Middleware to check if user is admin
- * @param req - Next.js request
- * @returns NextResponse or null if user is admin
- */
-export const requireAdmin = async (req: NextRequest): Promise<NextResponse | null> => {
-  const authResult = await requireAuth(req);
-  if (authResult) {
-    return authResult; // Not authenticated
-  }
-
-  const token = getToken(req);
-  if (!token) {
-    return NextResponse.json(
-      { error: 'Authentication required' },
-      { status: 401 }
-    );
-  }
-
-  // Get user ID from token
-  const userId = jwtUtils.getUserIdFromToken(token);
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Invalid token' },
-      { status: 401 }
-    );
-  }
-
-  // Check if user is admin
-  const isAdmin = await authService.isAdmin(userId);
-  if (!isAdmin) {
-    return NextResponse.json(
-      { error: 'Admin privileges required' },
-      { status: 403 }
-    );
-  }
-
-  // User is admin
   return null;
 };
 
@@ -219,7 +154,6 @@ export default {
   getToken,
   getRefreshToken,
   requireAuth,
-  requireAdmin,
   setAuthCookies,
   clearAuthCookies,
 };

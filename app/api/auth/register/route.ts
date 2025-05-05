@@ -1,86 +1,74 @@
 /**
- * register/route.ts - API endpoint for user registration
+ * Register API route - /api/auth/register
  * For Caj-pro car project build tracking application
- * Created on: May 4, 2025
+ * Created on: May 5, 2025
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authService, authMiddleware } from '@/lib/auth';
+import authService from '@/lib/auth/auth-service';
+import middlewareUtils from '@/lib/auth/middleware';
+import { z } from 'zod';
 
-export async function POST(req: NextRequest): Promise<NextResponse> {
+// Validation schema for registration
+const registerSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  confirmPassword: z.string(),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ['confirmPassword'],
+});
+
+export async function POST(req: NextRequest) {
   try {
+    // Parse request body
     const body = await req.json();
     
-    // Validate request body
-    if (!body.email || !body.password || !body.confirmPassword) {
+    // Validate request
+    const validationResult = registerSchema.safeParse(body);
+    if (!validationResult.success) {
       return NextResponse.json(
-        { error: 'Email, password, and confirmPassword are required' },
+        { error: 'Validation failed', details: validationResult.error.errors },
         { status: 400 }
       );
     }
     
-    if (body.password !== body.confirmPassword) {
-      return NextResponse.json(
-        { error: 'Passwords do not match' },
-        { status: 400 }
-      );
-    }
+    // Attempt registration
+    const registrationData = validationResult.data;
+    const authResult = await authService.registerUser(registrationData);
     
-    if (body.password.length < 8) {
-      return NextResponse.json(
-        { error: 'Password must be at least 8 characters long' },
-        { status: 400 }
-      );
-    }
-    
-    // Check email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(body.email)) {
-      return NextResponse.json(
-        { error: 'Invalid email format' },
-        { status: 400 }
-      );
-    }
-    
-    // Register user
-    const result = await authService.registerUser({
-      email: body.email,
-      password: body.password,
-      confirmPassword: body.confirmPassword,
-    });
-    
-    // Set auth cookies
+    // Create response
     const response = NextResponse.json(
-      {
-        user: {
-          id: result.user.id,
-          email: result.user.email,
-          isAdmin: result.user.isAdmin,
-        },
-        message: 'Registration successful',
+      { 
+        user: authResult.user,
+        message: 'Registration successful'
       },
       { status: 201 }
     );
     
-    return authMiddleware.setAuthCookies(
+    // Set authentication cookies
+    middlewareUtils.setAuthCookies(
       response,
-      result.token,
-      result.refreshToken
+      authResult.token,
+      authResult.refreshToken
     );
+    
+    return response;
   } catch (error: any) {
     console.error('Registration error:', error);
     
-    // Handle known errors
-    if (error.message === 'User with this email already exists') {
+    // Check if it's a duplicate email error
+    if (error.message.includes('already exists')) {
       return NextResponse.json(
         { error: 'User with this email already exists' },
         { status: 409 }
       );
     }
     
+    // Return appropriate error message
     return NextResponse.json(
-      { error: 'Registration failed' },
-      { status: 500 }
+      { error: error.message || 'Registration failed' },
+      { status: 400 }
     );
   }
 }

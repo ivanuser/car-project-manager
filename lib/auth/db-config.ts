@@ -1,7 +1,7 @@
 /**
  * db-config.ts - PostgreSQL configuration with Cloudflare compatibility
  * For Caj-pro car project build tracking application
- * Created on: May 4, 2025
+ * Created on: May 5, 2025
  */
 
 import { PoolConfig } from 'pg';

@@ -1,42 +1,51 @@
 /**
- * logout/route.ts - API endpoint for user logout
+ * Logout API route - /api/auth/logout
  * For Caj-pro car project build tracking application
- * Created on: May 4, 2025
+ * Created on: May 5, 2025
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authService, authMiddleware } from '@/lib/auth';
+import authService from '@/lib/auth/auth-service';
+import middlewareUtils from '@/lib/auth/middleware';
 
-export async function POST(req: NextRequest): Promise<NextResponse> {
+export async function POST(req: NextRequest) {
   try {
     // Get token from cookies or headers
-    const token = authMiddleware.getToken(req);
+    const token = middlewareUtils.getToken(req);
     
+    // If no token, just return success (already logged out)
     if (!token) {
       return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
+        { message: 'Already logged out' },
+        { status: 200 }
       );
     }
     
-    // Logout user
+    // Invalidate session in database
     await authService.logoutUser(token);
     
-    // Clear auth cookies
-    const response = NextResponse.json({
-      message: 'Logout successful',
-    });
+    // Create response
+    const response = NextResponse.json(
+      { message: 'Logout successful' },
+      { status: 200 }
+    );
     
-    return authMiddleware.clearAuthCookies(response);
-  } catch (error) {
+    // Clear authentication cookies
+    middlewareUtils.clearAuthCookies(response);
+    
+    return response;
+  } catch (error: any) {
     console.error('Logout error:', error);
     
-    // Even if there's an error, clear cookies
+    // Create response with error
     const response = NextResponse.json(
-      { error: 'Logout failed' },
+      { error: error.message || 'Logout failed' },
       { status: 500 }
     );
     
-    return authMiddleware.clearAuthCookies(response);
+    // Still clear cookies even if database operation fails
+    middlewareUtils.clearAuthCookies(response);
+    
+    return response;
   }
 }

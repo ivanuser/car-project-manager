@@ -1,25 +1,12 @@
 /**
  * useAuth.ts - React hook for authentication
  * For Caj-pro car project build tracking application
- * Created on: May 4, 2025
+ * Created on: May 5, 2025
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { clientAuth, User } from '@/lib/auth';
-
-// Login data interface
-export interface LoginData {
-  email: string;
-  password: string;
-}
-
-// Registration data interface
-export interface RegistrationData {
-  email: string;
-  password: string;
-  confirmPassword: string;
-}
+import clientAuth, { User } from '@/lib/client-auth';
 
 // Auth hook result interface
 export interface UseAuthResult {
@@ -143,25 +130,17 @@ export const useAuth = (): UseAuthResult => {
     setError(null);
 
     try {
-      const response = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Password reset request failed');
-      }
+      await clientAuth.requestPasswordReset(email);
+      
+      // Show success message (could redirect to a confirmation page)
+      router.push('/forgot-password/confirmation');
     } catch (error: any) {
       console.error('Password reset request error:', error);
       setError(error.message || 'Password reset request failed');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   /**
    * Confirm password reset with token
@@ -176,18 +155,7 @@ export const useAuth = (): UseAuthResult => {
       setError(null);
 
       try {
-        const response = await fetch('/api/auth/reset-password', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ token, password, confirmPassword }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Password reset failed');
-        }
+        await clientAuth.resetPassword(token, password, confirmPassword);
 
         // Redirect to login page
         router.push('/login?reset=success');
@@ -214,22 +182,11 @@ export const useAuth = (): UseAuthResult => {
       setError(null);
 
       try {
-        const response = await fetch('/api/auth/change-password', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            currentPassword,
-            newPassword,
-            confirmPassword,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Password change failed');
-        }
+        await clientAuth.changePassword(
+          currentPassword,
+          newPassword,
+          confirmPassword
+        );
 
         // Redirect to login page (user needs to log in again)
         setUser(null);

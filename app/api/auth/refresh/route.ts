@@ -1,51 +1,63 @@
 /**
- * refresh/route.ts - API endpoint for refreshing authentication token
+ * Token Refresh API route - /api/auth/refresh
  * For Caj-pro car project build tracking application
- * Created on: May 4, 2025
+ * Created on: May 5, 2025
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authService, authMiddleware } from '@/lib/auth';
+import authService from '@/lib/auth/auth-service';
+import middlewareUtils from '@/lib/auth/middleware';
 
-export async function POST(req: NextRequest): Promise<NextResponse> {
+export async function POST(req: NextRequest) {
   try {
     // Get refresh token from cookies
-    const refreshToken = authMiddleware.getRefreshToken(req);
+    const refreshToken = middlewareUtils.getRefreshToken(req);
     
+    // If no refresh token, return error
     if (!refreshToken) {
       return NextResponse.json(
-        { error: 'Refresh token not found' },
+        { error: 'No refresh token provided' },
         { status: 401 }
       );
     }
     
-    // Refresh authentication
-    const result = await authService.refreshAuth(refreshToken);
+    // Attempt to refresh the token
+    const authResult = await authService.refreshAuth(refreshToken);
     
-    // Set new auth cookies
-    const response = NextResponse.json({
-      user: {
-        id: result.user.id,
-        email: result.user.email,
-        isAdmin: result.user.isAdmin,
+    // Create response
+    const response = NextResponse.json(
+      { 
+        user: authResult.user,
+        message: 'Token refreshed successfully'
       },
-      message: 'Token refreshed successfully',
-    });
-    
-    return authMiddleware.setAuthCookies(
-      response,
-      result.token,
-      result.refreshToken
+      { status: 200 }
     );
+    
+    // Set new authentication cookies
+    middlewareUtils.setAuthCookies(
+      response,
+      authResult.token,
+      authResult.refreshToken
+    );
+    
+    return response;
   } catch (error: any) {
     console.error('Token refresh error:', error);
     
-    // Clear cookies on error
+    // Create response with error
     const response = NextResponse.json(
-      { error: 'Failed to refresh token' },
+      { error: error.message || 'Token refresh failed' },
       { status: 401 }
     );
     
-    return authMiddleware.clearAuthCookies(response);
+    // Clear cookies on error
+    middlewareUtils.clearAuthCookies(response);
+    
+    return response;
   }
+}
+
+export async function GET(req: NextRequest) {
+  // For handling redirect from middleware when token expires
+  return POST(req);
 }

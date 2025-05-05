@@ -1,13 +1,14 @@
 /**
  * AuthProvider.tsx - Authentication context provider
  * For Caj-pro car project build tracking application
- * Created on: May 4, 2025
+ * Created on: May 5, 2025
  */
 
 'use client';
 
 import React, { createContext, useContext, ReactNode } from 'react';
-import { useAuth, UseAuthResult, User, LoginData, RegistrationData } from './useAuth';
+import { useAuth, UseAuthResult } from './useAuth';
+import { User } from '@/lib/client-auth';
 
 // Create auth context
 const AuthContext = createContext<UseAuthResult | undefined>(undefined);
@@ -38,6 +39,6 @@ export const useAuthContext = (): UseAuthResult => {
 };
 
 // Export interfaces
-export type { User, LoginData, RegistrationData };
+export type { User };
 
 export default AuthProvider;
