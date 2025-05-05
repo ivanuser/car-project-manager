@@ -315,8 +315,8 @@ RETURNS UUID AS $$
 DECLARE
   v_user_id UUID;
   v_email TEXT := 'admin@cajpro.local';
-  -- Password: admin123 (this is just for development; should be changed in production)
-  v_password_hash TEXT := '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8'; -- SHA-256 hash of 'password'
+  -- Password: admin123 (SHA-256 hash with salt 'developmentsalt')
+  v_password_hash TEXT := '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918';
   v_salt TEXT := 'developmentsalt';
 BEGIN
   -- Check if admin user already exists
