@@ -1,10 +1,12 @@
 "use client"
 
+import jwtUtils from '@/lib/auth/jwt';
+
 /**
- * Super simplified auth checker that only looks for auth cookies
+ * Check authentication status based on JWT in cookies
  */
 export async function checkAuthStatus() {
-  console.log("Using ultra-simple auth check...")
+  console.log("Checking authentication status with JWT...");
   
   // Check if running on client
   if (typeof window === 'undefined') {
@@ -12,43 +14,57 @@ export async function checkAuthStatus() {
   }
   
   try {
-    // Simply check for Supabase auth cookies - any auth cookie means authenticated
+    // Look for our auth token cookie
     const cookies = document.cookie.split(';').map(c => c.trim());
     console.log("Available cookies:", cookies);
 
-    // If we have ANY auth-related cookie, we're authenticated
-    const hasAuthCookie = cookies.some(c => 
-      c.includes('sb-') || 
-      c.includes('auth')
-    );
+    // Find the Cajpro auth token
+    const authCookie = cookies.find(c => c.startsWith('cajpro_auth_token='));
     
-    if (hasAuthCookie) {
-      // Try to get user email from localStorage or use a default
-      const email = localStorage.getItem('supabase-auth-user-email') || 
-                   localStorage.getItem('auth-user-email') ||
-                   'authenticated-user@example.com';
-                   
-      // Store this email for next time
-      localStorage.setItem('auth-user-email', email);
-      
-      console.log("Auth check: Authenticated as", email);
-      
-      return {
-        authenticated: true,
-        user: { email, id: 'authenticated-user' }
-      };
+    if (!authCookie) {
+      console.log("Auth check: No auth token found");
+      return { authenticated: false, user: null };
     }
     
-    console.log("Auth check: No auth cookies found");
-    return { authenticated: false, user: null };
+    // Extract the token
+    const token = authCookie.split('=')[1];
+    
+    if (!token) {
+      console.log("Auth check: Empty auth token");
+      return { authenticated: false, user: null };
+    }
+    
+    // Verify the token on client-side
+    const payload = jwtUtils.verifyToken(token);
+    
+    if (!payload || jwtUtils.isTokenExpired(token)) {
+      console.log("Auth check: Invalid or expired token");
+      return { authenticated: false, user: null };
+    }
+    
+    // Extract user info from payload
+    const email = payload.email;
+    const userId = payload.sub;
+    const isAdmin = payload.isAdmin;
+    
+    console.log("Auth check: Authenticated as", email);
+    
+    return {
+      authenticated: true,
+      user: { 
+        email, 
+        id: userId,
+        isAdmin 
+      }
+    };
   } catch (error) {
-    console.error("Error in simple auth check:", error);
+    console.error("Error in auth check:", error);
     return { authenticated: false, user: null, error };
   }
 }
 
 /**
- * Client-side utility to sign out
+ * Client-side utility to sign out - calls the logout API
  */
 export async function signOutClient() {
   if (typeof window === 'undefined') return { success: false };
@@ -56,10 +72,17 @@ export async function signOutClient() {
   try {
     console.log("Signing out...");
     
-    // Clear auth-related items from localStorage
-    localStorage.removeItem('auth-user-email');
-    localStorage.removeItem('supabase-auth-user-email');
-    localStorage.removeItem('supabase-auth-user-id');
+    // Call the logout API endpoint
+    const response = await fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to logout');
+    }
     
     return { success: true };
   } catch (error) {
@@ -74,16 +97,8 @@ export async function signOutClient() {
 export function forceSignOut() {
   signOutClient().finally(() => {
     if (typeof window !== 'undefined') {
-      // Clear ALL auth-related localStorage items
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.includes('auth') || key.includes('supabase'))) {
-          localStorage.removeItem(key);
-        }
-      }
-      
-      // Redirect to the auth reset page
-      window.location.href = '/api/auth/reset';
+      // Redirect to login page
+      window.location.href = '/login';
     }
   });
 }

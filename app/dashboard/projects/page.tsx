@@ -1,11 +1,11 @@
 import Link from "next/link"
-import { getVehicleProjects } from "@/actions/project-actions"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 
 export default async function ProjectsPage() {
-  const projects = await getVehicleProjects()
+  // Temporary: use empty projects array during database transition
+  const projects: any[] = [] 
 
   return (
     <div className="space-y-6">
@@ -21,6 +21,17 @@ export default async function ProjectsPage() {
           </Link>
         </Button>
       </div>
+
+      <Card className="bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800">
+        <CardContent className="py-4">
+          <div className="flex flex-col items-center text-center">
+            <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-300 mb-2">Database Migration in Progress</h3>
+            <p className="text-amber-700 dark:text-amber-400 mb-4">
+              We're currently migrating from Supabase to PostgreSQL. Project data will be available soon.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {projects.length === 0 ? (
         <Card>

@@ -1,79 +1,142 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { createServerClient } from "@/lib/supabase"
+import db from '@/lib/db'
+import { cookies } from 'next/headers'
+import jwtUtils from '@/lib/auth/jwt'
 
-// Get all vehicle projects
+/**
+ * Get the current user ID from the session
+ * @returns User ID or null if not authenticated
+ */
+async function getCurrentUserId() {
+  const cookieStore = cookies()
+  const authToken = cookieStore.get('cajpro_auth_token')?.value
+  
+  if (!authToken) {
+    console.log("No auth token found in cookies")
+    return null
+  }
+  
+  // Validate token and get user ID
+  try {
+    const payload = jwtUtils.verifyToken(authToken)
+    if (!payload) {
+      console.log("Invalid auth token")
+      return null
+    }
+    
+    // Extract user ID from the token
+    return payload.sub
+  } catch (error) {
+    console.error("Error getting current user ID:", error)
+    return null
+  }
+}
+
+/**
+ * Get all vehicle projects for the current user
+ * @returns Array of vehicle projects
+ */
 export async function getVehicleProjects() {
-  const supabase = createServerClient()
-
   // Get the current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
     console.log("No authenticated user found, returning empty projects array")
     return []
   }
-
-  // Use the actual user ID from the session
-  const userId = user.id
-
+  
   console.log("Fetching projects for user ID:", userId)
-
-  const { data, error } = await supabase
-    .from("vehicle_projects")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-
-  if (error) {
+  
+  try {
+    const result = await db.query(
+      `SELECT * 
+       FROM vehicle_projects 
+       WHERE user_id = $1 
+       ORDER BY created_at DESC`,
+      [userId]
+    )
+    
+    return result.rows || []
+  } catch (error) {
     console.error("Error fetching projects:", error)
     return []
   }
-
-  return data || []
 }
 
-// Get a single vehicle project by ID
+/**
+ * Get a single vehicle project by ID
+ * @param id - Project ID
+ * @returns Project data or null if not found
+ */
 export async function getVehicleProject(id: string) {
-  const supabase = createServerClient()
-
-  const { data, error } = await supabase
-    .from("vehicle_projects")
-    .select(`
-    *,
-    project_tasks(*),
-    project_parts(*)
-  `)
-    .eq("id", id)
-    .single()
-
-  if (error) {
+  try {
+    // Get the current user
+    const userId = await getCurrentUserId()
+    
+    if (!userId) {
+      console.log("No authenticated user found, returning null")
+      return null
+    }
+    
+    // Get project
+    const projectResult = await db.query(
+      `SELECT * 
+       FROM vehicle_projects 
+       WHERE id = $1 AND user_id = $2`,
+      [id, userId]
+    )
+    
+    if (projectResult.rows.length === 0) {
+      return null
+    }
+    
+    const project = projectResult.rows[0]
+    
+    // Get tasks
+    const tasksResult = await db.query(
+      `SELECT * 
+       FROM project_tasks 
+       WHERE project_id = $1`,
+      [id]
+    )
+    
+    // Get parts
+    const partsResult = await db.query(
+      `SELECT * 
+       FROM project_parts 
+       WHERE project_id = $1`,
+      [id]
+    )
+    
+    // Combine data
+    return {
+      ...project,
+      project_tasks: tasksResult.rows || [],
+      project_parts: partsResult.rows || []
+    }
+  } catch (error) {
     console.error("Error fetching vehicle project:", error)
     return null
   }
-
-  return data
 }
 
-// Create a new vehicle project
+/**
+ * Create a new vehicle project
+ * @param formData - Form data
+ * @returns Result of the operation
+ */
 export async function createVehicleProject(formData: FormData) {
-  const supabase = createServerClient()
-
   // Get the current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
     return { error: "You must be logged in to create a project" }
   }
-
-  const userId = user.id
+  
   console.log("Creating project for user ID:", userId)
-
+  
   // Extract form data
   const title = formData.get("title") as string
   const make = formData.get("make") as string
@@ -86,74 +149,54 @@ export async function createVehicleProject(formData: FormData) {
   const endDate = (formData.get("endDate") as string) || null
   const budget = formData.get("budget") ? Number.parseFloat(formData.get("budget") as string) : null
   const status = (formData.get("status") as string) || "planning"
-
-  // Handle file upload if present
+  
+  // TODO: Handle file uploads to file system instead of Supabase storage
   let thumbnailUrl = null
   const thumbnailFile = formData.get("thumbnail") as File
-
+  
   if (thumbnailFile && thumbnailFile.size > 0) {
-    try {
-      const fileExt = thumbnailFile.name.split(".").pop()
-      const fileName = `${userId}-${Date.now()}.${fileExt}`
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from("project-thumbnails")
-        .upload(fileName, thumbnailFile)
-
-      if (uploadError) {
-        console.error("Thumbnail upload error:", uploadError)
-      } else if (uploadData) {
-        const { data: urlData } = supabase.storage.from("project-thumbnails").getPublicUrl(fileName)
-
-        thumbnailUrl = urlData.publicUrl
-      }
-    } catch (error) {
-      console.error("File upload error:", error)
-    }
+    // We'll need to implement file uploads to the filesystem
+    console.log("File upload not yet implemented")
+    // For now, we'll skip this step
   }
-
-  // Insert the project
-  const { data, error } = await supabase
-    .from("vehicle_projects")
-    .insert({
-      title,
-      make,
-      model,
-      year,
-      vin,
-      description,
-      project_type: projectType,
-      start_date: startDate,
-      end_date: endDate,
-      budget,
-      status,
-      user_id: userId,
-      thumbnail_url: thumbnailUrl,
-    })
-    .select()
-    .single()
-
-  if (error) {
+  
+  try {
+    // Insert the project
+    const result = await db.query(
+      `INSERT INTO vehicle_projects (
+        title, make, model, year, vin, description, project_type, 
+        start_date, end_date, budget, status, user_id, thumbnail_url
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      RETURNING *`,
+      [
+        title, make, model, year, vin, description, projectType,
+        startDate, endDate, budget, status, userId, thumbnailUrl
+      ]
+    )
+    
+    revalidatePath("/dashboard/projects")
+    return { success: true, data: result.rows[0] }
+  } catch (error) {
     console.error("Error creating vehicle project:", error)
-    return { error: error.message }
+    return { error: (error as Error).message }
   }
-
-  revalidatePath("/dashboard/projects")
-  return { success: true, data }
 }
 
-// Update an existing vehicle project
+/**
+ * Update an existing vehicle project
+ * @param id - Project ID
+ * @param formData - Form data
+ * @returns Result of the operation
+ */
 export async function updateVehicleProject(id: string, formData: FormData) {
-  const supabase = createServerClient()
-
   // Get the current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
     return { error: "You must be logged in to update a project" }
   }
-
+  
   // Extract form data
   const title = formData.get("title") as string
   const make = formData.get("make") as string
@@ -166,178 +209,234 @@ export async function updateVehicleProject(id: string, formData: FormData) {
   const endDate = (formData.get("endDate") as string) || null
   const budget = formData.get("budget") ? Number.parseFloat(formData.get("budget") as string) : null
   const status = (formData.get("status") as string) || "planning"
-
-  // Handle file upload if present
+  
+  // TODO: Handle file uploads
   let thumbnailUrl = null
   const thumbnailFile = formData.get("thumbnail") as File
-
+  
   if (thumbnailFile && thumbnailFile.size > 0) {
-    try {
-      const fileExt = thumbnailFile.name.split(".").pop()
-      const fileName = `${id}-${Date.now()}.${fileExt}`
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from("project-thumbnails")
-        .upload(fileName, thumbnailFile)
-
-      if (uploadError) {
-        console.error("Thumbnail upload error:", uploadError)
-      } else if (uploadData) {
-        const { data: urlData } = supabase.storage.from("project-thumbnails").getPublicUrl(fileName)
-
-        thumbnailUrl = urlData.publicUrl
-      }
-    } catch (error) {
-      console.error("File upload error:", error)
+    // Implement file system uploads
+    console.log("File upload not yet implemented")
+  }
+  
+  try {
+    // Verify project belongs to the user
+    const checkResult = await db.query(
+      `SELECT id FROM vehicle_projects WHERE id = $1 AND user_id = $2`,
+      [id, userId]
+    )
+    
+    if (checkResult.rows.length === 0) {
+      return { error: "Project not found or you don't have permission to update it" }
     }
-  }
-
-  const updateData: any = {
-    title,
-    make,
-    model,
-    year,
-    vin,
-    description,
-    project_type: projectType,
-    start_date: startDate,
-    end_date: endDate,
-    budget,
-    status,
-    updated_at: new Date().toISOString(),
-  }
-
-  // Only update thumbnail if a new one was uploaded
-  if (thumbnailUrl) {
-    updateData.thumbnail_url = thumbnailUrl
-  }
-
-  const { data, error } = await supabase.from("vehicle_projects").update(updateData).eq("id", id).select()
-
-  if (error) {
+    
+    // Update the project
+    const updateData: any = [
+      title, make, model, year, vin, description, projectType,
+      startDate, endDate, budget, status, new Date().toISOString(), id
+    ]
+    
+    let query = `
+      UPDATE vehicle_projects SET
+        title = $1,
+        make = $2,
+        model = $3,
+        year = $4,
+        vin = $5,
+        description = $6,
+        project_type = $7,
+        start_date = $8,
+        end_date = $9,
+        budget = $10,
+        status = $11,
+        updated_at = $12
+    `
+    
+    // Only update thumbnail if a new one was uploaded
+    if (thumbnailUrl) {
+      query += `, thumbnail_url = $14`
+      updateData.push(thumbnailUrl)
+    }
+    
+    query += ` WHERE id = $13 RETURNING *`
+    
+    const result = await db.query(query, updateData)
+    
+    revalidatePath("/dashboard/projects")
+    revalidatePath(`/dashboard/projects/${id}`)
+    return { success: true, data: result.rows[0] }
+  } catch (error) {
     console.error("Error updating vehicle project:", error)
-    return { error: error.message }
+    return { error: (error as Error).message }
   }
-
-  revalidatePath("/dashboard/projects")
-  revalidatePath(`/dashboard/projects/${id}`)
-  return { success: true, data }
 }
 
-// Delete a vehicle project
+/**
+ * Delete a vehicle project
+ * @param id - Project ID
+ * @returns Result of the operation
+ */
 export async function deleteVehicleProject(id: string) {
-  const supabase = createServerClient()
-
   // Get the current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
     return { error: "You must be logged in to delete a project" }
   }
-
-  // First, delete all tasks associated with this project
-  const { error: tasksError } = await supabase.from("project_tasks").delete().eq("project_id", id)
-
-  if (tasksError) {
-    console.error("Error deleting project tasks:", tasksError)
-  }
-
-  // Then delete the project
-  const { error } = await supabase.from("vehicle_projects").delete().eq("id", id)
-
-  if (error) {
+  
+  try {
+    // Begin transaction
+    await db.transaction(async (client) => {
+      // Verify project belongs to the user
+      const checkResult = await client.query(
+        `SELECT id FROM vehicle_projects WHERE id = $1 AND user_id = $2`,
+        [id, userId]
+      )
+      
+      if (checkResult.rows.length === 0) {
+        throw new Error("Project not found or you don't have permission to delete it")
+      }
+      
+      // Delete tasks associated with this project
+      await client.query(
+        `DELETE FROM project_tasks WHERE project_id = $1`,
+        [id]
+      )
+      
+      // Delete parts associated with this project
+      await client.query(
+        `DELETE FROM project_parts WHERE project_id = $1`,
+        [id]
+      )
+      
+      // Delete the project
+      await client.query(
+        `DELETE FROM vehicle_projects WHERE id = $1`,
+        [id]
+      )
+    })
+    
+    revalidatePath("/dashboard/projects")
+    return { success: true }
+  } catch (error) {
     console.error("Error deleting vehicle project:", error)
-    return { error: error.message }
+    return { error: (error as Error).message }
   }
-
-  revalidatePath("/dashboard/projects")
-  return { success: true }
 }
 
-// Get all tasks
+/**
+ * Get all tasks for the current user
+ * @returns Array of tasks
+ */
 export async function getAllTasks() {
-  const supabase = createServerClient()
-
   // Get the current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
     console.log("No authenticated user found, returning empty tasks array")
     return []
   }
-
-  const userId = user.id
+  
   console.log("Fetching tasks for user ID:", userId)
-
-  // Get all tasks for projects owned by this user
-  const { data: projects } = await supabase.from("vehicle_projects").select("id").eq("user_id", userId)
-
-  if (!projects || projects.length === 0) {
-    return []
-  }
-
-  const projectIds = projects.map((project) => project.id)
-
-  const { data, error } = await supabase
-    .from("project_tasks")
-    .select(`
-      *,
-      vehicle_projects(id, title)
-    `)
-    .in("project_id", projectIds)
-    .order("due_date", { ascending: true })
-
-  if (error) {
+  
+  try {
+    // Get all projects for this user
+    const projectsResult = await db.query(
+      `SELECT id FROM vehicle_projects WHERE user_id = $1`,
+      [userId]
+    )
+    
+    if (projectsResult.rows.length === 0) {
+      return []
+    }
+    
+    const projectIds = projectsResult.rows.map(project => project.id)
+    
+    // Get all tasks for these projects
+    const tasksResult = await db.query(
+      `SELECT 
+         t.*,
+         p.id as project_id,
+         p.title as project_title
+       FROM 
+         project_tasks t
+       JOIN 
+         vehicle_projects p ON t.project_id = p.id
+       WHERE 
+         t.project_id = ANY($1)
+       ORDER BY 
+         t.due_date ASC NULLS LAST`,
+      [projectIds]
+    )
+    
+    // Format the results to match the expected structure
+    return tasksResult.rows.map(task => ({
+      ...task,
+      vehicle_projects: {
+        id: task.project_id,
+        title: task.project_title
+      }
+    }))
+  } catch (error) {
     console.error("Error fetching tasks:", error)
     return []
   }
-
-  return data || []
 }
 
-// Add these functions for tasks
+/**
+ * Get tasks for a specific project
+ * @param projectId - Project ID
+ * @returns Array of tasks
+ */
 export async function getProjectTasks(projectId: string) {
-  const supabase = createServerClient()
-
   // Get the current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
     console.log("No authenticated user found, returning empty project tasks array")
     return []
   }
-
-  const { data, error } = await supabase
-    .from("project_tasks")
-    .select("*")
-    .eq("project_id", projectId)
-    .order("created_at", { ascending: false })
-
-  if (error) {
-    console.error("Error fetching tasks:", error)
+  
+  try {
+    // Verify project belongs to the user
+    const checkResult = await db.query(
+      `SELECT id FROM vehicle_projects WHERE id = $1 AND user_id = $2`,
+      [projectId, userId]
+    )
+    
+    if (checkResult.rows.length === 0) {
+      return []
+    }
+    
+    // Get tasks for this project
+    const tasksResult = await db.query(
+      `SELECT * 
+       FROM project_tasks 
+       WHERE project_id = $1
+       ORDER BY created_at DESC`,
+      [projectId]
+    )
+    
+    return tasksResult.rows || []
+  } catch (error) {
+    console.error("Error fetching project tasks:", error)
     return []
   }
-
-  return data || []
 }
 
+/**
+ * Create a new task
+ * @param formData - Form data
+ * @returns Result of the operation
+ */
 export async function createTask(formData: FormData) {
-  const supabase = createServerClient()
-
   // Get the current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
     return { error: "You must be logged in to create a task" }
   }
-
+  
   const title = formData.get("title") as string
   const description = formData.get("description") as string
   const projectId = formData.get("projectId") as string
@@ -348,42 +447,55 @@ export async function createTask(formData: FormData) {
     ? Number.parseFloat(formData.get("estimatedHours") as string)
     : null
   const buildStage = (formData.get("buildStage") as string) || "planning"
-
-  const { data, error } = await supabase
-    .from("project_tasks")
-    .insert({
-      title,
-      description,
-      project_id: projectId,
-      status,
-      priority,
-      due_date: dueDate,
-      estimated_hours: estimatedHours,
-      build_stage: buildStage,
-    })
-    .select()
-
-  if (error) {
-    return { error: error.message }
+  
+  try {
+    // Verify project belongs to the user
+    const checkResult = await db.query(
+      `SELECT id FROM vehicle_projects WHERE id = $1 AND user_id = $2`,
+      [projectId, userId]
+    )
+    
+    if (checkResult.rows.length === 0) {
+      return { error: "Project not found or you don't have permission to add tasks to it" }
+    }
+    
+    // Create the task
+    const taskResult = await db.query(
+      `INSERT INTO project_tasks (
+         title, description, project_id, status, priority,
+         due_date, estimated_hours, build_stage
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [
+        title, description, projectId, status, priority,
+        dueDate, estimatedHours, buildStage
+      ]
+    )
+    
+    revalidatePath("/dashboard/tasks")
+    revalidatePath(`/dashboard/projects/${projectId}`)
+    return { success: true, data: taskResult.rows[0] }
+  } catch (error) {
+    console.error("Error creating task:", error)
+    return { error: (error as Error).message }
   }
-
-  revalidatePath("/dashboard/tasks")
-  revalidatePath(`/dashboard/projects/${projectId}`)
-  return { success: true, data }
 }
 
+/**
+ * Update an existing task
+ * @param id - Task ID
+ * @param formData - Form data
+ * @returns Result of the operation
+ */
 export async function updateTask(id: string, formData: FormData) {
-  const supabase = createServerClient()
-
   // Get the current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
     return { error: "You must be logged in to update a task" }
   }
-
+  
   const title = formData.get("title") as string
   const description = formData.get("description") as string
   const projectId = formData.get("projectId") as string
@@ -394,112 +506,188 @@ export async function updateTask(id: string, formData: FormData) {
     ? Number.parseFloat(formData.get("estimatedHours") as string)
     : null
   const buildStage = formData.get("buildStage") as string
-
-  const { data, error } = await supabase
-    .from("project_tasks")
-    .update({
-      title,
-      description,
-      project_id: projectId,
-      status,
-      priority,
-      due_date: dueDate,
-      estimated_hours: estimatedHours,
-      build_stage: buildStage,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .select()
-
-  if (error) {
-    return { error: error.message }
+  
+  try {
+    // Verify project belongs to the user
+    const checkResult = await db.query(
+      `SELECT v.id
+       FROM vehicle_projects v
+       JOIN project_tasks t ON v.id = t.project_id
+       WHERE t.id = $1 AND v.user_id = $2`,
+      [id, userId]
+    )
+    
+    if (checkResult.rows.length === 0) {
+      return { error: "Task not found or you don't have permission to update it" }
+    }
+    
+    // Update the task
+    const taskResult = await db.query(
+      `UPDATE project_tasks SET
+         title = $1,
+         description = $2,
+         project_id = $3,
+         status = $4,
+         priority = $5,
+         due_date = $6,
+         estimated_hours = $7,
+         build_stage = $8,
+         updated_at = $9
+       WHERE id = $10
+       RETURNING *`,
+      [
+        title, description, projectId, status, priority,
+        dueDate, estimatedHours, buildStage, new Date().toISOString(), id
+      ]
+    )
+    
+    revalidatePath("/dashboard/tasks")
+    revalidatePath(`/dashboard/projects/${projectId}`)
+    revalidatePath(`/dashboard/tasks/${id}`)
+    return { success: true, data: taskResult.rows[0] }
+  } catch (error) {
+    console.error("Error updating task:", error)
+    return { error: (error as Error).message }
   }
-
-  revalidatePath("/dashboard/tasks")
-  revalidatePath(`/dashboard/projects/${projectId}`)
-  revalidatePath(`/dashboard/tasks/${id}`)
-  return { success: true, data }
 }
 
+/**
+ * Delete a task
+ * @param id - Task ID
+ * @param projectId - Project ID
+ * @returns Result of the operation
+ */
 export async function deleteTask(id: string, projectId: string) {
-  const supabase = createServerClient()
-
   // Get the current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
     return { error: "You must be logged in to delete a task" }
   }
-
-  const { error } = await supabase.from("project_tasks").delete().eq("id", id)
-
-  if (error) {
-    return { error: error.message }
+  
+  try {
+    // Verify project belongs to the user
+    const checkResult = await db.query(
+      `SELECT v.id
+       FROM vehicle_projects v
+       JOIN project_tasks t ON v.id = t.project_id
+       WHERE t.id = $1 AND v.user_id = $2`,
+      [id, userId]
+    )
+    
+    if (checkResult.rows.length === 0) {
+      return { error: "Task not found or you don't have permission to delete it" }
+    }
+    
+    // Delete the task
+    await db.query(
+      `DELETE FROM project_tasks WHERE id = $1`,
+      [id]
+    )
+    
+    revalidatePath("/dashboard/tasks")
+    revalidatePath(`/dashboard/projects/${projectId}`)
+    return { success: true }
+  } catch (error) {
+    console.error("Error deleting task:", error)
+    return { error: (error as Error).message }
   }
-
-  revalidatePath("/dashboard/tasks")
-  revalidatePath(`/dashboard/projects/${projectId}`)
-  return { success: true }
 }
 
+/**
+ * Update a task's status
+ * @param id - Task ID
+ * @param status - New status
+ * @param projectId - Project ID
+ * @returns Result of the operation
+ */
 export async function updateTaskStatus(id: string, status: string, projectId: string) {
-  const supabase = createServerClient()
-
   // Get the current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
     return { error: "You must be logged in to update a task status" }
   }
-
-  const { data, error } = await supabase
-    .from("project_tasks")
-    .update({
-      status,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .select()
-
-  if (error) {
-    return { error: error.message }
+  
+  try {
+    // Verify project belongs to the user
+    const checkResult = await db.query(
+      `SELECT v.id
+       FROM vehicle_projects v
+       JOIN project_tasks t ON v.id = t.project_id
+       WHERE t.id = $1 AND v.user_id = $2`,
+      [id, userId]
+    )
+    
+    if (checkResult.rows.length === 0) {
+      return { error: "Task not found or you don't have permission to update it" }
+    }
+    
+    // Update the task status
+    const taskResult = await db.query(
+      `UPDATE project_tasks SET
+         status = $1,
+         updated_at = $2
+       WHERE id = $3
+       RETURNING *`,
+      [status, new Date().toISOString(), id]
+    )
+    
+    revalidatePath("/dashboard/tasks")
+    revalidatePath(`/dashboard/projects/${projectId}`)
+    return { success: true, data: taskResult.rows[0] }
+  } catch (error) {
+    console.error("Error updating task status:", error)
+    return { error: (error as Error).message }
   }
-
-  revalidatePath("/dashboard/tasks")
-  revalidatePath(`/dashboard/projects/${projectId}`)
-  return { success: true, data }
 }
 
+/**
+ * Get a task by ID
+ * @param id - Task ID
+ * @returns Task data or null if not found
+ */
 export async function getTaskById(id: string) {
-  const supabase = createServerClient()
-
   // Get the current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
     console.log("No authenticated user found, returning null for task")
     return null
   }
-
-  const { data, error } = await supabase
-    .from("project_tasks")
-    .select(`
-      *,
-      vehicle_projects(id, title)
-    `)
-    .eq("id", id)
-    .single()
-
-  if (error) {
+  
+  try {
+    // Get the task and verify it belongs to a project owned by the user
+    const taskResult = await db.query(
+      `SELECT 
+         t.*,
+         p.id as project_id,
+         p.title as project_title
+       FROM 
+         project_tasks t
+       JOIN 
+         vehicle_projects p ON t.project_id = p.id
+       WHERE 
+         t.id = $1 AND p.user_id = $2`,
+      [id, userId]
+    )
+    
+    if (taskResult.rows.length === 0) {
+      return null
+    }
+    
+    const task = taskResult.rows[0]
+    
+    // Format the result to match the expected structure
+    return {
+      ...task,
+      vehicle_projects: {
+        id: task.project_id,
+        title: task.project_title
+      }
+    }
+  } catch (error) {
     console.error("Error fetching task:", error)
     return null
   }
-
-  return data
 }
