@@ -50,32 +50,48 @@ export async function initializeDatabase() {
     console.log('Ensuring uuid-ossp extension is enabled...');
     await pool.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";');
     
-    // Read schema files
-    const schemasDir = path.join(process.cwd(), 'db');
-    const schemaFiles = [
-      'auth-schema.sql',
-      // Add other schema files here
-    ];
+    // Check if auth schema already exists
+    const schemaResult = await pool.query(`
+      SELECT schema_name 
+      FROM information_schema.schemata 
+      WHERE schema_name = 'auth'
+    `);
     
-    // Execute schema files
-    for (const file of schemaFiles) {
-      const schemaPath = path.join(schemasDir, file);
+    const schemaExists = schemaResult.rows.length > 0;
+    
+    if (schemaExists) {
+      console.log('Auth schema already exists, skipping schema creation');
+    } else {
+      // Read schema files
+      const schemasDir = path.join(process.cwd(), 'db');
+      const schemaFiles = [
+        'auth-schema.sql',
+        // Add other schema files here
+      ];
       
-      try {
-        // Check if file exists
-        if (!fs.existsSync(schemaPath)) {
-          console.error(`Schema file not found: ${schemaPath}`);
-          continue;
+      // Execute schema files
+      for (const file of schemaFiles) {
+        const schemaPath = path.join(schemasDir, file);
+        
+        try {
+          // Check if file exists
+          if (!fs.existsSync(schemaPath)) {
+            console.error(`Schema file not found: ${schemaPath}`);
+            continue;
+          }
+          
+          console.log(`Executing schema file: ${file}`);
+          const schema = fs.readFileSync(schemaPath, 'utf8');
+          
+          // Execute schema
+          await pool.query(schema);
+          console.log(`Successfully executed schema: ${file}`);
+        } catch (error) {
+          // Log error but continue - this allows initialization to proceed
+          // even if some statements fail (like when objects already exist)
+          console.error(`Error executing schema file ${file}:`, error);
+          console.log('Continuing with initialization despite errors...');
         }
-        
-        console.log(`Executing schema file: ${file}`);
-        const schema = fs.readFileSync(schemaPath, 'utf8');
-        
-        // Execute schema
-        await pool.query(schema);
-        console.log(`Successfully executed schema: ${file}`);
-      } catch (error) {
-        console.error(`Error executing schema file ${file}:`, error);
       }
     }
     
