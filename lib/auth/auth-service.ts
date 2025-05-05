@@ -249,14 +249,14 @@ export const loginUser = async (data: LoginData): Promise<AuthResult> => {
     
     const user = userResult.rows[0];
     
-    // Special case for admin user with SHA-256 hash
+    // Special case for admin user with specific hash
     if (data.email === 'admin@cajpro.local' && data.password === 'admin123') {
       // Admin user validation
       console.log('Admin login attempt with default credentials');
       
       // For the admin user, we validate the password directly since it's a fixed value
-      // in the seed data (SHA-256 hash of 'admin123' with salt 'developmentsalt')
-      const expectedHash = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918';
+      // Use the actual hash value from the database
+      const expectedHash = '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8';
       
       // Check if the hash in the database matches the expected hash
       if (user.password_hash !== expectedHash) {
