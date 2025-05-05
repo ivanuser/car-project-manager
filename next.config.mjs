@@ -9,6 +9,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Enable SWC transformation for fonts
+  swcMinify: true,
   // Completely block pg module from client-side
   webpack: (config, { isServer }) => {
     if (!isServer) {
@@ -21,7 +23,8 @@ const nextConfig = {
         'pg-protocol': false,
         'pg-cursor': false,
         'pg-pool': false,
-        'pg-connection-string': false
+        'pg-connection-string': false,
+        'cloudflare:sockets': false
       };
       
       // Fallbacks for problematic modules
