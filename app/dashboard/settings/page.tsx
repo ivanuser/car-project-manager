@@ -7,14 +7,33 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
+// Define default preferences structure to ensure it matches what the PreferencesForm expects
+const defaultPreferences = {
+  theme: 'system',
+  color_scheme: 'default',
+  background_intensity: 'medium',
+  ui_density: 'comfortable',
+  date_format: 'MM/DD/YYYY',
+  time_format: '12h',
+  measurement_unit: 'imperial',
+  currency: 'USD',
+  notification_preferences: {
+    email: true,
+    push: true,
+    maintenance: true,
+    project_updates: true,
+  },
+  display_preferences: {
+    default_project_view: 'grid',
+    default_task_view: 'list',
+    show_completed_tasks: true,
+  }
+};
+
 export default function SettingsPage() {
   const [user, setUser] = useState<{ id: string; email: string } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [preferences, setPreferences] = useState<any>({
-    theme: 'system',
-    emailNotifications: true,
-    taskReminders: true
-  });
+  const [preferences, setPreferences] = useState<any>(defaultPreferences);
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -27,13 +46,33 @@ export default function SettingsPage() {
             email: authUser.email
           });
           
-          // For now, use default preferences
-          // In the future, we would load these from the database
-          setPreferences({
-            theme: 'system',
-            emailNotifications: true,
-            taskReminders: true
-          });
+          // Fetch user preferences from the database
+          try {
+            const response = await fetch(`/api/user/preferences?userId=${authUser.id}`);
+            if (response.ok) {
+              const data = await response.json();
+              if (data.preferences) {
+                // Make sure all required preference objects exist
+                const mergedPrefs = {
+                  ...defaultPreferences,
+                  ...data.preferences,
+                  notification_preferences: {
+                    ...defaultPreferences.notification_preferences,
+                    ...(data.preferences.notification_preferences || {})
+                  },
+                  display_preferences: {
+                    ...defaultPreferences.display_preferences,
+                    ...(data.preferences.display_preferences || {})
+                  }
+                };
+                setPreferences(mergedPrefs);
+              }
+            } else {
+              console.warn('Failed to load preferences, using defaults');
+            }
+          } catch (error) {
+            console.error('Error fetching preferences:', error);
+          }
         }
       } catch (error) {
         console.error('Error loading user data:', error);

@@ -17,59 +17,96 @@ import { useToast } from "@/hooks/use-toast"
 import { ThemePreview } from "./theme-preview"
 import { ThemeColorPicker } from "./theme-color-picker"
 
-interface PreferencesFormProps {
-  preferences: {
-    theme: string
-    color_scheme: string
-    background_intensity: string
-    ui_density: string
-    date_format: string
-    time_format: string
-    measurement_unit: string
-    currency: string
-    notification_preferences: {
-      email: boolean
-      push: boolean
-      maintenance: boolean
-      project_updates: boolean
-    }
-    display_preferences: {
-      default_project_view: string
-      default_task_view: string
-      show_completed_tasks: boolean
-    }
+// Define default preferences for safety
+const defaultPreferences = {
+  theme: "system",
+  color_scheme: "default",
+  background_intensity: "medium",
+  ui_density: "comfortable",
+  date_format: "MM/DD/YYYY",
+  time_format: "12h",
+  measurement_unit: "imperial",
+  currency: "USD",
+  notification_preferences: {
+    email: true,
+    push: true,
+    maintenance: true,
+    project_updates: true,
+  },
+  display_preferences: {
+    default_project_view: "grid",
+    default_task_view: "list",
+    show_completed_tasks: true,
   }
+};
+
+interface PreferencesFormProps {
+  preferences?: {
+    theme?: string
+    color_scheme?: string
+    background_intensity?: string
+    ui_density?: string
+    date_format?: string
+    time_format?: string
+    measurement_unit?: string
+    currency?: string
+    notification_preferences?: {
+      email?: boolean
+      push?: boolean
+      maintenance?: boolean
+      project_updates?: boolean
+    }
+    display_preferences?: {
+      default_project_view?: string
+      default_task_view?: string
+      show_completed_tasks?: boolean
+    }
+  } | null
 }
 
-export function PreferencesForm({ preferences }: PreferencesFormProps) {
+export function PreferencesForm({ preferences = null }: PreferencesFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
 
-  // Form state
-  const [theme, setTheme] = useState(preferences.theme)
-  const [colorScheme, setColorScheme] = useState(preferences.color_scheme)
-  const [backgroundIntensity, setBackgroundIntensity] = useState(preferences.background_intensity)
-  const [uiDensity, setUiDensity] = useState(preferences.ui_density)
-  const [dateFormat, setDateFormat] = useState(preferences.date_format)
-  const [timeFormat, setTimeFormat] = useState(preferences.time_format)
-  const [measurementUnit, setMeasurementUnit] = useState(preferences.measurement_unit)
-  const [currency, setCurrency] = useState(preferences.currency)
+  // Safely merge user preferences with defaults to prevent undefined errors
+  const mergedPrefs = {
+    ...defaultPreferences,
+    ...(preferences || {}),
+    notification_preferences: {
+      ...defaultPreferences.notification_preferences,
+      ...(preferences?.notification_preferences || {})
+    },
+    display_preferences: {
+      ...defaultPreferences.display_preferences,
+      ...(preferences?.display_preferences || {})
+    }
+  };
+
+  // Form state - safely initialized with merged preferences
+  const [theme, setTheme] = useState(mergedPrefs.theme)
+  const [colorScheme, setColorScheme] = useState(mergedPrefs.color_scheme)
+  const [backgroundIntensity, setBackgroundIntensity] = useState(mergedPrefs.background_intensity)
+  const [uiDensity, setUiDensity] = useState(mergedPrefs.ui_density)
+  const [dateFormat, setDateFormat] = useState(mergedPrefs.date_format)
+  const [timeFormat, setTimeFormat] = useState(mergedPrefs.time_format)
+  const [measurementUnit, setMeasurementUnit] = useState(mergedPrefs.measurement_unit)
+  const [currency, setCurrency] = useState(mergedPrefs.currency)
 
   // Notification preferences
-  const [emailNotifications, setEmailNotifications] = useState(preferences.notification_preferences.email)
-  const [pushNotifications, setPushNotifications] = useState(preferences.notification_preferences.push)
+  const [emailNotifications, setEmailNotifications] = useState(mergedPrefs.notification_preferences?.email ?? true)
+  const [pushNotifications, setPushNotifications] = useState(mergedPrefs.notification_preferences?.push ?? true)
   const [maintenanceNotifications, setMaintenanceNotifications] = useState(
-    preferences.notification_preferences.maintenance,
+    mergedPrefs.notification_preferences?.maintenance ?? true
   )
   const [projectUpdateNotifications, setProjectUpdateNotifications] = useState(
-    preferences.notification_preferences.project_updates,
+    mergedPrefs.notification_preferences?.project_updates ?? true
   )
 
   // Display preferences
-  const [defaultProjectView, setDefaultProjectView] = useState(preferences.display_preferences.default_project_view)
-  const [defaultTaskView, setDefaultTaskView] = useState(preferences.display_preferences.default_task_view)
-  const [showCompletedTasks, setShowCompletedTasks] = useState(preferences.display_preferences.show_completed_tasks)
+  const [defaultProjectView, setDefaultProjectView] = useState(mergedPrefs.display_preferences?.default_project_view ?? 'grid')
+  const [defaultTaskView, setDefaultTaskView] = useState(mergedPrefs.display_preferences?.default_task_view ?? 'list')
+  const [showCompletedTasks, setShowCompletedTasks] = useState(mergedPrefs.display_preferences?.show_completed_tasks ?? true)
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault()
