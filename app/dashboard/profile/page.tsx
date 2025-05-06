@@ -1,4 +1,4 @@
-import { createServerClient } from "@/lib/supabase"
+import { createServerClient } from "@/lib/auth/auth-client"
 import { AvatarUpload } from "@/components/profile/avatar-upload"
 import { ProfileForm } from "@/components/profile/profile-form"
 import { PasswordForm } from "@/components/profile/password-form"

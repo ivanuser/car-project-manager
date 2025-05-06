@@ -1,47 +1,28 @@
-import { createClient as supabaseCreateClient } from "@supabase/supabase-js";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import type { Database } from "@/types/supabase";
+/**
+ * Supabase.ts - Compatibility layer for migrated PostgreSQL application
+ * For Caj-pro car project build tracking application
+ * Created on: May 5, 2025
+ * 
+ * This file provides compatibility for any components still expecting Supabase
+ * It forwards all calls to our custom auth-client implementation that works with direct PostgreSQL
+ */
 
-// Get environment variables
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+import authClient from './auth/auth-client';
 
-// Log warning if missing config
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn(
-    "Supabase environment variables are missing. Authentication and database features will not work properly."
-  );
-}
+// Use the implementation from our custom auth client
+export const createServerClient = authClient.createServerClient;
+export const createBrowserClient = authClient.createServerClient;
 
-// Create a browser client for client components using auth-helpers-nextjs
-export const createBrowserClient = () => {
-  return createClientComponentClient<Database>({
-    supabaseUrl,
-    supabaseKey: supabaseAnonKey,
-    options: {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    },
-  });
-};
-
-// Create a standard client for server contexts without cookies
-export const createServerClient = () => {
-  return supabaseCreateClient<Database>(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
-};
-
-// Export a singleton instance for client-side usage
-export const supabase = typeof window !== "undefined" ? createBrowserClient() : null;
+// Export a singleton instance for client-side usage (compatibility)
+export const supabase = typeof window !== "undefined" ? authClient.createServerClient() : null;
 
 // Re-export createClient for backward compatibility with a different name
-export const createCompatClient = () => {
-  return createServerClient();
+export const createCompatClient = authClient.createServerClient;
+
+// This ensures any components still expecting Supabase will continue to work
+export default {
+  createServerClient,
+  createBrowserClient,
+  supabase,
+  createCompatClient
 };
