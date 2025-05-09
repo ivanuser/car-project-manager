@@ -55,8 +55,13 @@ export const query = async (text: string, params: any[] = []) => {
   const start = Date.now();
   
   try {
+    console.log('Executing query:', text);
+    console.log('Query parameters:', params);
+    
     const result = await pool.query(text, params);
     const duration = Date.now() - start;
+    
+    console.log('Query result:', { rowCount: result.rowCount, duration });
     
     // Log slow queries for debugging (>100ms)
     if (duration > 100) {

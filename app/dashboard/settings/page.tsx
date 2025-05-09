@@ -6,6 +6,7 @@ import { PreferencesForm } from "@/components/profile/preferences-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { DatabaseDebug } from "@/components/debug/db-debug";
 
 // Define default preferences structure to ensure it matches what the PreferencesForm expects
 const defaultPreferences = {
@@ -48,9 +49,11 @@ export default function SettingsPage() {
           
           // Fetch user preferences from the database
           try {
+            console.log("Fetching preferences for user ID:", authUser.id);
             const response = await fetch(`/api/user/preferences?userId=${authUser.id}`);
             if (response.ok) {
               const data = await response.json();
+              console.log("Received preferences data:", data);
               if (data.preferences) {
                 // Make sure all required preference objects exist
                 const mergedPrefs = {
@@ -65,10 +68,13 @@ export default function SettingsPage() {
                     ...(data.preferences.display_preferences || {})
                   }
                 };
+                console.log("Merged preferences:", mergedPrefs);
                 setPreferences(mergedPrefs);
               }
             } else {
               console.warn('Failed to load preferences, using defaults');
+              const errorData = await response.json();
+              console.error('Error details:', errorData);
             }
           } catch (error) {
             console.error('Error fetching preferences:', error);
@@ -145,6 +151,14 @@ export default function SettingsPage() {
       </Card>
 
       <PreferencesForm preferences={preferences} />
+      
+      {/* Add database debug component */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mt-6">
+          <h2 className="text-lg font-medium mb-2">Development Tools</h2>
+          <DatabaseDebug />
+        </div>
+      )}
     </div>
   );
 }
