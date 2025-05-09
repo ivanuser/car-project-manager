@@ -10,14 +10,20 @@
 import authClient from './auth/auth-client';
 
 // Use the implementation from our custom auth client
-export const createServerClient = authClient.createServerClient;
-export const createBrowserClient = authClient.createServerClient;
+export const createServerClient = async () => {
+  return await authClient.createServerClient();
+};
+export const createBrowserClient = async () => {
+  return await authClient.createServerClient();
+};
 
 // Export a singleton instance for client-side usage (compatibility)
-export const supabase = typeof window !== "undefined" ? authClient.createServerClient() : null;
+export const supabase = null; // We'll initialize this lazily when needed
 
 // Re-export createClient for backward compatibility with a different name
-export const createCompatClient = authClient.createServerClient;
+export const createCompatClient = async () => {
+  return await authClient.createServerClient();
+};
 
 // This ensures any components still expecting Supabase will continue to work
 export default {

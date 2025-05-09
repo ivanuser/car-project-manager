@@ -5,12 +5,12 @@ import { PasswordForm } from "@/components/profile/password-form"
 import { getUserProfile } from "@/actions/profile-actions"
 
 export default async function ProfilePage() {
-  const supabase = createServerClient()
+  const authClient = await createServerClient()
 
   // Get the current user
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await authClient.auth.getUser()
 
   if (!user) {
     return (

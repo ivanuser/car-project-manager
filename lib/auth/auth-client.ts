@@ -1,14 +1,19 @@
-"use server"
-
-import { cookies } from 'next/headers';
-import jwtUtils from '@/lib/auth/jwt';
-import db from '@/lib/db';
-
 /**
  * Auth client to replace Supabase auth functionality
  * For Caj-pro car project build tracking application
  * Created on: May 5, 2025
  */
+
+// Conditional imports to avoid server components issues
+const getServerComponents = () => {
+  if (typeof window === 'undefined') {
+    // Only import on server-side
+    const { cookies } = require('next/headers');
+    const jwtUtils = require('@/lib/auth/jwt').default;
+    return { cookies, jwtUtils };
+  }
+  return { cookies: null, jwtUtils: null };
+};
 
 // Types for compatibility with previous Supabase usage
 interface User {
@@ -47,17 +52,16 @@ interface AuthClient {
  */
 export async function getUser(): Promise<UserResponse> {
   try {
-    const cookieStore = cookies();
-    const authToken = cookieStore.get('cajpro_auth_token')?.value;
-    
-    if (!authToken) {
-      console.log("No auth token found in cookies");
+    if (typeof window === 'undefined') {
+      // Server-side execution
+      const { cookies, jwtUtils } = getServerComponents();
+      const authToken = cookies().get('cajpro_auth_token')?.value;
       
-      // For development mode only
-      if (process.env.NODE_ENV === 'development') {
-        const devMode = typeof localStorage !== 'undefined' && localStorage.getItem('cajpro_dev_mode') === 'admin';
+      if (!authToken) {
+        console.log("No auth token found in cookies");
         
-        if (devMode) {
+        // For development mode only
+        if (process.env.NODE_ENV === 'development') {
           return {
             data: {
               user: {
@@ -68,39 +72,69 @@ export async function getUser(): Promise<UserResponse> {
             }
           };
         }
+        
+        return { data: { user: null } };
       }
       
-      return { data: { user: null } };
-    }
-    
-    // Validate token and get user ID
-    const payload = jwtUtils.verifyToken(authToken);
-    if (!payload) {
-      console.log("Invalid auth token");
-      return { data: { user: null } };
-    }
-    
-    // Check if token is expired
-    if (jwtUtils.isTokenExpired(authToken)) {
-      console.log("Auth token expired");
-      return { data: { user: null } };
-    }
-    
-    // Extract user info from payload
-    const email = payload.email;
-    const userId = payload.sub;
-    const isAdmin = payload.isAdmin;
-    
-    // Return user object in format similar to Supabase for compatibility
-    return {
-      data: {
-        user: {
-          id: userId,
-          email,
-          isAdmin
-        }
+      // Validate token and get user ID
+      const payload = jwtUtils.verifyToken(authToken);
+      if (!payload) {
+        console.log("Invalid auth token");
+        return { data: { user: null } };
       }
-    };
+      
+      // Check if token is expired
+      if (jwtUtils.isTokenExpired(authToken)) {
+        console.log("Auth token expired");
+        return { data: { user: null } };
+      }
+      
+      // Extract user info from payload
+      const email = payload.email;
+      const userId = payload.sub;
+      const isAdmin = payload.isAdmin;
+      
+      // Return user object in format similar to Supabase for compatibility
+      return {
+        data: {
+          user: {
+            id: userId,
+            email,
+            isAdmin
+          }
+        }
+      };
+    } else {
+      // Client-side execution - call the API endpoint
+      const response = await fetch('/api/auth/user', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        // Check for dev mode on client
+        if (process.env.NODE_ENV === 'development' && 
+            localStorage && 
+            localStorage.getItem('cajpro_dev_mode') === 'admin') {
+          return {
+            data: {
+              user: {
+                id: 'admin-dev-mode',
+                email: 'admin@cajpro.local',
+                isAdmin: true
+              }
+            }
+          };
+        }
+        
+        return { data: { user: null } };
+      }
+      
+      const data = await response.json();
+      return { data: { user: data.user } };
+    }
   } catch (error) {
     console.error("Error getting user:", error);
     return { data: { user: null } };
@@ -114,54 +148,28 @@ export async function getUser(): Promise<UserResponse> {
  */
 export async function signInWithPassword(credentials: { email: string; password: string }): Promise<SignInResponse> {
   try {
-    // Check if user exists and password is correct
-    const userResult = await db.query(
-      `SELECT id, email, password_hash, is_admin FROM users WHERE email = $1`,
-      [credentials.email]
-    );
+    // Client-side only - call the API endpoint
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(credentials),
+    });
     
-    if (userResult.rows.length === 0) {
+    if (!response.ok) {
+      const errorData = await response.json();
       return {
         data: { user: null },
-        error: "Invalid email or password"
+        error: errorData.error || "Invalid email or password"
       };
     }
     
-    const user = userResult.rows[0];
-    
-    // Verify password (replace with your password verification logic)
-    // This is a placeholder - implement proper password verification
-    const passwordMatches = true; // Implement actual password verification
-    
-    if (!passwordMatches) {
-      return {
-        data: { user: null },
-        error: "Invalid email or password"
-      };
-    }
-    
-    // Generate JWT token
-    const token = jwtUtils.generateToken({
-      id: user.id,
-      email: user.email,
-      isAdmin: user.is_admin
-    });
-    
-    // Set cookie in response
-    cookies().set('cajpro_auth_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
-      path: '/'
-    });
-    
+    const data = await response.json();
     return {
       data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          isAdmin: user.is_admin
-        }
+        user: data.user,
+        session: data.session
       }
     };
   } catch (error) {
@@ -180,54 +188,32 @@ export async function signInWithPassword(credentials: { email: string; password:
  */
 export async function signUp(credentials: { email: string; password: string }): Promise<SignInResponse> {
   try {
-    // Check if user already exists
-    const existingUser = await db.query(
-      `SELECT id FROM users WHERE email = $1`,
-      [credentials.email]
-    );
+    // Client-side only - call the API endpoint
+    const response = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: credentials.email,
+        password: credentials.password,
+        confirmPassword: credentials.password, // Assuming we validate this on the client before sending
+      }),
+    });
     
-    if (existingUser.rows.length > 0) {
+    if (!response.ok) {
+      const errorData = await response.json();
       return {
         data: { user: null },
-        error: "User with this email already exists"
+        error: errorData.error || "Registration failed"
       };
     }
     
-    // Create new user (replace with your password hashing logic)
-    // This is a placeholder - implement proper password hashing
-    const passwordHash = credentials.password; // Actually hash the password
-    
-    const newUserResult = await db.query(
-      `INSERT INTO users (email, password_hash, created_at, updated_at)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, email`,
-      [credentials.email, passwordHash, new Date(), new Date()]
-    );
-    
-    const newUser = newUserResult.rows[0];
-    
-    // Generate JWT token
-    const token = jwtUtils.generateToken({
-      id: newUser.id,
-      email: newUser.email,
-      isAdmin: false
-    });
-    
-    // Set cookie in response
-    cookies().set('cajpro_auth_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
-      path: '/'
-    });
-    
+    const data = await response.json();
     return {
       data: {
-        user: {
-          id: newUser.id,
-          email: newUser.email,
-          isAdmin: false
-        }
+        user: data.user,
+        session: data.session
       }
     };
   } catch (error) {
@@ -245,9 +231,28 @@ export async function signUp(credentials: { email: string; password: string }): 
  */
 export async function signOut() {
   try {
-    cookies().delete('cajpro_auth_token');
-    
-    return { error: null };
+    if (typeof window === 'undefined') {
+      // Server-side execution
+      const { cookies } = getServerComponents();
+      cookies().delete('cajpro_auth_token');
+      
+      return { error: null };
+    } else {
+      // Client-side execution - call the API endpoint
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        return { error: data.error || 'Failed to sign out' };
+      }
+      
+      return { error: null };
+    }
   } catch (error) {
     console.error("Error signing out:", error);
     return { error: (error as Error).message };
@@ -258,7 +263,7 @@ export async function signOut() {
  * Create auth client for server-side auth operations
  * This is a compatibility function to replace createServerClient
  */
-export function createServerClient(): AuthClient {
+export async function createServerClient(): Promise<AuthClient> {
   return {
     auth: {
       getUser,
@@ -269,6 +274,7 @@ export function createServerClient(): AuthClient {
   };
 }
 
+// Export default object with async functions
 export default {
   createServerClient,
   getUser,
