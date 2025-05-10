@@ -19,6 +19,13 @@ interface EnvOptions {
  * This avoids URL parsing issues with special characters in passwords
  */
 const getDirectConnectionParams = (): PoolConfig => {
+  console.log('Environment variables for database connection:');
+  console.log('POSTGRES_HOST:', process.env.POSTGRES_HOST || 'localhost');
+  console.log('POSTGRES_PORT:', process.env.POSTGRES_PORT || '5432');
+  console.log('POSTGRES_DB:', process.env.POSTGRES_DB || 'cajpro');
+  console.log('POSTGRES_USER:', process.env.POSTGRES_USER || 'cajpro');
+  console.log('DATABASE_URL:', process.env.DATABASE_URL || 'Not set');
+  
   return {
     host: process.env.POSTGRES_HOST || 'localhost',
     port: parseInt(process.env.POSTGRES_PORT || '5432'),
