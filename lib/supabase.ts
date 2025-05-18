@@ -8,13 +8,17 @@
  */
 
 import authClient from './auth/auth-client';
+import { createPostgresClient } from './postgres/postgres-client';
 
-// Use the implementation from our custom auth client
+// Use our PostgreSQL client for database operations
 export const createServerClient = async () => {
-  return await authClient.createServerClient();
+  const postgresClient = await createPostgresClient();
+  return postgresClient;
 };
+
 export const createBrowserClient = async () => {
-  return await authClient.createServerClient();
+  const postgresClient = await createPostgresClient();
+  return postgresClient;
 };
 
 // Export a singleton instance for client-side usage (compatibility)
@@ -22,7 +26,8 @@ export const supabase = null; // We'll initialize this lazily when needed
 
 // Re-export createClient for backward compatibility with a different name
 export const createCompatClient = async () => {
-  return await authClient.createServerClient();
+  const postgresClient = await createPostgresClient();
+  return postgresClient;
 };
 
 // This ensures any components still expecting Supabase will continue to work
