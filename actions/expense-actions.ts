@@ -169,9 +169,10 @@ export async function createExpenseReport(formData: FormData) {
   const projectId = (formData.get("projectId") as string) || null
 
   // Get user ID from session
+  const authClient = await createServerClient()
   const {
     data: { session },
-  } = await supabase.auth.getSession()
+  } = await authClient.auth.getSession()
   const userId = session?.user?.id
 
   if (!userId) {
@@ -216,9 +217,10 @@ export async function getUserExpenseReports() {
   }
 
   // Get user ID from session
+  const authClient = await createServerClient()
   const {
     data: { session },
-  } = await supabase.auth.getSession()
+  } = await authClient.auth.getSession()
   const userId = session?.user?.id
 
   if (!userId) {

@@ -40,10 +40,31 @@ interface SignInResponse {
 interface AuthClient {
   auth: {
     getUser: () => Promise<UserResponse>;
+    getSession: () => Promise<{ data: { session: { user: User | null } | null } }>;
     signOut: () => Promise<{ error: any }>;
     signInWithPassword: (credentials: { email: string; password: string }) => Promise<SignInResponse>;
     signUp: (credentials: { email: string; password: string }) => Promise<SignInResponse>;
   };
+}
+
+/**
+ * Get current session (compatibility with Supabase)
+ * @returns Session object with user info
+ */
+export async function getSession(): Promise<{ data: { session: { user: User | null } | null } }> {
+  try {
+    const userResponse = await getUser();
+    
+    // Format response to match Supabase session structure
+    return {
+      data: {
+        session: userResponse.data.user ? { user: userResponse.data.user } : null
+      }
+    };
+  } catch (error) {
+    console.error("Error getting session:", error);
+    return { data: { session: null } };
+  }
 }
 
 /**
@@ -267,6 +288,7 @@ export async function createServerClient(): Promise<AuthClient> {
   return {
     auth: {
       getUser,
+      getSession,
       signOut,
       signInWithPassword,
       signUp
@@ -278,6 +300,7 @@ export async function createServerClient(): Promise<AuthClient> {
 export default {
   createServerClient,
   getUser,
+  getSession,
   signOut,
   signInWithPassword,
   signUp
