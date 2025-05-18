@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Bell, Menu, Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -33,6 +34,8 @@ interface HeaderProps {
 export function Header({ user }: HeaderProps) {
   const [open, setOpen] = useState(false)
   const { toast } = useToast()
+  const router = useRouter()
+  const [isSigningOut, setIsSigningOut] = useState(false)
   
   // Handle null user
   const displayName = user?.email || "Guest"
@@ -130,15 +133,30 @@ export function Header({ user }: HeaderProps) {
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onSelect={(e) => {
+              onSelect={async (e) => {
                 e.preventDefault()
-                document.getElementById("signout-form")?.requestSubmit()
+                setIsSigningOut(true)
+                try {
+                  const result = await signOut()
+                  if (result.success) {
+                    router.push(result.redirectUrl || '/login')
+                  }
+                } catch (error) {
+                  console.error('Error signing out:', error)
+                  toast({
+                    title: 'Error',
+                    description: 'Failed to sign out. Please try again.',
+                    variant: 'destructive',
+                  })
+                } finally {
+                  setIsSigningOut(false)
+                }
               }}
               className="text-destructive focus:text-destructive"
+              disabled={isSigningOut}
             >
-              Sign out
+              {isSigningOut ? 'Signing out...' : 'Sign out'}
             </DropdownMenuItem>
-            <form id="signout-form" action={signOut} className="hidden" />
           </DropdownMenuContent>
         </DropdownMenu>
 

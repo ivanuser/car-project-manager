@@ -46,6 +46,13 @@ export interface RegistrationResult {
   message: string;
 }
 
+// Logout result interface
+export interface LogoutResult {
+  success: boolean;
+  redirectUrl?: string;
+  message?: string;
+}
+
 /**
  * Login user
  * @param email - User email
@@ -102,8 +109,9 @@ export const registerUser = async (
 
 /**
  * Logout user
+ * @returns Logout result
  */
-export const logoutUser = async (): Promise<void> => {
+export const logoutUser = async (): Promise<LogoutResult> => {
   const response = await fetch('/api/auth/logout', {
     method: 'POST',
     headers: {
@@ -115,6 +123,10 @@ export const logoutUser = async (): Promise<void> => {
     const errorData = await response.json();
     throw new Error(errorData.error || 'Logout failed');
   }
+
+  // Parse the response JSON
+  const result = await response.json();
+  return result;
 };
 
 /**

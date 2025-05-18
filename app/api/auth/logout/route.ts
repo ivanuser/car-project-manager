@@ -16,7 +16,11 @@ export async function POST(req: NextRequest) {
     // If no token, just return success (already logged out)
     if (!token) {
       return NextResponse.json(
-        { message: 'Already logged out' },
+        { 
+          success: true,
+          message: 'Already logged out',
+          redirectUrl: '/login'
+        },
         { status: 200 }
       );
     }
@@ -26,7 +30,11 @@ export async function POST(req: NextRequest) {
     
     // Create response
     const response = NextResponse.json(
-      { message: 'Logout successful' },
+      { 
+        success: true,
+        message: 'Logout successful',
+        redirectUrl: '/login' 
+      },
       { status: 200 }
     );
     
@@ -39,7 +47,11 @@ export async function POST(req: NextRequest) {
     
     // Create response with error
     const response = NextResponse.json(
-      { error: error.message || 'Logout failed' },
+      { 
+        success: false,
+        error: error.message || 'Logout failed',
+        redirectUrl: '/login'
+      },
       { status: 500 }
     );
     

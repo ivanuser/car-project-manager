@@ -139,20 +139,25 @@ export async function signOut() {
     
     // If token exists, invalidate session
     if (token) {
-      await authService.logoutUser(token);
+      try {
+        await authService.logoutUser(token);
+      } catch (logoutError) {
+        console.error('Error invalidating session:', logoutError);
+        // Continue with cookie clearing even if session invalidation fails
+      }
     }
     
     // Clear authentication cookies
     clearAuthCookies();
     
-    // Redirect to login page
-    redirect('/login');
+    // Return success instead of redirecting from server action
+    return { success: true, redirectUrl: '/login' };
   } catch (error) {
     console.error('Error during sign out:', error);
     
-    // Still clear cookies and redirect even if error occurs
+    // Still clear cookies and return success with redirect
     clearAuthCookies();
-    redirect('/login');
+    return { success: true, redirectUrl: '/login' };
   }
 }
 

@@ -108,15 +108,18 @@ export const useAuth = (): UseAuthResult => {
     setError(null);
 
     try {
-      await clientAuth.logoutUser();
+      const result = await clientAuth.logoutUser();
       setUser(null);
       setAuthenticated(false);
       
-      // Redirect to login page
-      router.push('/login');
+      // Navigate to login page using the returned URL or default to /login
+      router.push(result.redirectUrl || '/login');
     } catch (error: any) {
       console.error('Logout error:', error);
       setError(error.message || 'Logout failed');
+      
+      // Still redirect to login on error
+      router.push('/login');
     } finally {
       setLoading(false);
     }

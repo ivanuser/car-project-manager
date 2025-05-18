@@ -1,9 +1,9 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { createClient } from "@/lib/supabase"
 import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
+import db from "@/lib/db"
+import jwtUtils from "@/lib/auth/jwt"
 
 // Types
 export type MaintenanceSchedule = {
@@ -52,404 +52,514 @@ export type MaintenanceNotification = {
   updated_at: string
 }
 
-// Fetch maintenance schedules for a project
-export async function getMaintenanceSchedules(projectId: string) {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+// Helper function to get current user ID
+async function getCurrentUserId() {
+  const cookieStore = cookies();
+  const authToken = cookieStore.get('cajpro_auth_token')?.value;
 
-  const { data, error } = await supabase
-    .from("maintenance_schedules")
-    .select("*")
-    .eq("project_id", projectId)
-    .order("next_due_at", { ascending: true })
-
-  if (error) {
-    console.error("Error fetching maintenance schedules:", error)
-    return []
+  if (!authToken) {
+    return null;
   }
 
-  return data as MaintenanceSchedule[]
+  return jwtUtils.getUserIdFromToken(authToken);
+}
+
+// Fetch maintenance schedules for a project
+export async function getMaintenanceSchedules(projectId: string) {
+  try {
+    // Verify user has access to this project
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return [];
+    }
+
+    // Check if user owns this project
+    const projectResult = await db.query(
+      `SELECT id FROM vehicle_projects WHERE id = $1 AND user_id = $2`,
+      [projectId, userId]
+    );
+
+    if (projectResult.rows.length === 0) {
+      console.error("User does not have access to this project");
+      return [];
+    }
+
+    const result = await db.query(
+      `SELECT * FROM maintenance_schedules 
+       WHERE project_id = $1 
+       ORDER BY next_due_at ASC`,
+      [projectId]
+    );
+
+    return result.rows as MaintenanceSchedule[];
+  } catch (error) {
+    console.error("Error fetching maintenance schedules:", error);
+    return [];
+  }
 }
 
 // Fetch all maintenance schedules for the user
 export async function getAllMaintenanceSchedules() {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return [];
+    }
 
-  const { data: projects, error: projectsError } = await supabase.from("vehicle_projects").select("id")
+    // Get all projects owned by the user
+    const projectsResult = await db.query(
+      `SELECT id FROM vehicle_projects WHERE user_id = $1`,
+      [userId]
+    );
 
-  if (projectsError) {
-    console.error("Error fetching projects:", projectsError)
-    return []
+    if (projectsResult.rows.length === 0) {
+      return [];
+    }
+
+    const projectIds = projectsResult.rows.map(project => project.id);
+
+    // Get maintenance schedules for all user's projects
+    const result = await db.query(
+      `SELECT ms.*, vp.title as project_title 
+       FROM maintenance_schedules ms 
+       JOIN vehicle_projects vp ON ms.project_id = vp.id 
+       WHERE ms.project_id = ANY($1) 
+       ORDER BY ms.next_due_at ASC`,
+      [projectIds]
+    );
+
+    return result.rows;
+  } catch (error) {
+    console.error("Error fetching all maintenance schedules:", error);
+    return [];
   }
-
-  const projectIds = projects.map((project) => project.id)
-
-  if (projectIds.length === 0) {
-    return []
-  }
-
-  const { data, error } = await supabase
-    .from("maintenance_schedules")
-    .select("*, vehicle_projects(title)")
-    .in("project_id", projectIds)
-    .order("next_due_at", { ascending: true })
-
-  if (error) {
-    console.error("Error fetching all maintenance schedules:", error)
-    return []
-  }
-
-  return data
 }
 
 // Create a new maintenance schedule
 export async function createMaintenanceSchedule(formData: FormData) {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return { error: "Authentication required" };
+    }
 
-  const projectId = formData.get("project_id") as string
-  const title = formData.get("title") as string
-  const description = formData.get("description") as string
-  const intervalType = formData.get("interval_type") as "miles" | "months" | "hours"
-  const intervalValue = Number.parseInt(formData.get("interval_value") as string)
-  const lastPerformedAt = formData.get("last_performed_at") as string
-  const lastPerformedValue = Number.parseInt(formData.get("last_performed_value") as string)
-  const priority = formData.get("priority") as "low" | "medium" | "high" | "critical"
+    const projectId = formData.get("project_id") as string;
+    const title = formData.get("title") as string;
+    const description = formData.get("description") as string;
+    const intervalType = formData.get("interval_type") as "miles" | "months" | "hours";
+    const intervalValue = Number.parseInt(formData.get("interval_value") as string);
+    const lastPerformedAt = formData.get("last_performed_at") as string;
+    const lastPerformedValue = Number.parseInt(formData.get("last_performed_value") as string);
+    const priority = formData.get("priority") as "low" | "medium" | "high" | "critical";
 
-  // Calculate next due date based on interval type
-  const nextDueAt = new Date(lastPerformedAt)
-  let nextDueValue = lastPerformedValue
+    // Verify user owns this project
+    const projectResult = await db.query(
+      `SELECT id FROM vehicle_projects WHERE id = $1 AND user_id = $2`,
+      [projectId, userId]
+    );
 
-  if (intervalType === "months") {
-    nextDueAt.setMonth(nextDueAt.getMonth() + intervalValue)
-  } else if (intervalType === "miles" || intervalType === "hours") {
-    nextDueValue = lastPerformedValue + intervalValue
+    if (projectResult.rows.length === 0) {
+      return { error: "You don't have access to this project" };
+    }
+
+    // Calculate next due date based on interval type
+    const nextDueAt = new Date(lastPerformedAt);
+    let nextDueValue = lastPerformedValue;
+
+    if (intervalType === "months") {
+      nextDueAt.setMonth(nextDueAt.getMonth() + intervalValue);
+    } else if (intervalType === "miles" || intervalType === "hours") {
+      nextDueValue = lastPerformedValue + intervalValue;
+    }
+
+    // Insert the new maintenance schedule
+    const result = await db.query(
+      `INSERT INTO maintenance_schedules (
+        project_id, title, description, interval_type, interval_value,
+        last_performed_at, last_performed_value, next_due_at, next_due_value, priority
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *`,
+      [
+        projectId, title, description, intervalType, intervalValue,
+        lastPerformedAt, lastPerformedValue, nextDueAt.toISOString(), nextDueValue, priority
+      ]
+    );
+
+    revalidatePath(`/dashboard/projects/${projectId}/maintenance`);
+    return { success: true, redirectUrl: `/dashboard/projects/${projectId}/maintenance` };
+  } catch (error) {
+    console.error("Error creating maintenance schedule:", error);
+    return { error: error instanceof Error ? error.message : "Failed to create maintenance schedule" };
   }
-
-  const { data, error } = await supabase
-    .from("maintenance_schedules")
-    .insert([
-      {
-        project_id: projectId,
-        title,
-        description,
-        interval_type: intervalType,
-        interval_value: intervalValue,
-        last_performed_at: lastPerformedAt,
-        last_performed_value: lastPerformedValue,
-        next_due_at: nextDueAt.toISOString(),
-        next_due_value: nextDueValue,
-        priority,
-      },
-    ])
-    .select()
-
-  if (error) {
-    console.error("Error creating maintenance schedule:", error)
-    return { error: error.message }
-  }
-
-  revalidatePath(`/dashboard/projects/${projectId}/maintenance`)
-  redirect(`/dashboard/projects/${projectId}/maintenance`)
 }
 
 // Update a maintenance schedule
 export async function updateMaintenanceSchedule(formData: FormData) {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return { error: "Authentication required" };
+    }
 
-  const id = formData.get("id") as string
-  const projectId = formData.get("project_id") as string
-  const title = formData.get("title") as string
-  const description = formData.get("description") as string
-  const intervalType = formData.get("interval_type") as "miles" | "months" | "hours"
-  const intervalValue = Number.parseInt(formData.get("interval_value") as string)
-  const lastPerformedAt = formData.get("last_performed_at") as string
-  const lastPerformedValue = Number.parseInt(formData.get("last_performed_value") as string)
-  const priority = formData.get("priority") as "low" | "medium" | "high" | "critical"
+    const id = formData.get("id") as string;
+    const projectId = formData.get("project_id") as string;
+    const title = formData.get("title") as string;
+    const description = formData.get("description") as string;
+    const intervalType = formData.get("interval_type") as "miles" | "months" | "hours";
+    const intervalValue = Number.parseInt(formData.get("interval_value") as string);
+    const lastPerformedAt = formData.get("last_performed_at") as string;
+    const lastPerformedValue = Number.parseInt(formData.get("last_performed_value") as string);
+    const priority = formData.get("priority") as "low" | "medium" | "high" | "critical";
 
-  // Calculate next due date based on interval type
-  const nextDueAt = new Date(lastPerformedAt)
-  let nextDueValue = lastPerformedValue
+    // Verify user owns this project
+    const projectResult = await db.query(
+      `SELECT id FROM vehicle_projects WHERE id = $1 AND user_id = $2`,
+      [projectId, userId]
+    );
 
-  if (intervalType === "months") {
-    nextDueAt.setMonth(nextDueAt.getMonth() + intervalValue)
-  } else if (intervalType === "miles" || intervalType === "hours") {
-    nextDueValue = lastPerformedValue + intervalValue
+    if (projectResult.rows.length === 0) {
+      return { error: "You don't have access to this project" };
+    }
+
+    // Calculate next due date based on interval type
+    const nextDueAt = new Date(lastPerformedAt);
+    let nextDueValue = lastPerformedValue;
+
+    if (intervalType === "months") {
+      nextDueAt.setMonth(nextDueAt.getMonth() + intervalValue);
+    } else if (intervalType === "miles" || intervalType === "hours") {
+      nextDueValue = lastPerformedValue + intervalValue;
+    }
+
+    // Update the maintenance schedule
+    const result = await db.query(
+      `UPDATE maintenance_schedules SET
+        title = $1, description = $2, interval_type = $3, interval_value = $4,
+        last_performed_at = $5, last_performed_value = $6, next_due_at = $7, 
+        next_due_value = $8, priority = $9, updated_at = NOW()
+      WHERE id = $10 AND project_id = $11
+      RETURNING *`,
+      [
+        title, description, intervalType, intervalValue,
+        lastPerformedAt, lastPerformedValue, nextDueAt.toISOString(),
+        nextDueValue, priority, id, projectId
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return { error: "Maintenance schedule not found or access denied" };
+    }
+
+    revalidatePath(`/dashboard/projects/${projectId}/maintenance`);
+    return { success: true, redirectUrl: `/dashboard/projects/${projectId}/maintenance` };
+  } catch (error) {
+    console.error("Error updating maintenance schedule:", error);
+    return { error: error instanceof Error ? error.message : "Failed to update maintenance schedule" };
   }
-
-  const { data, error } = await supabase
-    .from("maintenance_schedules")
-    .update({
-      title,
-      description,
-      interval_type: intervalType,
-      interval_value: intervalValue,
-      last_performed_at: lastPerformedAt,
-      last_performed_value: lastPerformedValue,
-      next_due_at: nextDueAt.toISOString(),
-      next_due_value: nextDueValue,
-      priority,
-    })
-    .eq("id", id)
-    .select()
-
-  if (error) {
-    console.error("Error updating maintenance schedule:", error)
-    return { error: error.message }
-  }
-
-  revalidatePath(`/dashboard/projects/${projectId}/maintenance`)
-  redirect(`/dashboard/projects/${projectId}/maintenance`)
 }
 
 // Delete a maintenance schedule
 export async function deleteMaintenanceSchedule(id: string, projectId: string) {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return { error: "Authentication required" };
+    }
 
-  const { error } = await supabase.from("maintenance_schedules").delete().eq("id", id)
+    // Verify user owns this project
+    const projectResult = await db.query(
+      `SELECT id FROM vehicle_projects WHERE id = $1 AND user_id = $2`,
+      [projectId, userId]
+    );
 
-  if (error) {
-    console.error("Error deleting maintenance schedule:", error)
-    return { error: error.message }
+    if (projectResult.rows.length === 0) {
+      return { error: "You don't have access to this project" };
+    }
+
+    // Delete the maintenance schedule
+    const result = await db.query(
+      `DELETE FROM maintenance_schedules WHERE id = $1 AND project_id = $2`,
+      [id, projectId]
+    );
+
+    revalidatePath(`/dashboard/projects/${projectId}/maintenance`);
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting maintenance schedule:", error);
+    return { error: error instanceof Error ? error.message : "Failed to delete maintenance schedule" };
   }
-
-  revalidatePath(`/dashboard/projects/${projectId}/maintenance`)
 }
 
 // Log maintenance completion
 export async function logMaintenanceCompletion(formData: FormData) {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return { error: "Authentication required" };
+    }
 
-  const scheduleId = formData.get("schedule_id") as string
-  const projectId = formData.get("project_id") as string
-  const title = formData.get("title") as string
-  const description = formData.get("description") as string
-  const performedAt = formData.get("performed_at") as string
-  const performedValue = Number.parseInt(formData.get("performed_value") as string)
-  const cost = Number.parseFloat(formData.get("cost") as string)
-  const notes = formData.get("notes") as string
-  const partsUsed = formData.getAll("parts_used") as string[]
+    const scheduleId = formData.get("schedule_id") as string;
+    const projectId = formData.get("project_id") as string;
+    const title = formData.get("title") as string;
+    const description = formData.get("description") as string;
+    const performedAt = formData.get("performed_at") as string;
+    const performedValue = Number.parseInt(formData.get("performed_value") as string);
+    const cost = Number.parseFloat(formData.get("cost") as string);
+    const notes = formData.get("notes") as string;
+    const partsUsed = formData.getAll("parts_used") as string[];
 
-  // Start a transaction
-  const { data: log, error: logError } = await supabase
-    .from("maintenance_logs")
-    .insert([
-      {
-        schedule_id: scheduleId,
-        project_id: projectId,
-        title,
-        description,
-        performed_at: performedAt,
-        performed_value: performedValue,
-        cost,
-        notes,
-        parts_used: partsUsed,
-      },
-    ])
-    .select()
+    // Verify user owns this project
+    const projectResult = await db.query(
+      `SELECT id FROM vehicle_projects WHERE id = $1 AND user_id = $2`,
+      [projectId, userId]
+    );
 
-  if (logError) {
-    console.error("Error logging maintenance completion:", logError)
-    return { error: logError.message }
+    if (projectResult.rows.length === 0) {
+      return { error: "You don't have access to this project" };
+    }
+
+    // Use a transaction for this operation
+    return await db.transaction(async (client) => {
+      // Insert maintenance log
+      const logResult = await client.query(
+        `INSERT INTO maintenance_logs (
+          schedule_id, project_id, title, description,
+          performed_at, performed_value, cost, notes, parts_used
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        RETURNING *`,
+        [
+          scheduleId, projectId, title, description,
+          performedAt, performedValue, cost, notes, JSON.stringify(partsUsed)
+        ]
+      );
+
+      // Get the schedule to calculate next due date
+      const scheduleResult = await client.query(
+        `SELECT * FROM maintenance_schedules WHERE id = $1`,
+        [scheduleId]
+      );
+
+      if (scheduleResult.rows.length === 0) {
+        throw new Error("Maintenance schedule not found");
+      }
+
+      const schedule = scheduleResult.rows[0];
+
+      // Calculate next due date based on interval type
+      const nextDueAt = new Date(performedAt);
+      let nextDueValue = performedValue;
+
+      if (schedule.interval_type === "months") {
+        nextDueAt.setMonth(nextDueAt.getMonth() + schedule.interval_value);
+      } else if (schedule.interval_type === "miles" || schedule.interval_type === "hours") {
+        nextDueValue = performedValue + schedule.interval_value;
+      }
+
+      // Update the schedule with new last performed and next due dates
+      await client.query(
+        `UPDATE maintenance_schedules SET
+          last_performed_at = $1, last_performed_value = $2,
+          next_due_at = $3, next_due_value = $4,
+          status = 'upcoming', notification_sent = false,
+          notification_sent_at = NULL, updated_at = NOW()
+        WHERE id = $5`,
+        [
+          performedAt, performedValue,
+          nextDueAt.toISOString(), nextDueValue,
+          scheduleId
+        ]
+      );
+
+      revalidatePath(`/dashboard/projects/${projectId}/maintenance`);
+      return { success: true, redirectUrl: `/dashboard/projects/${projectId}/maintenance` };
+    });
+  } catch (error) {
+    console.error("Error logging maintenance completion:", error);
+    return { error: error instanceof Error ? error.message : "Failed to log maintenance completion" };
   }
-
-  // Get the schedule to calculate the next due date
-  const { data: schedule, error: scheduleError } = await supabase
-    .from("maintenance_schedules")
-    .select("*")
-    .eq("id", scheduleId)
-    .single()
-
-  if (scheduleError) {
-    console.error("Error fetching maintenance schedule:", scheduleError)
-    return { error: scheduleError.message }
-  }
-
-  // Calculate next due date based on interval type
-  const nextDueAt = new Date(performedAt)
-  let nextDueValue = performedValue
-
-  if (schedule.interval_type === "months") {
-    nextDueAt.setMonth(nextDueAt.getMonth() + schedule.interval_value)
-  } else if (schedule.interval_type === "miles" || schedule.interval_type === "hours") {
-    nextDueValue = performedValue + schedule.interval_value
-  }
-
-  // Update the schedule with the new last performed and next due dates
-  const { error: updateError } = await supabase
-    .from("maintenance_schedules")
-    .update({
-      last_performed_at: performedAt,
-      last_performed_value: performedValue,
-      next_due_at: nextDueAt.toISOString(),
-      next_due_value: nextDueValue,
-      status: "upcoming",
-      notification_sent: false,
-      notification_sent_at: null,
-    })
-    .eq("id", scheduleId)
-
-  if (updateError) {
-    console.error("Error updating maintenance schedule:", updateError)
-    return { error: updateError.message }
-  }
-
-  revalidatePath(`/dashboard/projects/${projectId}/maintenance`)
-  redirect(`/dashboard/projects/${projectId}/maintenance`)
 }
 
 // Get maintenance logs for a project
 export async function getMaintenanceLogs(projectId: string) {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return [];
+    }
 
-  const { data, error } = await supabase
-    .from("maintenance_logs")
-    .select("*")
-    .eq("project_id", projectId)
-    .order("performed_at", { ascending: false })
+    // Verify user has access to this project
+    const projectResult = await db.query(
+      `SELECT id FROM vehicle_projects WHERE id = $1 AND user_id = $2`,
+      [projectId, userId]
+    );
 
-  if (error) {
-    console.error("Error fetching maintenance logs:", error)
-    return []
+    if (projectResult.rows.length === 0) {
+      console.error("User does not have access to this project");
+      return [];
+    }
+
+    const result = await db.query(
+      `SELECT * FROM maintenance_logs 
+       WHERE project_id = $1 
+       ORDER BY performed_at DESC`,
+      [projectId]
+    );
+
+    return result.rows as MaintenanceLog[];
+  } catch (error) {
+    console.error("Error fetching maintenance logs:", error);
+    return [];
   }
-
-  return data as MaintenanceLog[]
 }
 
 // Get maintenance notifications for the user
 export async function getMaintenanceNotifications() {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return [];
+    }
 
-  const { data: userData, error: userError } = await supabase.auth.getUser()
+    const result = await db.query(
+      `SELECT mn.*, ms.title as schedule_title, ms.project_id, 
+              vp.title as project_title
+       FROM maintenance_notifications mn
+       JOIN maintenance_schedules ms ON mn.schedule_id = ms.id
+       JOIN vehicle_projects vp ON ms.project_id = vp.id
+       WHERE mn.user_id = $1 AND mn.status = 'unread'
+       ORDER BY mn.scheduled_for ASC`,
+      [userId]
+    );
 
-  if (userError) {
-    console.error("Error getting user:", userError)
-    return []
+    return result.rows;
+  } catch (error) {
+    console.error("Error fetching maintenance notifications:", error);
+    return [];
   }
-
-  const userId = userData.user.id
-
-  const { data, error } = await supabase
-    .from("maintenance_notifications")
-    .select("*, maintenance_schedules(title, project_id, vehicle_projects(title))")
-    .eq("user_id", userId)
-    .eq("status", "unread")
-    .order("scheduled_for", { ascending: true })
-
-  if (error) {
-    console.error("Error fetching maintenance notifications:", error)
-    return []
-  }
-
-  return data
 }
 
 // Mark notification as read
 export async function markNotificationAsRead(id: string) {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return { error: "Authentication required" };
+    }
 
-  const { error } = await supabase
-    .from("maintenance_notifications")
-    .update({
-      status: "read",
-      read_at: new Date().toISOString(),
-    })
-    .eq("id", id)
+    const result = await db.query(
+      `UPDATE maintenance_notifications SET
+        status = 'read', read_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND user_id = $2
+       RETURNING *`,
+      [id, userId]
+    );
 
-  if (error) {
-    console.error("Error marking notification as read:", error)
-    return { error: error.message }
+    if (result.rows.length === 0) {
+      return { error: "Notification not found or access denied" };
+    }
+
+    revalidatePath("/dashboard");
+    return { success: true };
+  } catch (error) {
+    console.error("Error marking notification as read:", error);
+    return { error: error instanceof Error ? error.message : "Failed to mark notification as read" };
   }
-
-  revalidatePath("/dashboard")
 }
 
 // Dismiss notification
 export async function dismissNotification(id: string) {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return { error: "Authentication required" };
+    }
 
-  const { error } = await supabase
-    .from("maintenance_notifications")
-    .update({
-      status: "dismissed",
-      read_at: new Date().toISOString(),
-    })
-    .eq("id", id)
+    const result = await db.query(
+      `UPDATE maintenance_notifications SET
+        status = 'dismissed', read_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND user_id = $2
+       RETURNING *`,
+      [id, userId]
+    );
 
-  if (error) {
-    console.error("Error dismissing notification:", error)
-    return { error: error.message }
+    if (result.rows.length === 0) {
+      return { error: "Notification not found or access denied" };
+    }
+
+    revalidatePath("/dashboard");
+    return { success: true };
+  } catch (error) {
+    console.error("Error dismissing notification:", error);
+    return { error: error instanceof Error ? error.message : "Failed to dismiss notification" };
   }
-
-  revalidatePath("/dashboard")
 }
 
 // Check for due maintenance and create notifications
 export async function checkMaintenanceNotifications() {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+  try {
+    // Get all maintenance schedules that are due or overdue and haven't sent notifications
+    const schedulesResult = await db.query(
+      `SELECT ms.*, vp.user_id, vp.title as project_title
+       FROM maintenance_schedules ms
+       JOIN vehicle_projects vp ON ms.project_id = vp.id
+       WHERE (ms.status = 'due' OR ms.status = 'overdue')
+       AND ms.notification_sent = false`
+    );
 
-  // Get all maintenance schedules that are due or overdue and haven't sent notifications
-  const { data: schedules, error: schedulesError } = await supabase
-    .from("maintenance_schedules")
-    .select("*, vehicle_projects(user_id, title)")
-    .or("status.eq.due,status.eq.overdue")
-    .eq("notification_sent", false)
-
-  if (schedulesError) {
-    console.error("Error fetching due maintenance schedules:", schedulesError)
-    return { error: schedulesError.message }
-  }
-
-  if (!schedules || schedules.length === 0) {
-    return { message: "No due maintenance schedules found" }
-  }
-
-  // Create notifications for each schedule
-  for (const schedule of schedules) {
-    const userId = schedule.vehicle_projects.user_id
-    const projectTitle = schedule.vehicle_projects.title
-    const notificationType = schedule.status
-    const message = `${schedule.title} for ${projectTitle} is ${notificationType}. Please schedule maintenance soon.`
-
-    const { error: notificationError } = await supabase.from("maintenance_notifications").insert([
-      {
-        schedule_id: schedule.id,
-        user_id: userId,
-        title: `Maintenance ${notificationType}: ${schedule.title}`,
-        message,
-        notification_type: notificationType,
-        scheduled_for: schedule.next_due_at,
-      },
-    ])
-
-    if (notificationError) {
-      console.error("Error creating maintenance notification:", notificationError)
-      continue
+    const schedules = schedulesResult.rows;
+    if (schedules.length === 0) {
+      return { message: "No due maintenance schedules found" };
     }
 
-    // Mark the schedule as having sent a notification
-    const { error: updateError } = await supabase
-      .from("maintenance_schedules")
-      .update({
-        notification_sent: true,
-        notification_sent_at: new Date().toISOString(),
-      })
-      .eq("id", schedule.id)
+    // Create notifications for each schedule using a transaction
+    return await db.transaction(async (client) => {
+      let notificationCount = 0;
 
-    if (updateError) {
-      console.error("Error updating maintenance schedule notification status:", updateError)
-    }
+      for (const schedule of schedules) {
+        const userId = schedule.user_id;
+        const projectTitle = schedule.project_title;
+        const notificationType = schedule.status;
+        const message = `${schedule.title} for ${projectTitle} is ${notificationType}. Please schedule maintenance soon.`;
+
+        // Insert notification
+        try {
+          await client.query(
+            `INSERT INTO maintenance_notifications (
+              schedule_id, user_id, title, message,
+              notification_type, scheduled_for
+            ) VALUES ($1, $2, $3, $4, $5, $6)`,
+            [
+              schedule.id,
+              userId,
+              `Maintenance ${notificationType}: ${schedule.title}`,
+              message,
+              notificationType,
+              schedule.next_due_at
+            ]
+          );
+
+          // Mark schedule as having sent notification
+          await client.query(
+            `UPDATE maintenance_schedules SET
+              notification_sent = true,
+              notification_sent_at = NOW(),
+              updated_at = NOW()
+             WHERE id = $1`,
+            [schedule.id]
+          );
+
+          notificationCount++;
+        } catch (insertError) {
+          console.error("Error creating notification for schedule:", schedule.id, insertError);
+          // Continue with other notifications
+        }
+      }
+
+      revalidatePath("/dashboard");
+      return { message: `Created ${notificationCount} maintenance notifications` };
+    });
+  } catch (error) {
+    console.error("Error checking maintenance notifications:", error);
+    return { error: error instanceof Error ? error.message : "Failed to check maintenance notifications" };
   }
-
-  revalidatePath("/dashboard")
-  return { message: `Created ${schedules.length} maintenance notifications` }
 }
