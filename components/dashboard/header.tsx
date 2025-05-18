@@ -17,6 +17,7 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { UserAvatar } from "@/components/user-avatar"
 import { signOut } from "@/actions/auth-actions"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { BackgroundToggle } from "@/components/background-toggle"
@@ -116,10 +117,7 @@ export function Header({ user }: HeaderProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
-              <Avatar>
-                <AvatarImage src={user?.avatarUrl || ""} alt={user?.fullName || user?.email || ""} />
-                <AvatarFallback>{initials}</AvatarFallback>
-              </Avatar>
+              <UserAvatar src={user?.avatarUrl} alt={user?.fullName || user?.email || ""} fallback={initials} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">

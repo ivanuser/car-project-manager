@@ -193,9 +193,9 @@ export async function updateAvatar(formData: FormData) {
     // Write file to storage
     fs.writeFileSync(filePath, buffer);
     
-    // Generate URL - simplified for now, you would need to provide actual URL handling
+    // Generate URL using our API endpoint
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-    const publicUrl = `${baseUrl}/storage/avatars/${fileName}`;
+    const publicUrl = `${baseUrl}/api/storage/avatars/${fileName}`;
     
     // Update profile with avatar URL
     await db.query(

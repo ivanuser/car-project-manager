@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { updateUserRole, suspendUser, deleteUser } from "@/actions/admin-actions"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { UserAvatar } from "@/components/user-avatar"
 import { Badge } from "@/components/ui/badge"
 import {
   AlertDialog,
@@ -189,10 +190,7 @@ export function UserTable({
                 <TableRow key={user.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={user.avatarUrl || undefined} alt={user.name || "User"} />
-                        <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-                      </Avatar>
+                      <UserAvatar src={user.avatarUrl} alt={user.name || "User"} fallback={getInitials(user.name)} className="h-8 w-8" />
                       <div className="flex flex-col">
                         <span className="font-medium">{user.name || "Unnamed User"}</span>
                         <span className="text-xs text-muted-foreground">{user.email}</span>
