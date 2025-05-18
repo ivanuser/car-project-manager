@@ -1,134 +1,132 @@
 import type React from "react"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
-import { createClient } from "@supabase/supabase-js"
 
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { Header } from "@/components/dashboard/header"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/toaster"
 import { GradientBackground } from "@/components/gradient-background"
+import jwtUtils from "@/lib/auth/jwt"
+import db from "@/lib/db"
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  // Check if we're in preview mode without Supabase config
-  const isMissingConfig = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  const isDevelopment = process.env.NODE_ENV === "development"
+  const isDevelopment = process.env.NODE_ENV === "development";
+  
+  // Initialize user data as null
+  let userProfile = null;
 
-  // Initialize user data as null - no default/mock user
-  let userProfile = null
-
-  // Try to get real user data if we have Supabase configured
-  if (!isMissingConfig) {
-    try {
-      // Get Supabase config
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-      
-      // Get cookies manually
-      const cookieStore = cookies();
-      const allCookies = cookieStore.getAll();
-      
-      console.log("Dashboard: Available cookies:", allCookies.map(c => c.name).join(', '));
-      
-      // Check for auth token directly
-      const projectRef = supabaseUrl.split('//')[1].split('.')[0];
-      const authCookie = cookieStore.get(`sb-${projectRef}-auth-token`);
-      
-      let accessToken = "";
-      let user = null;
-      
-      if (authCookie) {
-        try {
-          // Try to parse the session cookie
-          const sessionData = JSON.parse(authCookie.value);
-          console.log("Dashboard: Found session cookie with data");
-          
-          if (sessionData.access_token) {
-            accessToken = sessionData.access_token;
-            user = sessionData.user;
-            console.log("Dashboard: Using token from session cookie");
-          }
-        } catch (parseError) {
-          // If parsing fails, the cookie might be the token itself
-          console.log("Dashboard: Session cookie parse error:", 
-            parseError instanceof Error ? parseError.message : String(parseError));
-          accessToken = authCookie.value;
-          console.log("Dashboard: Using cookie value as token");
+  try {
+    // Get auth token from cookies
+    const cookieStore = cookies();
+    const authToken = cookieStore.get('cajpro_auth_token')?.value;
+    
+    console.log("Dashboard: Checking authentication");
+    
+    let userId = null;
+    
+    // Verify token if it exists
+    if (authToken) {
+      try {
+        const payload = jwtUtils.verifyToken(authToken);
+        if (payload && !jwtUtils.isTokenExpired(authToken)) {
+          userId = payload.sub;
+          console.log("Dashboard: Found valid authentication token for user:", userId);
         }
-      } else {
-        // Try fallback cookies
-        const accessTokenCookie = cookieStore.get('sb-access-token');
-        if (accessTokenCookie) {
-          accessToken = accessTokenCookie.value;
-          console.log("Dashboard: Using fallback access token cookie");
-        }
+      } catch (tokenError) {
+        console.error("Dashboard: Token validation error:", 
+          tokenError instanceof Error ? tokenError.message : String(tokenError));
       }
+    }
+    
+    // Special case for development mode
+    if (!userId && isDevelopment) {
+      console.log("Dashboard: Development mode detected, checking for admin user");
       
-      // Create Supabase client with the token if we have one
-      if (accessToken) {
-        const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
-          }
-        });
-        
-        // Use the token to get user info
-        const { data: userResponse, error: userError } = await supabase.auth.getUser(accessToken);
-        
-        if (userError) {
-          console.error("Dashboard: Error getting user data:", userError.message);
-        } else if (userResponse.user) {
-          user = userResponse.user;
-          console.log("Dashboard: Found user via token:", user.email);
-          
-          // Get the user's profile
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name, avatar_url")
-            .eq("id", user.id)
-            .single();
-          
-          userProfile = {
-            id: user.id,
-            email: user.email,
-            fullName: profile?.full_name || undefined,
-            avatarUrl: profile?.avatar_url || undefined,
-          };
-          
-          console.log("Dashboard: Using authenticated user:", userProfile.email);
-        }
+      // In development, try to find admin user
+      const adminResult = await db.query(
+        `SELECT id FROM auth.users WHERE email = 'admin@cajpro.local' LIMIT 1`
+      );
+      
+      if (adminResult.rows.length > 0) {
+        userId = adminResult.rows[0].id;
+        console.log("Dashboard: Using admin user for development:", userId);
       }
+    }
+    
+    if (userId) {
+      // Get user data
+      const userResult = await db.query(
+        `SELECT email FROM auth.users WHERE id = $1`,
+        [userId]
+      );
       
-      if (!user) {
-        console.log("Dashboard: No authenticated user found - will redirect");
+      if (userResult.rows.length > 0) {
+        const email = userResult.rows[0].email;
         
-        // Return content that will redirect client-side
-        // This is more reliable than server-side redirect in this case
-        return (
-          <html lang="en">
-            <body>
-              <div className="flex min-h-screen items-center justify-center bg-background">
-                <div className="text-center">
-                  <h1 className="text-2xl font-bold">Authentication Required</h1>
-                  <p className="mt-2">Redirecting to login page...</p>
-                  <script dangerouslySetInnerHTML={{ __html: `
-                    console.log("Redirecting to login due to missing authentication");
-                    window.location.href = '/login';
-                  `}} />
-                </div>
-              </div>
-            </body>
-          </html>
+        // Get profile data
+        const profileResult = await db.query(
+          `SELECT full_name, avatar_url FROM profiles WHERE id = $1`,
+          [userId]
         );
+        
+        userProfile = {
+          id: userId,
+          email: email,
+          fullName: profileResult.rows[0]?.full_name || undefined,
+          avatarUrl: profileResult.rows[0]?.avatar_url || undefined,
+        };
+        
+        console.log("Dashboard: Using authenticated user:", userProfile.email);
       }
-    } catch (error) {
-      console.error("Error in dashboard auth check:", error);
-      // Continue with preview user data
+    }
+    
+    if (!userProfile && !isDevelopment) {
+      console.log("Dashboard: No authenticated user found - will redirect");
+      
+      // Return content that will redirect client-side
+      return (
+        <html lang="en">
+          <body>
+            <div className="flex min-h-screen items-center justify-center bg-background">
+              <div className="text-center">
+                <h1 className="text-2xl font-bold">Authentication Required</h1>
+                <p className="mt-2">Redirecting to login page...</p>
+                <script dangerouslySetInnerHTML={{ __html: `
+                  console.log("Redirecting to login due to missing authentication");
+                  window.location.href = '/login';
+                `}} />
+              </div>
+            </div>
+          </body>
+        </html>
+      );
+    }
+    
+    // For development, use a default user if none found
+    if (!userProfile && isDevelopment) {
+      console.log("Dashboard: Creating default user profile for development");
+      userProfile = {
+        id: "admin-dev-mode",
+        email: "admin@cajpro.local",
+        fullName: "Admin User",
+        avatarUrl: undefined,
+      };
+    }
+  } catch (error) {
+    console.error("Error in dashboard auth check:", error);
+    // Continue with development mode if available
+    if (isDevelopment) {
+      userProfile = {
+        id: "admin-dev-mode",
+        email: "admin@cajpro.local",
+        fullName: "Admin User",
+        avatarUrl: undefined,
+      };
     }
   }
 
