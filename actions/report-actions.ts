@@ -8,9 +8,9 @@ export interface TaskWithProject extends Task {
 }
 
 export async function getTasksForReports(): Promise<TaskWithProject[]> {
-  const supabase = createServerClient()
+  const supabase = await createServerClient()
 
-  const { data, error } = await supabase
+  const result = await supabase
     .from("tasks")
     .select(`
       *,
@@ -20,6 +20,9 @@ export async function getTasksForReports(): Promise<TaskWithProject[]> {
       )
     `)
     .order("created_at", { ascending: false })
+    .execute()
+    
+  const { data, error } = result
 
   if (error) {
     console.error("Error fetching tasks for reports:", error)
@@ -34,9 +37,9 @@ export async function getTasksForReports(): Promise<TaskWithProject[]> {
 }
 
 export async function getCompletedTasksByDate(startDate: string, endDate: string): Promise<TaskWithProject[]> {
-  const supabase = createServerClient()
+  const supabase = await createServerClient()
 
-  const { data, error } = await supabase
+  const result = await supabase
     .from("tasks")
     .select(`
       *,
@@ -49,6 +52,9 @@ export async function getCompletedTasksByDate(startDate: string, endDate: string
     .gte("completed_at", startDate)
     .lte("completed_at", endDate)
     .order("completed_at", { ascending: true })
+    .execute()
+    
+  const { data, error } = result
 
   if (error) {
     console.error("Error fetching completed tasks:", error)
