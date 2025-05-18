@@ -11,13 +11,18 @@ export async function GET(req: NextRequest) {
   try {
     // Get userId from query params
     const searchParams = req.nextUrl.searchParams;
-    const userId = searchParams.get('userId');
+    let userId = searchParams.get('userId');
     
     if (!userId) {
       return NextResponse.json(
         { error: 'Missing userId parameter' },
         { status: 400 }
       );
+    }
+    
+    // Special handling for admin-dev-mode
+    if (userId === 'admin-dev-mode' && process.env.NODE_ENV === 'development') {
+      console.log('API route: Using admin-dev-mode special case');
     }
     
     // Validate authentication

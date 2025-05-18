@@ -223,8 +223,49 @@ export async function getUserPreferences(userId: string) {
   try {
     // Check if this is the authenticated user
     const currentUserId = await getCurrentUserId();
-    if (!currentUserId) {
+    if (!currentUserId && process.env.NODE_ENV !== 'development') {
       return { error: "Not authenticated" };
+    }
+    
+    // Special case for development mode with admin-dev-mode
+    if (userId === 'admin-dev-mode') {
+      console.log('Using admin-dev-mode, fetching admin preferences');
+      // Try to find an admin user
+      const adminResult = await db.query(
+        `SELECT id FROM auth.users WHERE email = 'admin@cajpro.local' LIMIT 1`
+      );
+      
+      if (adminResult.rows.length > 0) {
+        // Use the admin UUID instead
+        userId = adminResult.rows[0].id;
+        console.log('Found admin user with ID:', userId);
+      } else {
+        console.log('Admin user not found, using default preferences');
+        // Return default preferences for admin-dev-mode
+        return {
+          preferences: {
+            theme: "system",
+            color_scheme: "default",
+            background_intensity: "medium",
+            ui_density: "comfortable",
+            date_format: "MM/DD/YYYY",
+            time_format: "12h",
+            measurement_unit: "imperial",
+            currency: "USD",
+            notification_preferences: {
+              email: true,
+              push: true,
+              maintenance: true,
+              project_updates: true,
+            },
+            display_preferences: {
+              default_project_view: "grid",
+              default_task_view: "list",
+              show_completed_tasks: true,
+            },
+          },
+        };
+      }
     }
     
     // Query the database for preferences
@@ -275,7 +316,22 @@ export async function getUserPreferences(userId: string) {
 export async function updateUserPreferences(formData: FormData) {
   try {
     // Get the current user
-    const userId = await getCurrentUserId();
+    let userId = await getCurrentUserId();
+    
+    // Special case for admin-dev-mode in development
+    if (!userId && process.env.NODE_ENV === 'development') {
+      console.log('Development mode detected, trying to find admin user');
+      // Try to find admin user
+      const adminResult = await db.query(
+        `SELECT id FROM auth.users WHERE email = 'admin@cajpro.local' LIMIT 1`
+      );
+      
+      if (adminResult.rows.length > 0) {
+        userId = adminResult.rows[0].id;
+        console.log('Using admin user ID for dev mode:', userId);
+      }
+    }
+    
     if (!userId) {
       return { error: "Not authenticated" };
     }
