@@ -223,6 +223,8 @@ export async function getUserPreferences(userId: string) {
   try {
     // Check if this is the authenticated user
     const currentUserId = await getCurrentUserId();
+    
+    // Allow access in development mode or if authenticated
     if (!currentUserId && process.env.NODE_ENV !== 'development') {
       return { error: "Not authenticated" };
     }
@@ -319,7 +321,7 @@ export async function updateUserPreferences(formData: FormData) {
     let userId = await getCurrentUserId();
     
     // Special case for admin-dev-mode in development
-    if (!userId && process.env.NODE_ENV === 'development') {
+    if ((!userId || userId === 'admin-dev-mode') && process.env.NODE_ENV === 'development') {
       console.log('Development mode detected, trying to find admin user');
       // Try to find admin user
       const adminResult = await db.query(
@@ -329,6 +331,38 @@ export async function updateUserPreferences(formData: FormData) {
       if (adminResult.rows.length > 0) {
         userId = adminResult.rows[0].id;
         console.log('Using admin user ID for dev mode:', userId);
+      } else {
+        console.log('Could not find admin user. Attempting to create admin user.');
+        try {
+          // Try to create admin user
+          const insertResult = await db.query(`
+            INSERT INTO auth.users (
+              email, 
+              password_hash, 
+              salt, 
+              is_admin, 
+              email_confirmed_at,
+              created_at,
+              updated_at
+            ) VALUES (
+              'admin@cajpro.local',
+              '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918',
+              'developmentsalt',
+              TRUE,
+              NOW(),
+              NOW(),
+              NOW()
+            ) ON CONFLICT (email) DO NOTHING
+            RETURNING id
+          `);
+          
+          if (insertResult.rows.length > 0) {
+            userId = insertResult.rows[0].id;
+            console.log('Created admin user with ID:', userId);
+          }
+        } catch (createError) {
+          console.error('Failed to create admin user:', createError);
+        }
       }
     }
     

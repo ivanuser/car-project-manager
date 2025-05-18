@@ -1,17 +1,17 @@
 #!/bin/bash
 
-# Fix Admin Dev Mode Script
-# This script runs the TypeScript fix script to ensure admin preferences work correctly
+# Fix Admin Dev Mode Script (JavaScript version)
+# This script runs the JavaScript fix script to ensure admin preferences work correctly
 
 # Change to the project directory
 cd "$(dirname "$0")/.."
 
 # Ensure dependencies are installed
-npm install
+npm install pg dotenv
 
-# Run the migration script with ts-node
-echo "Running fix-admin-dev-mode script..."
-npx ts-node scripts/fix-admin-dev-mode.ts
+# Run the JavaScript fix script
+echo "Running fix-admin-dev-mode.js script..."
+node scripts/fix-admin-dev-mode.js
 
 # Check if the script ran successfully
 if [ $? -eq 0 ]; then

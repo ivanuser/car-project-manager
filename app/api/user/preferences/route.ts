@@ -23,6 +23,18 @@ export async function GET(req: NextRequest) {
     // Special handling for admin-dev-mode
     if (userId === 'admin-dev-mode' && process.env.NODE_ENV === 'development') {
       console.log('API route: Using admin-dev-mode special case');
+      
+      // Look up the admin user's UUID
+      const adminResult = await db.query(
+        `SELECT id FROM auth.users WHERE email = 'admin@cajpro.local' LIMIT 1`
+      );
+      
+      if (adminResult.rows.length > 0) {
+        // Use the admin's UUID instead
+        const adminId = adminResult.rows[0].id;
+        console.log('Found admin user with ID:', adminId);
+        userId = adminId;
+      }
     }
     
     // Validate authentication
