@@ -5,6 +5,7 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { initializeDatabase } from "@/lib/db-init"
 import AuthProvider from "@/hooks/auth/AuthProvider"
+import { ColorThemeInitializer } from "@/components/color-theme-initializer"
 
 // Initialize database on server
 initializeDatabase().catch((error) => {
@@ -29,6 +30,7 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           <AuthProvider>
+            <ColorThemeInitializer />
             {children}
           </AuthProvider>
         </ThemeProvider>

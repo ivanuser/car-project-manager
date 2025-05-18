@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 
@@ -16,6 +16,7 @@ import { updateUserPreferences } from "@/actions/profile-actions"
 import { useToast } from "@/hooks/use-toast"
 import { ThemePreview } from "./theme-preview"
 import { ThemeColorPicker } from "./theme-color-picker"
+import { applyColorScheme } from "@/lib/color-theme"
 
 // Define default preferences for safety
 const defaultPreferences = {
@@ -108,6 +109,13 @@ export function PreferencesForm({ preferences = null }: PreferencesFormProps) {
   const [defaultTaskView, setDefaultTaskView] = useState(mergedPrefs.display_preferences?.default_task_view ?? 'list')
   const [showCompletedTasks, setShowCompletedTasks] = useState(mergedPrefs.display_preferences?.show_completed_tasks ?? true)
 
+  // Apply immediate changes to the color scheme
+  useEffect(() => {
+    if (colorScheme) {
+      applyColorScheme(colorScheme);
+    }
+  }, [colorScheme]);
+
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault()
     setIsLoading(true)
@@ -166,6 +174,9 @@ export function PreferencesForm({ preferences = null }: PreferencesFormProps) {
             document.documentElement.classList.remove("dark")
           }
         }
+
+        // Apply color scheme
+        applyColorScheme(colorScheme)
 
         // Apply background intensity
         const gradientEl = document.querySelector("[data-gradient-background]")
