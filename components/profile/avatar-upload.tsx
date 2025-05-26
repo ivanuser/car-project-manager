@@ -2,13 +2,14 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import Image from "next/image"
 import { Camera, Loader2, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { updateAvatar } from "@/actions/profile-actions"
 import { useToast } from "@/hooks/use-toast"
+import { UserAvatar } from "@/components/user-avatar"
 
 interface AvatarUploadProps {
   currentAvatarUrl: string | null
@@ -18,8 +19,38 @@ interface AvatarUploadProps {
 export function AvatarUpload({ currentAvatarUrl, userId }: AvatarUploadProps) {
   const [isUploading, setIsUploading] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentAvatarUrl)
+  const [processedAvatarUrl, setProcessedAvatarUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
+
+  // Convert old Supabase URLs to new API endpoints
+  useEffect(() => {
+    // Handle URL conversion if needed
+    if (currentAvatarUrl) {
+      // Check if this is an old Supabase URL
+      if (
+        currentAvatarUrl.includes("storage/avatars") || 
+        currentAvatarUrl.includes("storage.googleapis.com") || 
+        currentAvatarUrl.includes("supabase.co")
+      ) {
+        // Extract the filename from the URL
+        const urlParts = currentAvatarUrl.split('/')
+        const filename = urlParts[urlParts.length - 1]
+        
+        // Use our new API endpoint
+        const newUrl = `/api/storage/avatars/${filename}`
+        setProcessedAvatarUrl(newUrl)
+        setPreviewUrl(newUrl)
+      } else {
+        // Use the provided URL as is
+        setProcessedAvatarUrl(currentAvatarUrl)
+        setPreviewUrl(currentAvatarUrl)
+      }
+    } else {
+      setProcessedAvatarUrl(null)
+      setPreviewUrl(null)
+    }
+  }, [currentAvatarUrl])
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -65,7 +96,7 @@ export function AvatarUpload({ currentAvatarUrl, userId }: AvatarUploadProps) {
           variant: "destructive",
         })
         // Revert to previous avatar
-        setPreviewUrl(currentAvatarUrl)
+        setPreviewUrl(processedAvatarUrl || currentAvatarUrl)
       } else {
         toast({
           title: "Avatar updated",
@@ -73,6 +104,7 @@ export function AvatarUpload({ currentAvatarUrl, userId }: AvatarUploadProps) {
         })
         // Update preview with the new URL from the server
         setPreviewUrl(result.avatarUrl)
+        setProcessedAvatarUrl(result.avatarUrl)
       }
     } catch (error) {
       console.error("Avatar upload error:", error)
@@ -82,7 +114,7 @@ export function AvatarUpload({ currentAvatarUrl, userId }: AvatarUploadProps) {
         variant: "destructive",
       })
       // Revert to previous avatar
-      setPreviewUrl(currentAvatarUrl)
+      setPreviewUrl(processedAvatarUrl || currentAvatarUrl)
     } finally {
       setIsUploading(false)
     }
@@ -114,6 +146,7 @@ export function AvatarUpload({ currentAvatarUrl, userId }: AvatarUploadProps) {
           description: "Your profile picture has been removed",
         })
         setPreviewUrl(null)
+        setProcessedAvatarUrl(null)
       }
     } catch (error) {
       console.error("Avatar removal error:", error)
@@ -136,13 +169,23 @@ export function AvatarUpload({ currentAvatarUrl, userId }: AvatarUploadProps) {
       <div className="relative">
         <div className="h-32 w-32 overflow-hidden rounded-full border-2 border-border bg-muted">
           {previewUrl ? (
-            <Image
-              src={previewUrl || "/placeholder.svg"}
-              alt="Profile avatar"
-              width={128}
-              height={128}
-              className="h-full w-full object-cover"
-            />
+            <div className="h-full w-full">
+              <Image
+                src={previewUrl}
+                alt="Profile avatar"
+                width={128}
+                height={128}
+                className="h-full w-full object-cover"
+                onError={() => {
+                  // If image fails to load, fall back to API endpoint or initials
+                  if (processedAvatarUrl && previewUrl !== processedAvatarUrl) {
+                    setPreviewUrl(processedAvatarUrl)
+                  } else {
+                    setPreviewUrl(null)
+                  }
+                }}
+              />
+            </div>
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-muted text-4xl font-bold text-muted-foreground">
               {userId.charAt(0).toUpperCase()}

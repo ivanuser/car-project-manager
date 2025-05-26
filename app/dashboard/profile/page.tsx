@@ -23,7 +23,7 @@ export default async function ProfilePage() {
     )
   }
 
-  // Get the user's profile
+  // Get the user's profile - ensure avatar_url is properly processed if it exists
   const { profile, error } = await getUserProfile(user.id)
 
   if (error) {
