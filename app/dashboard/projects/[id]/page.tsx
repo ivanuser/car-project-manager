@@ -2,16 +2,10 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { format } from "date-fns"
 import { getVehicleProject } from "@/actions/project-actions"
-import { getPartsByProjectId } from "@/actions/parts-actions"
-import { getProjectPhotos, getBeforeAfterPhotos } from "@/actions/gallery-actions"
-import { getProjectMilestones } from "@/actions/timeline-actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Calendar, Camera, Clock, DollarSign, Edit, FileText, Plus, Tag, Wrench } from "lucide-react"
-import { formatCurrency } from "@/lib/utils"
-import { PartsList } from "@/components/parts/parts-list"
-import { BeforeAfterComparison } from "@/components/gallery/before-after-comparison"
+import { ArrowLeft, Calendar, DollarSign, Edit, Plus, Tag } from "lucide-react"
 
 interface ProjectPageProps {
   params: {
@@ -24,10 +18,6 @@ interface ProjectPageProps {
 
 export default async function ProjectPage({ params, searchParams }: ProjectPageProps) {
   const project = await getVehicleProject(params.id)
-  const parts = await getPartsByProjectId(params.id)
-  const photos = await getProjectPhotos(params.id)
-  const { before: beforePhotos, after: afterPhotos } = await getBeforeAfterPhotos(params.id)
-  const milestones = await getProjectMilestones(params.id)
 
   if (!project) {
     notFound()
@@ -52,16 +42,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
     : "Not specified"
 
   // Determine active tab
-  const activeTab = searchParams.tab || "tasks"
-
-  // Get featured photos
-  const featuredPhotos = photos.filter((photo) => photo.is_featured)
-
-  // Get upcoming milestones
-  const upcomingMilestones = milestones
-    .filter((milestone) => !milestone.completed_at)
-    .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
-    .slice(0, 3)
+  const activeTab = searchParams.tab || "overview"
 
   return (
     <div className="space-y-6">
@@ -76,35 +57,11 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
           <div>
             <h2 className="text-2xl font-bold tracking-tight">{project.title}</h2>
             <p className="text-muted-foreground">
-              {project.make} {project.model} {project.year && `(${project.year})`}
+              {project.year && `${project.year} `}{project.make} {project.model}
             </p>
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link href={`/dashboard/projects/${project.id}/timeline`}>
-              <Clock className="mr-2 h-4 w-4" />
-              Timeline
-            </Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href={`/dashboard/projects/${project.id}/schedule`}>
-              <Calendar className="mr-2 h-4 w-4" />
-              Schedule
-            </Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href={`/dashboard/projects/${project.id}/maintenance`}>
-              <Wrench className="mr-2 h-4 w-4" />
-              Maintenance
-            </Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href={`/dashboard/projects/${project.id}/documents`}>
-              <FileText className="mr-2 h-4 w-4" />
-              Documents
-            </Link>
-          </Button>
           <Button asChild>
             <Link href={`/dashboard/projects/${project.id}/edit`}>
               <Edit className="mr-2 h-4 w-4" />
@@ -121,28 +78,20 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
             <CardTitle>Project Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {featuredPhotos.length > 0 ? (
+            {project.thumbnail_url && (
               <div className="mb-4">
                 <img
-                  src={featuredPhotos[0].photo_url || "/placeholder.svg"}
-                  alt={featuredPhotos[0].title || project.title}
-                  className="w-full h-48 object-cover rounded-md"
-                />
-              </div>
-            ) : project.thumbnail_url ? (
-              <div className="mb-4">
-                <img
-                  src={project.thumbnail_url || "/placeholder.svg"}
+                  src={project.thumbnail_url}
                   alt={project.title}
                   className="w-full h-48 object-cover rounded-md"
                 />
               </div>
-            ) : null}
+            )}
 
             <div>
               <h3 className="text-lg font-medium mb-2">Description</h3>
               {project.description ? (
-                <p>{project.description}</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">{project.description}</p>
               ) : (
                 <p className="text-muted-foreground italic">No description provided</p>
               )}
@@ -151,7 +100,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
             {project.vin && (
               <div>
                 <h3 className="text-lg font-medium mb-2">VIN</h3>
-                <p className="font-mono">{project.vin}</p>
+                <p className="font-mono text-sm bg-muted p-2 rounded">{project.vin}</p>
               </div>
             )}
           </CardContent>
@@ -163,76 +112,123 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
             <CardTitle>Project Info</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-3 items-center">
-              <Tag className="h-5 w-5 text-muted-foreground" />
+            <div className="grid grid-cols-[24px_1fr] gap-x-2 gap-y-3 items-start">
+              <Tag className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div>
                 <p className="text-sm font-medium">Project Type</p>
-                <p className="text-sm">{projectType}</p>
+                <p className="text-sm text-muted-foreground">{projectType}</p>
               </div>
 
-              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div>
                 <p className="text-sm font-medium">Timeline</p>
-                <p className="text-sm">
+                <p className="text-sm text-muted-foreground">
                   {startDate} to {endDate}
                 </p>
               </div>
 
-              <DollarSign className="h-5 w-5 text-muted-foreground" />
+              <DollarSign className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div>
                 <p className="text-sm font-medium">Budget</p>
-                <p className="text-sm">{project.budget ? formatCurrency(project.budget) : "Not specified"}</p>
+                <p className="text-sm text-muted-foreground">
+                  {project.budget ? `${parseFloat(project.budget).toLocaleString()}` : "Not specified"}
+                </p>
               </div>
 
-              <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center">
-                <div className="h-2 w-2 rounded-full bg-primary" />
+              <div className="mt-0.5 h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center">
+                <div className={`h-2 w-2 rounded-full ${
+                  project.status === 'completed' ? 'bg-green-500' :
+                  project.status === 'in_progress' ? 'bg-blue-500' :
+                  project.status === 'on_hold' ? 'bg-yellow-500' :
+                  'bg-gray-500'
+                }`} />
               </div>
               <div>
                 <p className="text-sm font-medium">Status</p>
-                <p className="text-sm capitalize">{project.status.replace("_", " ")}</p>
+                <p className="text-sm text-muted-foreground capitalize">{project.status?.replace("_", " ") || 'Planning'}</p>
               </div>
 
-              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div>
                 <p className="text-sm font-medium">Created</p>
-                <p className="text-sm">{format(new Date(project.created_at), "PPP")}</p>
+                <p className="text-sm text-muted-foreground">{format(new Date(project.created_at), "PPP")}</p>
               </div>
 
-              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div>
                 <p className="text-sm font-medium">Last Updated</p>
-                <p className="text-sm">{format(new Date(project.updated_at), "PPP")}</p>
+                <p className="text-sm text-muted-foreground">{format(new Date(project.updated_at), "PPP")}</p>
               </div>
             </div>
-
-            {upcomingMilestones.length > 0 && (
-              <div className="mt-4">
-                <h3 className="text-sm font-medium mb-2">Upcoming Milestones</h3>
-                <div className="space-y-2">
-                  {upcomingMilestones.map((milestone) => (
-                    <div key={milestone.id} className="flex justify-between text-sm">
-                      <span>{milestone.title}</span>
-                      <span className="text-muted-foreground">{format(new Date(milestone.due_date), "MMM d")}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-2">
-                  <Button variant="link" size="sm" className="p-0 h-auto" asChild>
-                    <Link href={`/dashboard/projects/${project.id}/timeline`}>View all milestones</Link>
-                  </Button>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>
 
       <Tabs defaultValue={activeTab}>
         <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
           <TabsTrigger value="parts">Parts</TabsTrigger>
           <TabsTrigger value="gallery">Gallery</TabsTrigger>
         </TabsList>
+        
+        <TabsContent value="overview" className="mt-4">
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Project Summary</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Vehicle:</span>
+                    <span className="text-sm font-medium">
+                      {project.year && `${project.year} `}{project.make} {project.model}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Type:</span>
+                    <span className="text-sm font-medium">{projectType}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Status:</span>
+                    <span className="text-sm font-medium capitalize">{project.status?.replace("_", " ") || 'Planning'}</span>
+                  </div>
+                  {project.budget && (
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Budget:</span>
+                      <span className="text-sm font-medium">${parseFloat(project.budget).toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Button variant="outline" className="w-full justify-start" disabled>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Task
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start" disabled>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Part
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start" disabled>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Upload Photo
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">Additional features coming soon</p>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+        
         <TabsContent value="tasks" className="mt-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium">Tasks</h3>
@@ -242,69 +238,43 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
             </Button>
           </div>
           <Card>
-            <CardContent className="py-8 text-center">
+            <CardContent className="py-12 text-center">
               <p className="text-muted-foreground mb-4">Task management coming soon</p>
+              <p className="text-sm text-muted-foreground">Track your project progress with tasks, milestones, and deadlines.</p>
             </CardContent>
           </Card>
         </TabsContent>
+        
         <TabsContent value="parts" className="mt-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium">Parts</h3>
-            <Button size="sm" asChild>
-              <Link href={`/dashboard/projects/${project.id}/parts/new`}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Part
-              </Link>
+            <Button size="sm" disabled>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Part
             </Button>
           </div>
-          <PartsList parts={parts} projectId={project.id} />
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-muted-foreground mb-4">Parts inventory coming soon</p>
+              <p className="text-sm text-muted-foreground">Manage your parts inventory, track orders, and organize your build.</p>
+            </CardContent>
+          </Card>
         </TabsContent>
+        
         <TabsContent value="gallery" className="mt-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium">Gallery</h3>
-            <Button size="sm" asChild>
-              <Link href={`/dashboard/projects/${project.id}/gallery/upload`}>
-                <Camera className="mr-2 h-4 w-4" />
-                Add Photo
-              </Link>
+            <Button size="sm" disabled>
+              <Plus className="mr-2 h-4 w-4" />
+              Upload Photos
             </Button>
           </div>
-          {photos.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center">
-                <p className="text-muted-foreground mb-4">No photos added yet</p>
-                <Button asChild>
-                  <Link href={`/dashboard/projects/${project.id}/gallery/upload`}>Add Your First Photo</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-8">
-              <BeforeAfterComparison beforePhotos={beforePhotos} afterPhotos={afterPhotos} projectId={project.id} />
-
-              <div className="mt-8">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium">Recent Photos</h3>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={`/dashboard/projects/${project.id}/gallery`}>View All Photos</Link>
-                  </Button>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {photos.slice(0, 4).map((photo) => (
-                    <Card key={photo.id} className="overflow-hidden">
-                      <div className="relative aspect-square">
-                        <img
-                          src={photo.thumbnail_url || photo.photo_url}
-                          alt={photo.title || "Project photo"}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-muted-foreground mb-4">Photo gallery coming soon</p>
+              <p className="text-sm text-muted-foreground">Document your build progress with photos and create before/after comparisons.</p>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

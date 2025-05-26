@@ -143,14 +143,6 @@ export default function SettingsPage() {
         <p className="text-muted-foreground">Manage your application settings and preferences.</p>
       </div>
 
-      <Alert className="bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800">
-        <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-        <AlertTitle>Database Migration in Progress</AlertTitle>
-        <AlertDescription>
-          We're currently migrating from Supabase to PostgreSQL. Some settings functionality may be limited.
-        </AlertDescription>
-      </Alert>
-
       <Card className="p-6">
         <div className="mb-4">
           <h3 className="text-lg font-medium">Account Information</h3>
