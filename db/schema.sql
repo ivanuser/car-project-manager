@@ -17,7 +17,13 @@ CREATE TABLE IF NOT EXISTS vehicle_projects (
   make TEXT NOT NULL,
   model TEXT NOT NULL,
   year INTEGER,
+  vin TEXT,
+  project_type TEXT,
+  start_date DATE,
+  end_date DATE,
+  budget DECIMAL(12, 2),
   status TEXT DEFAULT 'planning',
+  build_stage TEXT DEFAULT 'planning',
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   thumbnail_url TEXT
 );
