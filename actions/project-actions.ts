@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import db from '@/lib/db'
 import { cookies } from 'next/headers'
 import jwtUtils from '@/lib/auth/jwt'
+import { saveUploadedFile, deleteStoredFile } from '@/lib/file-storage'
 
 /**
  * Get the current user ID from the session
@@ -150,14 +151,21 @@ export async function createVehicleProject(formData: FormData) {
   const budget = formData.get("budget") ? Number.parseFloat(formData.get("budget") as string) : null
   const status = (formData.get("status") as string) || "planning"
   
-  // TODO: Handle file uploads to file system instead of Supabase storage
+  // Handle thumbnail upload
   let thumbnailUrl = null
   const thumbnailFile = formData.get("thumbnail") as File
   
   if (thumbnailFile && thumbnailFile.size > 0) {
-    // We'll need to implement file uploads to the filesystem
-    console.log("File upload not yet implemented")
-    // For now, we'll skip this step
+    console.log("Processing thumbnail upload for user:", userId)
+    const uploadResult = await saveUploadedFile(thumbnailFile, 'thumbnails', userId)
+    
+    if (uploadResult.success) {
+      thumbnailUrl = uploadResult.url
+      console.log("Thumbnail uploaded successfully:", thumbnailUrl)
+    } else {
+      console.error("Thumbnail upload failed:", uploadResult.error)
+      return { error: `Failed to upload thumbnail: ${uploadResult.error}` }
+    }
   }
   
   try {
@@ -210,13 +218,40 @@ export async function updateVehicleProject(id: string, formData: FormData) {
   const budget = formData.get("budget") ? Number.parseFloat(formData.get("budget") as string) : null
   const status = (formData.get("status") as string) || "planning"
   
-  // TODO: Handle file uploads
+  // Handle thumbnail upload for updates
   let thumbnailUrl = null
   const thumbnailFile = formData.get("thumbnail") as File
   
   if (thumbnailFile && thumbnailFile.size > 0) {
-    // Implement file system uploads
-    console.log("File upload not yet implemented")
+    console.log("Processing thumbnail upload for project update, user:", userId)
+    const uploadResult = await saveUploadedFile(thumbnailFile, 'thumbnails', userId)
+    
+    if (uploadResult.success) {
+      thumbnailUrl = uploadResult.url
+      console.log("Thumbnail uploaded successfully:", thumbnailUrl)
+      
+      // If there was an old thumbnail, we should delete it
+      // First get the current project to find the old thumbnail
+      const currentProject = await db.query(
+        `SELECT thumbnail_url FROM vehicle_projects WHERE id = $1`,
+        [id]
+      )
+      
+      if (currentProject.rows.length > 0 && currentProject.rows[0].thumbnail_url) {
+        const oldUrl = currentProject.rows[0].thumbnail_url
+        // Extract file path from URL to delete old file
+        if (oldUrl.includes('/api/storage/')) {
+          const pathPart = oldUrl.split('/api/storage/')[1]
+          if (pathPart) {
+            await deleteStoredFile(pathPart)
+            console.log("Deleted old thumbnail:", pathPart)
+          }
+        }
+      }
+    } else {
+      console.error("Thumbnail upload failed:", uploadResult.error)
+      return { error: `Failed to upload thumbnail: ${uploadResult.error}` }
+    }
   }
   
   try {
@@ -287,14 +322,25 @@ export async function deleteVehicleProject(id: string) {
   try {
     // Begin transaction
     await db.transaction(async (client) => {
-      // Verify project belongs to the user
+      // Verify project belongs to the user and get thumbnail info
       const checkResult = await client.query(
-        `SELECT id FROM vehicle_projects WHERE id = $1 AND user_id = $2`,
+        `SELECT id, thumbnail_url FROM vehicle_projects WHERE id = $1 AND user_id = $2`,
         [id, userId]
       )
       
       if (checkResult.rows.length === 0) {
         throw new Error("Project not found or you don't have permission to delete it")
+      }
+      
+      const project = checkResult.rows[0]
+      
+      // Delete thumbnail file if it exists
+      if (project.thumbnail_url && project.thumbnail_url.includes('/api/storage/')) {
+        const pathPart = project.thumbnail_url.split('/api/storage/')[1]
+        if (pathPart) {
+          await deleteStoredFile(pathPart)
+          console.log("Deleted project thumbnail:", pathPart)
+        }
       }
       
       // Delete tasks associated with this project
