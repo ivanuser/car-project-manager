@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, Calendar, DollarSign, Edit, Plus, Tag } from "lucide-react"
+import { DeleteProjectDialog } from "@/components/projects/delete-project-dialog"
 
 interface ProjectPageProps {
   params: {
@@ -68,6 +69,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
               Edit Project
             </Link>
           </Button>
+          <DeleteProjectDialog projectId={project.id} projectTitle={project.title} />
         </div>
       </div>
 

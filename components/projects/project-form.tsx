@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { format } from "date-fns"
-import { CalendarIcon, Loader2, Search, Upload, X } from "lucide-react"
+import { Loader2, Search, Upload, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,9 +16,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { cn } from "@/lib/utils"
+import { EnhancedDatePicker } from "@/components/ui/enhanced-date-picker"
 import { useToast } from "@/hooks/use-toast"
 import { lookupVehicleByVin } from "@/actions/vin-actions"
 import { createVehicleProject, updateVehicleProject } from "@/actions/project-actions"
@@ -376,70 +374,26 @@ export function ProjectForm({ defaultValues, isEditing = false }: ProjectFormPro
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Start Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !startDate && "text-muted-foreground",
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {startDate ? (
-                      format(startDate, "PPP")
-                    ) : (
-                      <span>Pick a date</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={startDate}
-                    onSelect={(date) => {
-                      form.setValue("startDate", date)
-                      form.trigger("startDate")
-                    }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <EnhancedDatePicker
+                date={startDate}
+                onDateChange={(date) => {
+                  form.setValue("startDate", date)
+                  form.trigger("startDate")
+                }}
+                placeholder="Pick start date"
+              />
             </div>
 
             <div className="space-y-2">
               <Label>Projected End Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !endDate && "text-muted-foreground",
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {endDate ? (
-                      format(endDate, "PPP")
-                    ) : (
-                      <span>Pick a date</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={endDate}
-                    onSelect={(date) => {
-                      form.setValue("endDate", date)
-                      form.trigger("endDate")
-                    }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <EnhancedDatePicker
+                date={endDate}
+                onDateChange={(date) => {
+                  form.setValue("endDate", date)
+                  form.trigger("endDate")
+                }}
+                placeholder="Pick end date"
+              />
             </div>
           </div>
 
