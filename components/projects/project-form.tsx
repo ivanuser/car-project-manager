@@ -93,6 +93,12 @@ export function ProjectForm({ defaultValues, isEditing = false }: ProjectFormPro
     },
   })
 
+  // Watch the date fields for changes to ensure UI updates
+  const startDate = form.watch("startDate")
+  const endDate = form.watch("endDate")
+  const projectType = form.watch("projectType")
+  const status = form.watch("status")
+
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0]
@@ -350,7 +356,7 @@ export function ProjectForm({ defaultValues, isEditing = false }: ProjectFormPro
           <div className="space-y-2">
             <Label htmlFor="projectType">Project Type</Label>
             <Select
-              defaultValue={form.getValues("projectType")}
+              value={projectType || ""}
               onValueChange={(value) => form.setValue("projectType", value)}
             >
               <SelectTrigger>
@@ -373,25 +379,29 @@ export function ProjectForm({ defaultValues, isEditing = false }: ProjectFormPro
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
+                    type="button"
                     variant="outline"
                     className={cn(
                       "w-full justify-start text-left font-normal",
-                      !form.getValues("startDate") && "text-muted-foreground",
+                      !startDate && "text-muted-foreground",
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {form.getValues("startDate") ? (
-                      format(form.getValues("startDate") as Date, "PPP")
+                    {startDate ? (
+                      format(startDate, "PPP")
                     ) : (
                       <span>Pick a date</span>
                     )}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
+                <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
-                    selected={form.getValues("startDate") as Date | undefined}
-                    onSelect={(date) => form.setValue("startDate", date)}
+                    selected={startDate}
+                    onSelect={(date) => {
+                      form.setValue("startDate", date)
+                      form.trigger("startDate")
+                    }}
                     initialFocus
                   />
                 </PopoverContent>
@@ -403,25 +413,29 @@ export function ProjectForm({ defaultValues, isEditing = false }: ProjectFormPro
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
+                    type="button"
                     variant="outline"
                     className={cn(
                       "w-full justify-start text-left font-normal",
-                      !form.getValues("endDate") && "text-muted-foreground",
+                      !endDate && "text-muted-foreground",
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {form.getValues("endDate") ? (
-                      format(form.getValues("endDate") as Date, "PPP")
+                    {endDate ? (
+                      format(endDate, "PPP")
                     ) : (
                       <span>Pick a date</span>
                     )}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
+                <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
-                    selected={form.getValues("endDate") as Date | undefined}
-                    onSelect={(date) => form.setValue("endDate", date)}
+                    selected={endDate}
+                    onSelect={(date) => {
+                      form.setValue("endDate", date)
+                      form.trigger("endDate")
+                    }}
                     initialFocus
                   />
                 </PopoverContent>
@@ -445,14 +459,17 @@ export function ProjectForm({ defaultValues, isEditing = false }: ProjectFormPro
           {isEditing && (
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
-              <Select defaultValue={form.getValues("status")} onValueChange={(value) => form.setValue("status", value)}>
+              <Select 
+                value={status || "planning"} 
+                onValueChange={(value) => form.setValue("status", value)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
-                  {STATUS_OPTIONS.map((status) => (
-                    <SelectItem key={status.value} value={status.value}>
-                      {status.label}
+                  {STATUS_OPTIONS.map((statusOption) => (
+                    <SelectItem key={statusOption.value} value={statusOption.value}>
+                      {statusOption.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
