@@ -1,4 +1,4 @@
-import type { Task } from "@/actions/task-actions"
+import type { Task } from "@/actions/project-actions"
 
 export interface ProjectCompletionRate {
   projectId: string

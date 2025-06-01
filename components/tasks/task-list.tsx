@@ -26,7 +26,24 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { type Task, type TaskStatus, deleteTask, updateTaskStatus } from "@/actions/task-actions"
+import { deleteTask, updateTaskStatus } from "@/actions/project-actions"
+
+// Define task and status types
+export type TaskStatus = "todo" | "in_progress" | "completed" | "blocked"
+
+export interface Task {
+  id: string
+  title: string
+  description?: string
+  status: TaskStatus
+  priority: "low" | "medium" | "high"
+  project_id?: string
+  build_stage?: string
+  due_date?: string
+  estimated_hours?: number
+  created_at: string
+  updated_at: string
+}
 
 type TaskListProps = {
   tasks: Task[]
@@ -45,7 +62,7 @@ export function TaskList({ tasks, projectId, showProject = false }: TaskListProp
   const handleStatusChange = async (taskId: string, status: TaskStatus) => {
     setUpdatingTaskId(taskId)
     try {
-      const result = await updateTaskStatus(taskId, status)
+      const result = await updateTaskStatus(taskId, status, projectId || "")
       if (result.success) {
         toast({
           title: "Status updated",
@@ -80,7 +97,7 @@ export function TaskList({ tasks, projectId, showProject = false }: TaskListProp
 
     setIsDeleting(true)
     try {
-      const result = await deleteTask(taskToDelete.id)
+      const result = await deleteTask(taskToDelete.id, projectId || "")
       if (result.success) {
         toast({
           title: "Task deleted",

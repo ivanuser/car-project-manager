@@ -1,7 +1,7 @@
 "use server"
 
 import { createServerClient } from "@/lib/supabase"
-import type { Task } from "@/actions/task-actions"
+import type { Task } from "@/actions/project-actions"
 
 export interface TaskWithProject extends Task {
   project_title?: string

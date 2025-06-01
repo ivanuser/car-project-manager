@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { createTask, updateTask } from "@/actions/task-actions"
+import { createTask, updateTask } from "@/actions/project-actions"
 
 // Define the form schema with Zod
 const taskFormSchema = z.object({
@@ -97,9 +97,31 @@ export function TaskForm({ task, projects, projectId }: TaskFormProps) {
   async function onSubmit(data: TaskFormValues) {
     setIsSubmitting(true)
     try {
+      // Convert form data to FormData object for server actions
+      const formData = new FormData()
+      formData.append("title", data.title)
+      formData.append("description", data.description || "")
+      formData.append("status", data.status)
+      formData.append("priority", data.priority)
+      if (data.projectId) {
+        formData.append("projectId", data.projectId)
+      }
+      if (data.buildStage) {
+        formData.append("buildStage", data.buildStage)
+      }
+      if (data.dueDate) {
+        formData.append("dueDate", data.dueDate.toISOString())
+      }
+      if (data.estimatedHours) {
+        formData.append("estimatedHours", data.estimatedHours.toString())
+      }
+
       if (task) {
         // Update existing task
-        await updateTask(task.id, data)
+        const result = await updateTask(task.id, formData)
+        if (result.error) {
+          throw new Error(result.error)
+        }
         toast({
           title: "Task updated",
           description: "Your task has been updated successfully.",
@@ -108,7 +130,10 @@ export function TaskForm({ task, projects, projectId }: TaskFormProps) {
         router.refresh()
       } else {
         // Create new task
-        const result = await createTask(data)
+        const result = await createTask(formData)
+        if (result.error) {
+          throw new Error(result.error)
+        }
         toast({
           title: "Task created",
           description: "Your task has been created successfully.",
@@ -124,7 +149,7 @@ export function TaskForm({ task, projects, projectId }: TaskFormProps) {
       console.error("Error submitting task:", error)
       toast({
         title: "Error",
-        description: "There was an error submitting your task. Please try again.",
+        description: error instanceof Error ? error.message : "There was an error submitting your task. Please try again.",
         variant: "destructive",
       })
     } finally {
