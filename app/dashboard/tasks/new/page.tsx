@@ -6,11 +6,8 @@ import { ChevronLeft } from "lucide-react"
 import { TaskForm } from "@/components/tasks/task-form"
 
 export default async function NewTaskPage() {
-  // Check if we're in preview mode
-  const isMissingConfig = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  // Get projects only if we have Supabase configured
-  const projects = isMissingConfig ? [] : await getVehicleProjects()
+  // Get all available projects for the dropdown
+  const projects = await getVehicleProjects()
 
   return (
     <div className="space-y-6">
