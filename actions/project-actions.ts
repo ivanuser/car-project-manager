@@ -27,8 +27,12 @@ async function getCurrentUserId() {
       return null
     }
     
+    console.log("JWT payload:", payload)
+    
     // Extract user ID from the token
-    return payload.sub
+    const userId = payload.sub
+    console.log("Extracted user ID:", userId)
+    return userId
   } catch (error) {
     console.error("Error getting current user ID:", error)
     return null
@@ -58,6 +62,11 @@ export async function getVehicleProjects() {
        ORDER BY created_at DESC`,
       [userId]
     )
+    
+    console.log("Database query result:", {
+      rowCount: result.rows.length,
+      projects: result.rows
+    })
     
     return result.rows || []
   } catch (error) {
