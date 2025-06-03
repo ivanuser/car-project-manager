@@ -73,14 +73,6 @@ export function TaskForm({ task, projects, projectId }: TaskFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Debug logging
-  console.log("TaskForm: Initialized with:", {
-    hasTask: !!task,
-    projectsCount: projects.length,
-    projectId,
-    projects: projects.map(p => ({ id: p.id, title: p.title }))
-  })
-
   // Initialize the form with react-hook-form
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
@@ -103,7 +95,6 @@ export function TaskForm({ task, projects, projectId }: TaskFormProps) {
 
   // Handle form submission
   async function onSubmit(data: TaskFormValues) {
-    console.log("TaskForm: Starting task submission with data:", data)
     setIsSubmitting(true)
     try {
       // Convert form data to FormData object for server actions
@@ -114,9 +105,6 @@ export function TaskForm({ task, projects, projectId }: TaskFormProps) {
       formData.append("priority", data.priority)
       if (data.projectId) {
         formData.append("projectId", data.projectId)
-        console.log("TaskForm: Using project ID:", data.projectId)
-      } else {
-        console.error("TaskForm: No project ID provided!")
       }
       if (data.buildStage) {
         formData.append("buildStage", data.buildStage)
@@ -130,9 +118,7 @@ export function TaskForm({ task, projects, projectId }: TaskFormProps) {
 
       if (task) {
         // Update existing task
-        console.log("TaskForm: Updating existing task:", task.id)
         const result = await updateTask(task.id, formData)
-        console.log("TaskForm: Update result:", result)
         if (result.error) {
           throw new Error(result.error)
         }
@@ -144,9 +130,7 @@ export function TaskForm({ task, projects, projectId }: TaskFormProps) {
         router.refresh()
       } else {
         // Create new task
-        console.log("TaskForm: Creating new task")
         const result = await createTask(formData)
-        console.log("TaskForm: Create result:", result)
         if (result.error) {
           throw new Error(result.error)
         }

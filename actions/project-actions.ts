@@ -15,7 +15,6 @@ async function getCurrentUserId() {
   const authToken = cookieStore.get('cajpro_auth_token')?.value
   
   if (!authToken) {
-    console.log("No auth token found in cookies")
     return null
   }
   
@@ -23,15 +22,11 @@ async function getCurrentUserId() {
   try {
     const payload = jwtUtils.verifyToken(authToken)
     if (!payload) {
-      console.log("Invalid auth token")
       return null
     }
     
-    console.log("JWT payload:", payload)
-    
     // Extract user ID from the token
     const userId = payload.sub
-    console.log("Extracted user ID:", userId)
     return userId
   } catch (error) {
     console.error("Error getting current user ID:", error)
@@ -48,7 +43,6 @@ export async function getVehicleProjects() {
   const userId = await getCurrentUserId()
   
   if (!userId) {
-    console.log("No authenticated user found, returning empty projects array")
     return []
   }
   

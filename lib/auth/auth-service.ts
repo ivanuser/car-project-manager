@@ -249,21 +249,12 @@ export const loginUser = async (data: LoginData): Promise<AuthResult> => {
     
     const user = userResult.rows[0];
     
-    // Special case for admin user with specific hash
+    // For admin user, use salt-based validation (the expected hash check was for legacy reasons)
     if (data.email === 'admin@cajpro.local' && data.password === 'admin123') {
-      // Admin user validation
-      console.log('Admin login attempt with default credentials');
+      // Admin user validation - use salt-based method like regular users
+      const passwordHash = passwordUtils.hashPasswordWithSalt(data.password, user.salt);
       
-      // For the admin user, we validate the password directly since it's a fixed value
-      // Use the actual hash value from the database
-      const expectedHash = '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8';
-      
-      // Check if the hash in the database matches the expected hash
-      if (user.password_hash !== expectedHash) {
-        console.log('Admin password hash mismatch', { 
-          expected: expectedHash, 
-          actual: user.password_hash 
-        });
+      if (passwordHash !== user.password_hash) {
         throw new Error('Invalid email or password');
       }
     } else {
