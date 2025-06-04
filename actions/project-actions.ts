@@ -43,6 +43,7 @@ export async function getVehicleProjects() {
   const userId = await getCurrentUserId()
   
   if (!userId) {
+    console.log("No authenticated user found, returning empty projects array")
     return []
   }
   
