@@ -169,7 +169,7 @@ export function PartsList({ parts, projectId, showProject = false }: PartsListPr
                     )}
                     {part.price && (
                       <p className="text-sm">
-                        <span className="font-medium">Price:</span> {formatCurrency(part.price)}
+                        <span className="font-medium">Price:</span> {formatCurrency(parseFloat(part.price))}
                         {part.quantity > 1 && ` × ${part.quantity}`}
                       </p>
                     )}
@@ -235,7 +235,7 @@ export function PartsList({ parts, projectId, showProject = false }: PartsListPr
                     </div>
                   </TableCell>
                   <TableCell>{part.quantity}</TableCell>
-                  <TableCell>{part.price ? formatCurrency(part.price) : "—"}</TableCell>
+                  <TableCell>{part.price ? formatCurrency(parseFloat(part.price)) : "—"}</TableCell>
                   {showProject && (
                     <TableCell>
                       {part.vehicle_projects ? (

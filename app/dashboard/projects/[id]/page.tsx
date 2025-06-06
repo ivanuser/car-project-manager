@@ -98,7 +98,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
                 {part.price && (
                   <span className="inline-flex items-center">
                     <DollarSign className="h-3 w-3 mr-1" />
-                    ${part.price.toFixed(2)}
+                    ${parseFloat(part.price).toFixed(2)}
                     {part.quantity > 1 && ` × ${part.quantity}`}
                   </span>
                 )}
