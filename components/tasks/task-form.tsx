@@ -27,7 +27,7 @@ const taskFormSchema = z.object({
   description: z.string().optional(),
   status: z.enum(["todo", "in_progress", "completed", "blocked"]),
   priority: z.enum(["low", "medium", "high"]),
-  projectId: z.string().optional(),
+  projectId: z.string().min(1, "Please select a project"),
   buildStage: z.string().optional(),
   dueDate: z.date().optional(),
   estimatedHours: z.coerce.number().min(0).optional(),
@@ -42,8 +42,8 @@ const defaultValues: Partial<TaskFormValues> = {
   description: "",
   status: "todo",
   priority: "medium",
-  projectId: undefined,
-  buildStage: undefined,
+  projectId: "",
+  buildStage: "planning",
   dueDate: undefined,
   estimatedHours: undefined,
 }
@@ -89,7 +89,7 @@ export function TaskForm({ task, projects, projectId }: TaskFormProps) {
         }
       : {
           ...defaultValues,
-          projectId: projectId,
+          projectId: projectId || "",
         },
   })
 
@@ -335,11 +335,22 @@ export function TaskForm({ task, projects, projectId }: TaskFormProps) {
           <FormField
             control={form.control}
             name="estimatedHours"
-            render={({ field }) => (
+            render={({ field: { value, onChange, ...field } }) => (
               <FormItem>
                 <FormLabel>Estimated Hours</FormLabel>
                 <FormControl>
-                  <Input type="number" min="0" step="0.5" placeholder="Enter estimated hours" {...field} />
+                  <Input 
+                    type="number" 
+                    min="0" 
+                    step="0.5" 
+                    placeholder="Enter estimated hours" 
+                    value={value || ""}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      onChange(val === "" ? undefined : parseFloat(val))
+                    }}
+                    {...field}
+                  />
                 </FormControl>
                 <FormDescription>How many hours do you expect this to take?</FormDescription>
                 <FormMessage />

@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { format } from "date-fns"
-import { getVehicleProject } from "@/actions/project-actions"
+import { getVehicleProject, getProjectTasks } from "@/actions/project-actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Calendar, DollarSign, Edit, Plus, Tag } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { ArrowLeft, Calendar, DollarSign, Edit, Plus, Tag, Clock, CheckCircle, ListTodo, AlertTriangle } from "lucide-react"
 import { DeleteProjectDialog } from "@/components/projects/delete-project-dialog"
 
 interface ProjectPageProps {
@@ -18,7 +19,10 @@ interface ProjectPageProps {
 }
 
 export default async function ProjectPage({ params, searchParams }: ProjectPageProps) {
-  const project = await getVehicleProject(params.id)
+  const [project, tasks] = await Promise.all([
+    getVehicleProject(params.id),
+    getProjectTasks(params.id)
+  ])
 
   if (!project) {
     notFound()
@@ -44,6 +48,77 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
 
   // Determine active tab
   const activeTab = searchParams.tab || "overview"
+
+  // Task statistics
+  const todoTasks = tasks.filter(task => task.status === "todo")
+  const inProgressTasks = tasks.filter(task => task.status === "in_progress")
+  const completedTasks = tasks.filter(task => task.status === "completed")
+  const blockedTasks = tasks.filter(task => task.status === "blocked")
+
+  // Task rendering function
+  const renderTaskCard = (task: any) => {
+    const priorityColors = {
+      low: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+      medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
+      high: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+    }
+
+    const statusColors = {
+      todo: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+      in_progress: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
+      completed: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+      blocked: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+    }
+
+    const priorityColor = priorityColors[task.priority as keyof typeof priorityColors] || priorityColors.medium
+    const statusColor = statusColors[task.status as keyof typeof statusColors] || statusColors.todo
+
+    return (
+      <Card key={task.id} className="mb-3">
+        <CardContent className="pt-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <h4 className="font-medium">{task.title}</h4>
+                <Badge variant="outline" className={`text-xs ${priorityColor}`}>
+                  {task.priority}
+                </Badge>
+                <Badge variant="outline" className={`text-xs ${statusColor}`}>
+                  {task.status === "todo" ? "To Do" : task.status === "in_progress" ? "In Progress" : task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+                </Badge>
+              </div>
+              {task.description && (
+                <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{task.description}</p>
+              )}
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                {task.build_stage && (
+                  <span className="inline-flex items-center">
+                    <Tag className="h-3 w-3 mr-1" />
+                    {task.build_stage.charAt(0).toUpperCase() + task.build_stage.slice(1)}
+                  </span>
+                )}
+                {task.estimated_hours && (
+                  <span className="inline-flex items-center">
+                    <Clock className="h-3 w-3 mr-1" />
+                    {task.estimated_hours}h
+                  </span>
+                )}
+                {task.due_date && (
+                  <span className="inline-flex items-center">
+                    <Calendar className="h-3 w-3 mr-1" />
+                    Due {format(new Date(task.due_date), "MMM d")}
+                  </span>
+                )}
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={`/dashboard/tasks/${task.id}`}>View</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -133,7 +208,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
               <div>
                 <p className="text-sm font-medium">Budget</p>
                 <p className="text-sm text-muted-foreground">
-                  {project.budget ? `${parseFloat(project.budget).toLocaleString()}` : "Not specified"}
+                  {project.budget ? `$${parseFloat(project.budget).toLocaleString()}` : "Not specified"}
                 </p>
               </div>
 
@@ -169,7 +244,14 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
       <Tabs defaultValue={activeTab}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="tasks">Tasks</TabsTrigger>
+          <TabsTrigger value="tasks" className="relative">
+            Tasks
+            {tasks.length > 0 && (
+              <Badge variant="secondary" className="ml-2 text-xs">
+                {tasks.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="parts">Parts</TabsTrigger>
           <TabsTrigger value="gallery">Gallery</TabsTrigger>
         </TabsList>
@@ -202,6 +284,10 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
                       <span className="text-sm font-medium">${parseFloat(project.budget).toLocaleString()}</span>
                     </div>
                   )}
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Tasks:</span>
+                    <span className="text-sm font-medium">{tasks.length} total</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -212,9 +298,11 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <Button variant="outline" className="w-full justify-start" disabled>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Task
+                  <Button asChild variant="outline" className="w-full justify-start">
+                    <Link href={`/dashboard/projects/${project.id}/tasks/new`}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Task
+                    </Link>
                   </Button>
                   <Button variant="outline" className="w-full justify-start" disabled>
                     <Plus className="mr-2 h-4 w-4" />
@@ -225,7 +313,46 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
                     Upload Photo
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground mt-3">Additional features coming soon</p>
+                <p className="text-xs text-muted-foreground mt-3">Parts and photo features coming soon</p>
+              </CardContent>
+            </Card>
+
+            {/* Task Statistics */}
+            <Card className="md:col-span-2">
+              <CardHeader>
+                <CardTitle>Task Progress</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg mx-auto mb-2">
+                      <ListTodo className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <p className="text-2xl font-bold">{todoTasks.length}</p>
+                    <p className="text-sm text-muted-foreground">To Do</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="flex items-center justify-center w-12 h-12 bg-yellow-100 rounded-lg mx-auto mb-2">
+                      <Clock className="h-6 w-6 text-yellow-600" />
+                    </div>
+                    <p className="text-2xl font-bold">{inProgressTasks.length}</p>
+                    <p className="text-sm text-muted-foreground">In Progress</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg mx-auto mb-2">
+                      <CheckCircle className="h-6 w-6 text-green-600" />
+                    </div>
+                    <p className="text-2xl font-bold">{completedTasks.length}</p>
+                    <p className="text-sm text-muted-foreground">Completed</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-lg mx-auto mb-2">
+                      <AlertTriangle className="h-6 w-6 text-red-600" />
+                    </div>
+                    <p className="text-2xl font-bold">{blockedTasks.length}</p>
+                    <p className="text-sm text-muted-foreground">Blocked</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -233,18 +360,101 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
         
         <TabsContent value="tasks" className="mt-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium">Tasks</h3>
-            <Button size="sm" disabled>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Task
+            <h3 className="text-lg font-medium">Tasks ({tasks.length})</h3>
+            <Button size="sm" asChild>
+              <Link href={`/dashboard/projects/${project.id}/tasks/new`}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Task
+              </Link>
             </Button>
           </div>
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground mb-4">Task management coming soon</p>
-              <p className="text-sm text-muted-foreground">Track your project progress with tasks, milestones, and deadlines.</p>
-            </CardContent>
-          </Card>
+          
+          {tasks.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <ListTodo className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground mb-4">No tasks created yet</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Start organizing your project by creating tasks for different stages of your build.
+                </p>
+                <Button asChild>
+                  <Link href={`/dashboard/projects/${project.id}/tasks/new`}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create First Task
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {/* Task Status Tabs */}
+              <Tabs defaultValue="all" className="w-full">
+                <TabsList className="grid w-full grid-cols-5">
+                  <TabsTrigger value="all">
+                    All ({tasks.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="todo">
+                    To Do ({todoTasks.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="in_progress">
+                    In Progress ({inProgressTasks.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="completed">
+                    Completed ({completedTasks.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="blocked">
+                    Blocked ({blockedTasks.length})
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="all" className="mt-4">
+                  <div className="space-y-2">
+                    {tasks.map(renderTaskCard)}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="todo" className="mt-4">
+                  <div className="space-y-2">
+                    {todoTasks.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">No tasks to do</p>
+                    ) : (
+                      todoTasks.map(renderTaskCard)
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="in_progress" className="mt-4">
+                  <div className="space-y-2">
+                    {inProgressTasks.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">No tasks in progress</p>
+                    ) : (
+                      inProgressTasks.map(renderTaskCard)
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="completed" className="mt-4">
+                  <div className="space-y-2">
+                    {completedTasks.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">No completed tasks</p>
+                    ) : (
+                      completedTasks.map(renderTaskCard)
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="blocked" className="mt-4">
+                  <div className="space-y-2">
+                    {blockedTasks.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">No blocked tasks</p>
+                    ) : (
+                      blockedTasks.map(renderTaskCard)
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </div>
+          )}
         </TabsContent>
         
         <TabsContent value="parts" className="mt-4">
