@@ -6,12 +6,45 @@ CREATE TABLE IF NOT EXISTS vendors (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  name TEXT NOT NULL,
-  website TEXT,
-  contact_email TEXT,
-  contact_phone TEXT,
-  notes TEXT
+  name TEXT NOT NULL
 );
+
+-- Add missing columns to vendors table
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'vendors' 
+                   AND column_name = 'website') THEN
+        ALTER TABLE vendors ADD COLUMN website TEXT;
+    END IF;
+END $$;
+
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'vendors' 
+                   AND column_name = 'contact_email') THEN
+        ALTER TABLE vendors ADD COLUMN contact_email TEXT;
+    END IF;
+END $$;
+
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'vendors' 
+                   AND column_name = 'contact_phone') THEN
+        ALTER TABLE vendors ADD COLUMN contact_phone TEXT;
+    END IF;
+END $$;
+
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'vendors' 
+                   AND column_name = 'notes') THEN
+        ALTER TABLE vendors ADD COLUMN notes TEXT;
+    END IF;
+END $$;
 
 -- Enable RLS on vendors table
 ALTER TABLE vendors ENABLE ROW LEVEL SECURITY;

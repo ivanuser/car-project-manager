@@ -31,6 +31,21 @@ export async function POST() {
     `)
     const vendorsTableExists = vendorsTableResult.rows.length > 0
     
+    // Check vendor columns if table exists
+    let vendorColumns = {}
+    if (vendorsTableExists) {
+      const vendorColumnsResult = await db.query(`
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name = 'vendors'
+      `)
+      vendorColumns = {
+        website: vendorColumnsResult.rows.some(col => col.column_name === 'website'),
+        contact_email: vendorColumnsResult.rows.some(col => col.column_name === 'contact_email'),
+        contact_phone: vendorColumnsResult.rows.some(col => col.column_name === 'contact_phone'),
+        notes: vendorColumnsResult.rows.some(col => col.column_name === 'notes')
+      }
+    }
+    
     const columns = checkResult.rows
     const hasRequiredColumns = {
       part_number: columns.some(col => col.column_name === 'part_number'),
@@ -41,10 +56,20 @@ export async function POST() {
       notes: columns.some(col => col.column_name === 'notes')
     }
     
-    console.log('Schema verification:', { vendorsTableExists, hasRequiredColumns })
+    console.log('Schema verification:', { vendorsTableExists, vendorColumns, hasRequiredColumns })
     
     const missingColumns = []
-    if (!vendorsTableExists) missingColumns.push('vendors table')
+    if (!vendorsTableExists) {
+      missingColumns.push('vendors table')
+    } else {
+      // Check vendor columns
+      if (!vendorColumns.website) missingColumns.push('vendors.website')
+      if (!vendorColumns.contact_email) missingColumns.push('vendors.contact_email')
+      if (!vendorColumns.contact_phone) missingColumns.push('vendors.contact_phone')
+      if (!vendorColumns.notes) missingColumns.push('vendors.notes')
+    }
+    
+    // Check parts columns
     if (!hasRequiredColumns.part_number) missingColumns.push('part_number')
     if (!hasRequiredColumns.image_url) missingColumns.push('image_url')
     if (!hasRequiredColumns.condition) missingColumns.push('condition')
@@ -96,6 +121,21 @@ export async function GET() {
     `)
     const vendorsTableExists = vendorsTableResult.rows.length > 0
     
+    // Check vendor columns if table exists
+    let vendorColumns = {}
+    if (vendorsTableExists) {
+      const vendorColumnsResult = await db.query(`
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name = 'vendors'
+      `)
+      vendorColumns = {
+        website: vendorColumnsResult.rows.some(col => col.column_name === 'website'),
+        contact_email: vendorColumnsResult.rows.some(col => col.column_name === 'contact_email'),
+        contact_phone: vendorColumnsResult.rows.some(col => col.column_name === 'contact_phone'),
+        notes: vendorColumnsResult.rows.some(col => col.column_name === 'notes')
+      }
+    }
+    
     const columns = checkResult.rows
     const hasRequiredColumns = {
       id: columns.some(col => col.column_name === 'id'),
@@ -117,12 +157,27 @@ export async function GET() {
       updated_at: columns.some(col => col.column_name === 'updated_at')
     }
     
-    const needsFix = !vendorsTableExists || !hasRequiredColumns.part_number || !hasRequiredColumns.image_url || !hasRequiredColumns.condition || !hasRequiredColumns.location || !hasRequiredColumns.vendor_id || !hasRequiredColumns.notes
+    // Check if fix is needed
+    let needsFix = false
+    if (!vendorsTableExists) {
+      needsFix = true
+    } else {
+      // Check vendor columns
+      if (!vendorColumns.website || !vendorColumns.contact_email || !vendorColumns.contact_phone || !vendorColumns.notes) {
+        needsFix = true
+      }
+    }
+    
+    // Check parts columns
+    if (!hasRequiredColumns.part_number || !hasRequiredColumns.image_url || !hasRequiredColumns.condition || !hasRequiredColumns.location || !hasRequiredColumns.vendor_id || !hasRequiredColumns.notes) {
+      needsFix = true
+    }
     
     return NextResponse.json({
       success: true,
       needsFix,
       vendorsTableExists,
+      vendorColumns,
       currentSchema: hasRequiredColumns,
       allColumns: columns
     })
