@@ -62,10 +62,39 @@ export async function POST(request: NextRequest) {
         await client.query(`ALTER TABLE vendors RENAME COLUMN contact_phone TO phone`)
       }
 
-      // Remove user_id column if it exists (vendors are shared)
+      // Handle user_id column dependencies and removal
       if (existingColumns.includes('user_id')) {
-        console.log("Removing user_id column from vendors (vendors are shared)")
+        console.log("Handling user_id column dependencies and removal...")
+        
+        // First, find and drop any foreign key constraints that reference user_id
+        const constraintsResult = await client.query(`
+          SELECT conname, conrelid::regclass as table_name
+          FROM pg_constraint 
+          WHERE confrelid = 'vendors'::regclass 
+          AND contype = 'f'
+          AND EXISTS (
+            SELECT 1 FROM information_schema.key_column_usage 
+            WHERE constraint_name = conname 
+            AND column_name = 'user_id'
+          )
+        `)
+        
+        for (const constraint of constraintsResult.rows) {
+          console.log(`Dropping foreign key constraint: ${constraint.conname} on table ${constraint.table_name}`)
+          await client.query(`ALTER TABLE ${constraint.table_name} DROP CONSTRAINT IF EXISTS ${constraint.conname}`)
+        }
+        
+        // Drop any policies that might reference user_id
+        await client.query(`
+          DROP POLICY IF EXISTS "Users can view their own vendors" ON vendors;
+          DROP POLICY IF EXISTS "Users can create their own vendors" ON vendors;
+          DROP POLICY IF EXISTS "Users can update their own vendors" ON vendors;
+          DROP POLICY IF EXISTS "Users can delete their own vendors" ON vendors;
+        `)
+        
+        // Now we can safely drop the user_id column
         await client.query(`ALTER TABLE vendors DROP COLUMN IF EXISTS user_id`)
+        console.log("Successfully removed user_id column from vendors")
       }
 
       // Add indexes for better performance
@@ -86,12 +115,25 @@ export async function POST(request: NextRequest) {
       }
 
       // Update the vendor policies to ensure they work correctly
-      await client.query(`
-        DROP POLICY IF EXISTS "Users can view all vendors" ON vendors;
-        DROP POLICY IF EXISTS "Authenticated users can create vendors" ON vendors;
-        DROP POLICY IF EXISTS "Authenticated users can update vendors" ON vendors; 
-        DROP POLICY IF EXISTS "Authenticated users can delete vendors" ON vendors;
-      `)
+      // Drop all existing vendor policies first
+      const policyDropQueries = [
+        'DROP POLICY IF EXISTS "Users can view all vendors" ON vendors',
+        'DROP POLICY IF EXISTS "Authenticated users can create vendors" ON vendors',
+        'DROP POLICY IF EXISTS "Authenticated users can update vendors" ON vendors',
+        'DROP POLICY IF EXISTS "Authenticated users can delete vendors" ON vendors',
+        'DROP POLICY IF EXISTS "Users can view their own vendors" ON vendors',
+        'DROP POLICY IF EXISTS "Users can create their own vendors" ON vendors',
+        'DROP POLICY IF EXISTS "Users can update their own vendors" ON vendors',
+        'DROP POLICY IF EXISTS "Users can delete their own vendors" ON vendors'
+      ]
+      
+      for (const query of policyDropQueries) {
+        try {
+          await client.query(query)
+        } catch (error) {
+          console.log(`Policy drop skipped: ${error}`)
+        }
+      }
 
       // Recreate policies without user_id references
       await client.query(`
@@ -118,6 +160,14 @@ export async function POST(request: NextRequest) {
           USING (true);
       `)
 
+      // Verify the final schema
+      const finalColumnCheck = await client.query(
+        `SELECT column_name FROM information_schema.columns 
+         WHERE table_schema = 'public' AND table_name = 'vendors'
+         ORDER BY ordinal_position`
+      )
+      
+      console.log("Final vendor table columns:", finalColumnCheck.rows.map(r => r.column_name))
       console.log("Vendors schema fix completed successfully")
     })
 
