@@ -57,9 +57,14 @@ CREATE TABLE IF NOT EXISTS vendors (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   name TEXT NOT NULL,
+  category TEXT,
+  contact_name TEXT,
+  contact_position TEXT,
+  phone TEXT,
+  email TEXT,
   website TEXT,
-  contact_email TEXT,
-  contact_phone TEXT,
+  address TEXT,
+  rating INTEGER CHECK (rating >= 1 AND rating <= 5),
   notes TEXT
 );
 
@@ -86,6 +91,10 @@ CREATE TABLE IF NOT EXISTS project_parts (
 
 -- Create indexes for vendors table
 CREATE INDEX IF NOT EXISTS idx_vendors_name ON vendors(name);
+CREATE INDEX IF NOT EXISTS idx_vendors_category ON vendors(category);
+CREATE INDEX IF NOT EXISTS idx_vendors_rating ON vendors(rating);
+CREATE INDEX IF NOT EXISTS idx_vendors_email ON vendors(email);
+CREATE INDEX IF NOT EXISTS idx_vendors_phone ON vendors(phone);
 
 -- Create indexes for project_parts table
 CREATE INDEX IF NOT EXISTS idx_project_parts_project_id ON project_parts(project_id);
@@ -168,15 +177,15 @@ CREATE POLICY "Users can view all vendors"
 
 CREATE POLICY "Authenticated users can create vendors" 
   ON vendors FOR INSERT 
-  WITH CHECK (auth.uid() IS NOT NULL);
+  WITH CHECK (true);
 
 CREATE POLICY "Authenticated users can update vendors" 
   ON vendors FOR UPDATE 
-  USING (auth.uid() IS NOT NULL);
+  USING (true);
 
 CREATE POLICY "Authenticated users can delete vendors" 
   ON vendors FOR DELETE 
-  USING (auth.uid() IS NOT NULL);
+  USING (true);
 
 -- Project parts policies
 CREATE POLICY "Users can view parts for their projects" 

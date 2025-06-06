@@ -104,24 +104,34 @@ export async function createVendor(formData: FormData) {
   }
   
   const name = formData.get("name") as string
+  const category = formData.get("category") as string
+  const contactName = formData.get("contact_name") as string
+  const contactPosition = formData.get("contact_position") as string
+  const phone = formData.get("phone") as string
+  const email = formData.get("email") as string
   const website = formData.get("website") as string
-  const contactEmail = formData.get("contactEmail") as string
-  const contactPhone = formData.get("contactPhone") as string
+  const address = formData.get("address") as string
+  const rating = formData.get("rating") as string
   const notes = formData.get("notes") as string
   
   try {
     // Create the vendor
     const vendorResult = await db.query(
       `INSERT INTO vendors (
-         name, website, contact_email, contact_phone, notes
+         name, category, contact_name, contact_position, phone, email, website, address, rating, notes
        )
-       VALUES ($1, $2, $3, $4, $5)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         name,
+        category || null,
+        contactName || null,
+        contactPosition || null,
+        phone || null,
+        email || null,
         website || null,
-        contactEmail || null,
-        contactPhone || null,
+        address || null,
+        rating && rating !== "-1" ? parseInt(rating) : null,
         notes || null
       ]
     )
@@ -150,9 +160,14 @@ export async function updateVendor(id: string, formData: FormData) {
   }
   
   const name = formData.get("name") as string
+  const category = formData.get("category") as string
+  const contactName = formData.get("contact_name") as string
+  const contactPosition = formData.get("contact_position") as string
+  const phone = formData.get("phone") as string
+  const email = formData.get("email") as string
   const website = formData.get("website") as string
-  const contactEmail = formData.get("contactEmail") as string
-  const contactPhone = formData.get("contactPhone") as string
+  const address = formData.get("address") as string
+  const rating = formData.get("rating") as string
   const notes = formData.get("notes") as string
   
   try {
@@ -160,18 +175,28 @@ export async function updateVendor(id: string, formData: FormData) {
     const vendorResult = await db.query(
       `UPDATE vendors SET
         name = $1,
-        website = $2,
-        contact_email = $3,
-        contact_phone = $4,
-        notes = $5,
-        updated_at = $6
-       WHERE id = $7
+        category = $2,
+        contact_name = $3,
+        contact_position = $4,
+        phone = $5,
+        email = $6,
+        website = $7,
+        address = $8,
+        rating = $9,
+        notes = $10,
+        updated_at = $11
+       WHERE id = $12
        RETURNING *`,
       [
         name,
+        category || null,
+        contactName || null,
+        contactPosition || null,
+        phone || null,
+        email || null,
         website || null,
-        contactEmail || null,
-        contactPhone || null,
+        address || null,
+        rating && rating !== "-1" ? parseInt(rating) : null,
         notes || null,
         new Date().toISOString(),
         id

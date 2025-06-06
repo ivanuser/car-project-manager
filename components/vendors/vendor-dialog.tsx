@@ -52,8 +52,7 @@ export function VendorDialog({ open, onOpenChange, vendor }: VendorDialogProps) 
 
       // If we have a vendor, we're updating
       if (vendor?.id) {
-        formData.append("id", vendor.id)
-        const result = await updateVendor(formData)
+        const result = await updateVendor(vendor.id, formData)
         if (result.success) {
           toast({
             title: "Vendor updated",

@@ -194,27 +194,45 @@ export interface DatabaseSchema {
           created_at: string
           updated_at: string
           name: string
+          category: string | null
+          contact_name: string | null
+          contact_position: string | null
+          phone: string | null
+          email: string | null
           website: string | null
+          address: string | null
+          rating: number | null
           notes: string | null
-          user_id: string
         }
         Insert: {
           id?: string
           created_at?: string
           updated_at?: string
           name: string
+          category?: string | null
+          contact_name?: string | null
+          contact_position?: string | null
+          phone?: string | null
+          email?: string | null
           website?: string | null
+          address?: string | null
+          rating?: number | null
           notes?: string | null
-          user_id: string
         }
         Update: {
           id?: string
           created_at?: string
           updated_at?: string
           name?: string
+          category?: string | null
+          contact_name?: string | null
+          contact_position?: string | null
+          phone?: string | null
+          email?: string | null
           website?: string | null
+          address?: string | null
+          rating?: number | null
           notes?: string | null
-          user_id?: string
         }
       }
       project_parts: {
