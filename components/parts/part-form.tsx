@@ -52,7 +52,7 @@ const defaultValues: Partial<PartFormValues> = {
   status: "needed",
   condition: "",
   location: "",
-  vendorId: "",
+  vendorId: "none",
   notes: "",
   projectId: "",
   purchaseDate: undefined,
@@ -108,16 +108,16 @@ export function PartForm({ part, projects, projectId }: PartFormProps) {
           status: part.status || "needed",
           condition: part.condition || "",
           location: part.location || "",
-          vendorId: part.vendor_id || "",
+          vendorId: part.vendor_id ? part.vendor_id : "none",
           notes: part.notes || "",
           projectId: part.project_id || projectId || "",
           purchaseDate: part.purchase_date ? new Date(part.purchase_date) : undefined,
           purchaseUrl: part.purchase_url || "",
         }
       : {
-          ...defaultValues,
-          projectId: projectId || "",
-        },
+      ...defaultValues,
+      projectId: projectId || "",
+      },
   })
 
   // Handle image selection
@@ -154,7 +154,7 @@ export function PartForm({ part, projects, projectId }: PartFormProps) {
       formData.append("status", data.status)
       formData.append("condition", data.condition || "")
       formData.append("location", data.location || "")
-      formData.append("vendorId", data.vendorId || "")
+      formData.append("vendorId", data.vendorId === "none" ? "" : data.vendorId || "")
       formData.append("notes", data.notes || "")
       
       if (data.projectId) {
@@ -438,7 +438,7 @@ export function PartForm({ part, projects, projectId }: PartFormProps) {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="">No vendor</SelectItem>
+                    <SelectItem value="none">No vendor</SelectItem>
                     {vendors.map((vendor) => (
                       <SelectItem key={vendor.id} value={vendor.id}>
                         {vendor.name}
