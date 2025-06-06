@@ -7,11 +7,8 @@ import { CalendarDays, CheckCircle, Clock, ListTodo, Plus, AlertTriangle } from 
 import { formatDistanceToNow } from "date-fns"
 
 export default async function TasksPage() {
-  // Check if we're in preview mode
-  const isMissingConfig = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  // Get tasks only if we have Supabase configured
-  const tasks = isMissingConfig ? [] : await getAllTasks()
+  // Get all tasks
+  const tasks = await getAllTasks()
 
   // Group tasks by status
   const todoTasks = tasks.filter((task) => task.status === "todo")
@@ -121,17 +118,13 @@ export default async function TasksPage() {
         </TabsList>
 
         <TabsContent value="todo" className="mt-6">
-          {isMissingConfig || todoTasks.length === 0 ? (
+          {todoTasks.length === 0 ? (
             <Card>
               <CardContent className="py-10 text-center">
-                <p className="text-muted-foreground">
-                  {isMissingConfig ? "Tasks will display here when connected to Supabase" : "No tasks to do"}
-                </p>
-                {!isMissingConfig && (
-                  <Button asChild variant="outline" className="mt-4">
-                    <Link href="/dashboard/tasks/new">Create a Task</Link>
-                  </Button>
-                )}
+                <p className="text-muted-foreground">No tasks to do</p>
+                <Button asChild variant="outline" className="mt-4">
+                  <Link href="/dashboard/tasks/new">Create a Task</Link>
+                </Button>
               </CardContent>
             </Card>
           ) : (
@@ -140,12 +133,10 @@ export default async function TasksPage() {
         </TabsContent>
 
         <TabsContent value="in_progress" className="mt-6">
-          {isMissingConfig || inProgressTasks.length === 0 ? (
+          {inProgressTasks.length === 0 ? (
             <Card>
               <CardContent className="py-10 text-center">
-                <p className="text-muted-foreground">
-                  {isMissingConfig ? "Tasks will display here when connected to Supabase" : "No tasks in progress"}
-                </p>
+                <p className="text-muted-foreground">No tasks in progress</p>
               </CardContent>
             </Card>
           ) : (
@@ -154,12 +145,10 @@ export default async function TasksPage() {
         </TabsContent>
 
         <TabsContent value="completed" className="mt-6">
-          {isMissingConfig || completedTasks.length === 0 ? (
+          {completedTasks.length === 0 ? (
             <Card>
               <CardContent className="py-10 text-center">
-                <p className="text-muted-foreground">
-                  {isMissingConfig ? "Tasks will display here when connected to Supabase" : "No completed tasks"}
-                </p>
+                <p className="text-muted-foreground">No completed tasks</p>
               </CardContent>
             </Card>
           ) : (
@@ -168,12 +157,10 @@ export default async function TasksPage() {
         </TabsContent>
 
         <TabsContent value="blocked" className="mt-6">
-          {isMissingConfig || blockedTasks.length === 0 ? (
+          {blockedTasks.length === 0 ? (
             <Card>
               <CardContent className="py-10 text-center">
-                <p className="text-muted-foreground">
-                  {isMissingConfig ? "Tasks will display here when connected to Supabase" : "No blocked tasks"}
-                </p>
+                <p className="text-muted-foreground">No blocked tasks</p>
               </CardContent>
             </Card>
           ) : (

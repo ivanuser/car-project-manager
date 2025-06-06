@@ -35,11 +35,21 @@ CREATE TABLE IF NOT EXISTS project_tasks (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   title TEXT NOT NULL,
   description TEXT,
-  status TEXT DEFAULT 'todo',
+  status TEXT DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'completed', 'blocked')),
+  priority TEXT DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
+  build_stage TEXT DEFAULT 'planning' CHECK (build_stage IN ('planning', 'disassembly', 'cleaning', 'repair', 'fabrication', 'painting', 'assembly', 'electrical', 'testing', 'finishing')),
+  estimated_hours DECIMAL(5,2),
   due_date TIMESTAMP WITH TIME ZONE,
   project_id UUID NOT NULL REFERENCES vehicle_projects(id) ON DELETE CASCADE,
   completed_at TIMESTAMP WITH TIME ZONE
 );
+
+-- Create indexes for project_tasks table
+CREATE INDEX IF NOT EXISTS idx_project_tasks_project_id ON project_tasks(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_tasks_status ON project_tasks(status);
+CREATE INDEX IF NOT EXISTS idx_project_tasks_priority ON project_tasks(priority);
+CREATE INDEX IF NOT EXISTS idx_project_tasks_build_stage ON project_tasks(build_stage);
+CREATE INDEX IF NOT EXISTS idx_project_tasks_due_date ON project_tasks(due_date);
 
 -- Create project_parts table
 CREATE TABLE IF NOT EXISTS project_parts (
