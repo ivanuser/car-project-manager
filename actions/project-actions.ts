@@ -475,6 +475,47 @@ export async function getProjectTasks(projectId: string) {
 }
 
 /**
+ * Get parts for a specific project
+ * @param projectId - Project ID
+ * @returns Array of parts
+ */
+export async function getProjectParts(projectId: string) {
+  // Get the current user
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
+    console.log("No authenticated user found, returning empty project parts array")
+    return []
+  }
+  
+  try {
+    // Verify project belongs to the user
+    const checkResult = await db.query(
+      `SELECT id FROM vehicle_projects WHERE id = $1 AND user_id = $2`,
+      [projectId, userId]
+    )
+    
+    if (checkResult.rows.length === 0) {
+      return []
+    }
+    
+    // Get parts for this project
+    const partsResult = await db.query(
+      `SELECT * 
+       FROM project_parts 
+       WHERE project_id = $1
+       ORDER BY created_at DESC`,
+      [projectId]
+    )
+    
+    return partsResult.rows || []
+  } catch (error) {
+    console.error("Error fetching project parts:", error)
+    return []
+  }
+}
+
+/**
  * Create a new task
  * @param formData - Form data
  * @returns Result of the operation

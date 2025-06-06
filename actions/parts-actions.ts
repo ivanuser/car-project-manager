@@ -1,552 +1,477 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { createServerClient } from "@/lib/supabase"
+import db from '@/lib/db'
+import { cookies } from 'next/headers'
+import jwtUtils from '@/lib/auth/jwt'
+import { saveUploadedFile, deleteStoredFile } from '@/lib/file-storage'
 
-// Get all parts
-export async function getAllParts() {
+/**
+ * Get the current user ID from the session
+ * @returns User ID or null if not authenticated
+ */
+async function getCurrentUserId() {
+  const cookieStore = cookies()
+  const authToken = cookieStore.get('cajpro_auth_token')?.value
+  
+  if (!authToken) {
+    return null
+  }
+  
+  // Validate token and get user ID
   try {
-    const supabase = createServerClient()
-    const isDevelopment = process.env.NODE_ENV === "development"
-
-    // Get the current user or use development user ID
-    let userId = "dev-user-id"
-
-    if (!isDevelopment) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        return { error: "You must be logged in to view parts" }
-      }
-
-      userId = user.id
+    const payload = jwtUtils.verifyToken(authToken)
+    if (!payload) {
+      return null
     }
-
-    // Modified query to avoid the relationship error
-    const { data, error } = await supabase
-      .from("project_parts")
-      .select(`
-        *,
-        vehicle_projects (id, title, make, model, year)
-      `)
-      .order("created_at", { ascending: false })
-
-    if (error) {
-      console.error("Error fetching parts:", error)
-      return { error: error.message }
-    }
-
-    // If we need vendor data, we can fetch it separately
-    if (data && data.length > 0) {
-      const vendorIds = data
-        .filter((part) => part.vendor_id)
-        .map((part) => part.vendor_id)
-        .filter((id, index, self) => id && self.indexOf(id) === index) // Get unique vendor IDs
-
-      if (vendorIds.length > 0) {
-        const { data: vendors, error: vendorError } = await supabase
-          .from("vendors")
-          .select("id, name, website")
-          .in("id", vendorIds)
-
-        if (!vendorError && vendors) {
-          // Add vendor data to parts
-          data.forEach((part) => {
-            if (part.vendor_id) {
-              part.vendors = vendors.find((v) => v.id === part.vendor_id) || null
-            } else {
-              part.vendors = null
-            }
-          })
-        }
-      }
-    }
-
-    return { data }
+    
+    // Extract user ID from the token
+    const userId = payload.sub
+    return userId
   } catch (error) {
-    console.error("Unexpected error fetching parts:", error)
-    return { error: "An unexpected error occurred" }
+    console.error("Error getting current user ID:", error)
+    return null
   }
 }
 
-// Get parts by project ID
-export async function getPartsByProjectId(projectId: string) {
+/**
+ * Get all parts for the current user
+ * @returns Array of parts with project information
+ */
+export async function getAllParts() {
+  // Get the current user
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
+    console.log("No authenticated user found, returning empty parts array")
+    return { data: [], error: null }
+  }
+  
+  console.log("Fetching parts for user ID:", userId)
+  
   try {
-    const supabase = createServerClient()
+    // Get all projects for this user first
+    const projectsResult = await db.query(
+      `SELECT id FROM vehicle_projects WHERE user_id = $1`,
+      [userId]
+    )
+    
+    if (projectsResult.rows.length === 0) {
+      return { data: [], error: null }
+    }
+    
+    const projectIds = projectsResult.rows.map(project => project.id)
+    
+    // Get all parts for these projects with project and vendor information
+    const partsResult = await db.query(
+      `SELECT 
+         p.*,
+         vp.id as project_id,
+         vp.title as project_title,
+         vp.make as project_make,
+         vp.model as project_model,
+         vp.year as project_year,
+         v.id as vendor_id,
+         v.name as vendor_name,
+         v.website as vendor_website
+       FROM 
+         project_parts p
+       JOIN 
+         vehicle_projects vp ON p.project_id = vp.id
+       LEFT JOIN 
+         vendors v ON p.vendor_id = v.id
+       WHERE 
+         p.project_id = ANY($1)
+       ORDER BY 
+         p.created_at DESC`,
+      [projectIds]
+    )
+    
+    // Format the results to include vehicle_projects and vendors data
+    const formattedParts = partsResult.rows.map(part => ({
+      ...part,
+      vehicle_projects: {
+        id: part.project_id,
+        title: part.project_title,
+        make: part.project_make,
+        model: part.project_model,
+        year: part.project_year
+      },
+      vendors: part.vendor_id ? {
+        id: part.vendor_id,
+        name: part.vendor_name,
+        website: part.vendor_website
+      } : null
+    }))
+    
+    return { data: formattedParts, error: null }
+  } catch (error) {
+    console.error("Error fetching parts:", error)
+    return { data: [], error: error instanceof Error ? error.message : "An unexpected error occurred" }
+  }
+}
 
-    // Modified query to avoid the relationship error
-    const { data, error } = await supabase
-      .from("project_parts")
-      .select(`
-        *,
-        vehicle_projects (id, title, make, model, year)
-      `)
-      .eq("project_id", projectId)
-      .order("created_at", { ascending: false })
-
-    if (error) {
-      console.error("Error fetching parts:", error)
+/**
+ * Get parts for a specific project
+ * @param projectId - Project ID
+ * @returns Array of parts
+ */
+export async function getProjectParts(projectId: string) {
+  // Get the current user
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
+    console.log("No authenticated user found, returning empty project parts array")
+    return []
+  }
+  
+  try {
+    // Verify project belongs to the user
+    const checkResult = await db.query(
+      `SELECT id FROM vehicle_projects WHERE id = $1 AND user_id = $2`,
+      [projectId, userId]
+    )
+    
+    if (checkResult.rows.length === 0) {
       return []
     }
-
-    // If we need vendor data, we can fetch it separately
-    if (data && data.length > 0) {
-      const vendorIds = data
-        .filter((part) => part.vendor_id)
-        .map((part) => part.vendor_id)
-        .filter((id, index, self) => id && self.indexOf(id) === index) // Get unique vendor IDs
-
-      if (vendorIds.length > 0) {
-        const { data: vendors, error: vendorError } = await supabase
-          .from("vendors")
-          .select("id, name, website")
-          .in("id", vendorIds)
-
-        if (!vendorError && vendors) {
-          // Add vendor data to parts
-          data.forEach((part) => {
-            if (part.vendor_id) {
-              part.vendors = vendors.find((v) => v.id === part.vendor_id) || null
-            } else {
-              part.vendors = null
-            }
-          })
-        }
-      }
-    }
-
-    return data || []
+    
+    // Get parts for this project
+    const partsResult = await db.query(
+      `SELECT * 
+       FROM project_parts 
+       WHERE project_id = $1
+       ORDER BY created_at DESC`,
+      [projectId]
+    )
+    
+    return partsResult.rows || []
   } catch (error) {
-    console.error("Unexpected error fetching parts:", error)
+    console.error("Error fetching project parts:", error)
     return []
   }
 }
 
-// Get a single part by ID
-export async function getPart(id: string) {
+/**
+ * Get a single part by ID
+ * @param id - Part ID
+ * @returns Part data or null if not found
+ */
+export async function getPartById(id: string) {
+  // Get the current user
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
+    console.log("No authenticated user found, returning null for part")
+    return null
+  }
+  
   try {
-    const supabase = createServerClient()
-
-    // Modified query to avoid the relationship error
-    const { data, error } = await supabase
-      .from("project_parts")
-      .select(`
-        *,
-        vehicle_projects (id, title, make, model, year)
-      `)
-      .eq("id", id)
-      .single()
-
-    if (error) {
-      console.error("Error fetching part:", error)
-      return { error: error.message }
+    // Get the part and verify it belongs to a project owned by the user
+    const partResult = await db.query(
+      `SELECT 
+         p.*,
+         vp.id as project_id,
+         vp.title as project_title,
+         vp.make as project_make,
+         vp.model as project_model,
+         vp.year as project_year,
+         v.id as vendor_id,
+         v.name as vendor_name,
+         v.website as vendor_website
+       FROM 
+         project_parts p
+       JOIN 
+         vehicle_projects vp ON p.project_id = vp.id
+       LEFT JOIN 
+         vendors v ON p.vendor_id = v.id
+       WHERE 
+         p.id = $1 AND vp.user_id = $2`,
+      [id, userId]
+    )
+    
+    if (partResult.rows.length === 0) {
+      return null
     }
-
-    // If we need vendor data, fetch it separately
-    if (data && data.vendor_id) {
-      const { data: vendor, error: vendorError } = await supabase
-        .from("vendors")
-        .select("id, name, website")
-        .eq("id", data.vendor_id)
-        .single()
-
-      if (!vendorError && vendor) {
-        data.vendors = vendor
-      }
-    } else if (data) {
-      data.vendors = null
+    
+    const part = partResult.rows[0]
+    
+    // Format the result to include vehicle_projects and vendors data
+    return {
+      ...part,
+      vehicle_projects: {
+        id: part.project_id,
+        title: part.project_title,
+        make: part.project_make,
+        model: part.project_model,
+        year: part.project_year
+      },
+      vendors: part.vendor_id ? {
+        id: part.vendor_id,
+        name: part.vendor_name,
+        website: part.vendor_website
+      } : null
     }
-
-    return { data }
   } catch (error) {
-    console.error("Unexpected error fetching part:", error)
-    return { error: "An unexpected error occurred" }
+    console.error("Error fetching part:", error)
+    return null
   }
 }
 
-// The rest of the file remains unchanged
+/**
+ * Create a new part
+ * @param formData - Form data
+ * @returns Result of the operation
+ */
 export async function createPart(formData: FormData) {
+  // Get the current user
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
+    return { error: "You must be logged in to create a part" }
+  }
+  
+  const name = formData.get("name") as string
+  const description = formData.get("description") as string
+  const partNumber = formData.get("partNumber") as string
+  const price = formData.get("price") ? Number.parseFloat(formData.get("price") as string) : null
+  const quantity = Number.parseInt(formData.get("quantity") as string) || 1
+  const status = (formData.get("status") as string) || "needed"
+  const condition = (formData.get("condition") as string) || null
+  const location = (formData.get("location") as string) || null
+  const vendorId = (formData.get("vendorId") as string) || null
+  const notes = (formData.get("notes") as string) || null
+  const projectId = formData.get("projectId") as string
+  const purchaseDate = (formData.get("purchaseDate") as string) || null
+  const purchaseUrl = (formData.get("purchaseUrl") as string) || null
+  
+  // Handle image upload
+  let imageUrl = null
+  const imageFile = formData.get("image") as File
+  
+  if (imageFile && imageFile.size > 0) {
+    console.log("Processing image upload for part, user:", userId)
+    const uploadResult = await saveUploadedFile(imageFile, 'parts', userId)
+    
+    if (uploadResult.success) {
+      imageUrl = uploadResult.url
+      console.log("Part image uploaded successfully:", imageUrl)
+    } else {
+      console.error("Part image upload failed:", uploadResult.error)
+      return { error: `Failed to upload image: ${uploadResult.error}` }
+    }
+  }
+  
   try {
-    const supabase = createServerClient()
-    const isDevelopment = process.env.NODE_ENV === "development"
-
-    // Get the current user or use development user ID
-    let userId = "dev-user-id"
-
-    if (!isDevelopment) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        return { error: "You must be logged in to create a part" }
-      }
-
-      userId = user.id
+    // Verify project belongs to the user
+    const checkResult = await db.query(
+      `SELECT id FROM vehicle_projects WHERE id = $1 AND user_id = $2`,
+      [projectId, userId]
+    )
+    
+    if (checkResult.rows.length === 0) {
+      return { error: "Project not found or you don't have permission to add parts to it" }
     }
-
-    const name = formData.get("name") as string
-    const description = formData.get("description") as string
-    const partNumber = formData.get("part_number") as string
-    const price = formData.get("price") ? Number.parseFloat(formData.get("price") as string) : null
-    const quantity = Number.parseInt(formData.get("quantity") as string) || 1
-    const status = formData.get("status") as string
-    const condition = formData.get("condition") as string
-    const location = formData.get("location") as string
-    const projectId = formData.get("project_id") as string
-    const vendorId = formData.get("vendor_id") as string
-    const purchaseDate = formData.get("purchase_date") as string
-    const purchaseUrl = formData.get("purchase_url") as string
-    const imageUrl = formData.get("image_url") as string
-    const notes = formData.get("notes") as string
-
-    // Handle file upload if present
-    let uploadedImageUrl = null
-    const imageFile = formData.get("image") as File
-
-    if (imageFile && imageFile.size > 0) {
-      try {
-        const fileExt = imageFile.name.split(".").pop()
-        const fileName = `${userId}-${Date.now()}.${fileExt}`
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("part-images")
-          .upload(fileName, imageFile)
-
-        if (uploadError) {
-          console.error("Image upload error:", uploadError)
-        } else if (uploadData) {
-          const { data: urlData } = supabase.storage.from("part-images").getPublicUrl(fileName)
-
-          uploadedImageUrl = urlData.publicUrl
-        }
-      } catch (error) {
-        console.error("File upload error:", error)
-      }
-    }
-
-    // Use the provided image URL or the uploaded one
-    const finalImageUrl = uploadedImageUrl || imageUrl || null
-
-    const { data, error } = await supabase
-      .from("project_parts")
-      .insert({
-        name,
-        description: description || null,
-        part_number: partNumber || null,
-        price,
-        quantity,
-        status: status || "needed",
-        condition: condition || null,
-        location: location || null,
-        project_id: projectId,
-        vendor_id: vendorId === "none" ? null : vendorId || null,
-        purchase_date: purchaseDate || null,
-        purchase_url: purchaseUrl || null,
-        image_url: finalImageUrl,
-        notes: notes || null,
-        user_id: userId,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error("Error creating part:", error)
-      return { error: error.message }
-    }
-
-    revalidatePath(`/dashboard/projects/${projectId}`)
+    
+    // Create the part
+    const partResult = await db.query(
+      `INSERT INTO project_parts (
+         name, description, part_number, price, quantity, status,
+         condition, location, vendor_id, notes,
+         project_id, purchase_date, purchase_url, image_url
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       RETURNING *`,
+      [
+        name, description, partNumber, price, quantity, status,
+        condition, location, vendorId, notes,
+        projectId, purchaseDate, purchaseUrl, imageUrl
+      ]
+    )
+    
     revalidatePath("/dashboard/parts")
-    return { success: true, data }
+    revalidatePath(`/dashboard/projects/${projectId}`)
+    return { success: true, data: partResult.rows[0] }
   } catch (error) {
-    console.error("Unexpected error creating part:", error)
-    return { error: "An unexpected error occurred" }
+    console.error("Error creating part:", error)
+    return { error: error instanceof Error ? error.message : "An unexpected error occurred" }
   }
 }
 
-// Update an existing part
-export async function updatePart(formData: FormData) {
-  try {
-    const supabase = createServerClient()
-    const id = formData.get("id") as string
-
-    if (!id) {
-      return { error: "Part ID is required" }
-    }
-
-    const name = formData.get("name") as string
-    const description = formData.get("description") as string
-    const partNumber = formData.get("part_number") as string
-    const price = formData.get("price") ? Number.parseFloat(formData.get("price") as string) : null
-    const quantity = Number.parseInt(formData.get("quantity") as string) || 1
-    const status = formData.get("status") as string
-    const condition = formData.get("condition") as string
-    const location = formData.get("location") as string
-    const projectId = formData.get("project_id") as string
-    const vendorId = formData.get("vendor_id") as string
-    const purchaseDate = formData.get("purchase_date") as string
-    const purchaseUrl = formData.get("purchase_url") as string
-    const imageUrl = formData.get("image_url") as string
-    const notes = formData.get("notes") as string
-
-    // Handle file upload if present
-    let uploadedImageUrl = null
-    const imageFile = formData.get("image") as File
-
-    if (imageFile && imageFile.size > 0) {
-      try {
-        const { data: userData } = await supabase.auth.getUser()
-        const userId = userData.user?.id || "dev-user-id"
-
-        const fileExt = imageFile.name.split(".").pop()
-        const fileName = `${userId}-${Date.now()}.${fileExt}`
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("part-images")
-          .upload(fileName, imageFile)
-
-        if (uploadError) {
-          console.error("Image upload error:", uploadError)
-        } else if (uploadData) {
-          const { data: urlData } = supabase.storage.from("part-images").getPublicUrl(fileName)
-
-          uploadedImageUrl = urlData.publicUrl
+/**
+ * Update an existing part
+ * @param id - Part ID
+ * @param formData - Form data
+ * @returns Result of the operation
+ */
+export async function updatePart(id: string, formData: FormData) {
+  // Get the current user
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
+    return { error: "You must be logged in to update a part" }
+  }
+  
+  const name = formData.get("name") as string
+  const description = formData.get("description") as string
+  const partNumber = formData.get("partNumber") as string
+  const price = formData.get("price") ? Number.parseFloat(formData.get("price") as string) : null
+  const quantity = Number.parseInt(formData.get("quantity") as string) || 1
+  const status = formData.get("status") as string
+  const condition = (formData.get("condition") as string) || null
+  const location = (formData.get("location") as string) || null
+  const vendorId = (formData.get("vendorId") as string) || null
+  const notes = (formData.get("notes") as string) || null
+  const projectId = formData.get("projectId") as string
+  const purchaseDate = (formData.get("purchaseDate") as string) || null
+  const purchaseUrl = (formData.get("purchaseUrl") as string) || null
+  
+  // Handle image upload for updates
+  let imageUrl = null
+  const imageFile = formData.get("image") as File
+  
+  if (imageFile && imageFile.size > 0) {
+    console.log("Processing image upload for part update, user:", userId)
+    const uploadResult = await saveUploadedFile(imageFile, 'parts', userId)
+    
+    if (uploadResult.success) {
+      imageUrl = uploadResult.url
+      console.log("Part image uploaded successfully:", imageUrl)
+      
+      // If there was an old image, we should delete it
+      // First get the current part to find the old image
+      const currentPart = await db.query(
+        `SELECT image_url FROM project_parts WHERE id = $1`,
+        [id]
+      )
+      
+      if (currentPart.rows.length > 0 && currentPart.rows[0].image_url) {
+        const oldUrl = currentPart.rows[0].image_url
+        // Extract file path from URL to delete old file
+        if (oldUrl.includes('/api/storage/')) {
+          const pathPart = oldUrl.split('/api/storage/')[1]
+          if (pathPart) {
+            await deleteStoredFile(pathPart)
+            console.log("Deleted old part image:", pathPart)
+          }
         }
-      } catch (error) {
-        console.error("File upload error:", error)
       }
+    } else {
+      console.error("Part image upload failed:", uploadResult.error)
+      return { error: `Failed to upload image: ${uploadResult.error}` }
     }
-
-    // Use the provided image URL or the uploaded one
-    const finalImageUrl = uploadedImageUrl || imageUrl || null
-
-    const { data, error } = await supabase
-      .from("project_parts")
-      .update({
-        name,
-        description: description || null,
-        part_number: partNumber || null,
-        price,
-        quantity,
-        status: status || "needed",
-        condition: condition || null,
-        location: location || null,
-        project_id: projectId,
-        vendor_id: vendorId === "none" ? null : vendorId || null,
-        purchase_date: purchaseDate || null,
-        purchase_url: purchaseUrl || null,
-        image_url: finalImageUrl,
-        notes: notes || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .select()
-      .single()
-
-    if (error) {
-      console.error("Error updating part:", error)
-      return { error: error.message }
+  }
+  
+  try {
+    // Verify project belongs to the user
+    const checkResult = await db.query(
+      `SELECT vp.id
+       FROM vehicle_projects vp
+       JOIN project_parts p ON vp.id = p.project_id
+       WHERE p.id = $1 AND vp.user_id = $2`,
+      [id, userId]
+    )
+    
+    if (checkResult.rows.length === 0) {
+      return { error: "Part not found or you don't have permission to update it" }
     }
-
+    
+    // Update the part
+    const updateData: any = [
+      name, description, partNumber, price, quantity, status,
+      condition, location, vendorId, notes,
+      projectId, purchaseDate, purchaseUrl, new Date().toISOString(), id
+    ]
+    
+    let query = `
+      UPDATE project_parts SET
+        name = $1,
+        description = $2,
+        part_number = $3,
+        price = $4,
+        quantity = $5,
+        status = $6,
+        condition = $7,
+        location = $8,
+        vendor_id = $9,
+        notes = $10,
+        project_id = $11,
+        purchase_date = $12,
+        purchase_url = $13,
+        updated_at = $14
+    `
+    
+    // Only update image if a new one was uploaded
+    if (imageUrl) {
+      query += `, image_url = $16`
+      updateData.push(imageUrl)
+    }
+    
+    query += ` WHERE id = $15 RETURNING *`
+    
+    const partResult = await db.query(query, updateData)
+    
+    revalidatePath("/dashboard/parts")
+    revalidatePath(`/dashboard/projects/${projectId}`)
     revalidatePath(`/dashboard/parts/${id}`)
-    revalidatePath(`/dashboard/projects/${projectId}`)
-    revalidatePath("/dashboard/parts")
-    return { success: true, data }
+    return { success: true, data: partResult.rows[0] }
   } catch (error) {
-    console.error("Unexpected error updating part:", error)
-    return { error: "An unexpected error occurred" }
+    console.error("Error updating part:", error)
+    return { error: error instanceof Error ? error.message : "An unexpected error occurred" }
   }
 }
 
-// Delete a part
+/**
+ * Delete a part
+ * @param id - Part ID
+ * @returns Result of the operation
+ */
 export async function deletePart(id: string) {
+  // Get the current user
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
+    return { error: "You must be logged in to delete a part" }
+  }
+  
   try {
-    const supabase = createServerClient()
-
-    // First get the part to know which paths to revalidate
-    const { data: part, error: fetchError } = await supabase
-      .from("project_parts")
-      .select("project_id")
-      .eq("id", id)
-      .single()
-
-    if (fetchError) {
-      console.error("Error fetching part for deletion:", fetchError)
-      return { error: fetchError.message }
-    }
-
-    const { error } = await supabase.from("project_parts").delete().eq("id", id)
-
-    if (error) {
-      console.error("Error deleting part:", error)
-      return { error: error.message }
-    }
-
-    if (part) {
-      revalidatePath(`/dashboard/projects/${part.project_id}`)
-    }
+    // Begin transaction
+    await db.transaction(async (client) => {
+      // Verify part belongs to the user and get image info
+      const checkResult = await client.query(
+        `SELECT p.id, p.project_id, p.image_url
+         FROM project_parts p
+         JOIN vehicle_projects vp ON p.project_id = vp.id
+         WHERE p.id = $1 AND vp.user_id = $2`,
+        [id, userId]
+      )
+      
+      if (checkResult.rows.length === 0) {
+        throw new Error("Part not found or you don't have permission to delete it")
+      }
+      
+      const part = checkResult.rows[0]
+      
+      // Delete image file if it exists
+      if (part.image_url && part.image_url.includes('/api/storage/')) {
+        const pathPart = part.image_url.split('/api/storage/')[1]
+        if (pathPart) {
+          await deleteStoredFile(pathPart)
+          console.log("Deleted part image:", pathPart)
+        }
+      }
+      
+      // Delete the part
+      await client.query(
+        `DELETE FROM project_parts WHERE id = $1`,
+        [id]
+      )
+    })
+    
     revalidatePath("/dashboard/parts")
     return { success: true }
   } catch (error) {
-    console.error("Unexpected error deleting part:", error)
-    return { error: "An unexpected error occurred" }
-  }
-}
-
-// Get all vendors
-export async function getVendors() {
-  try {
-    const supabase = createServerClient()
-    const isDevelopment = process.env.NODE_ENV === "development"
-
-    // Get the current user or use development user ID
-    let userId = "dev-user-id"
-
-    if (!isDevelopment) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        return { error: "You must be logged in to view vendors" }
-      }
-
-      userId = user.id
-    }
-
-    const { data, error } = await supabase
-      .from("vendors")
-      .select("*")
-      .eq("user_id", userId)
-      .order("name", { ascending: true })
-
-    if (error) {
-      console.error("Error fetching vendors:", error)
-      return { error: error.message }
-    }
-
-    return { data }
-  } catch (error) {
-    console.error("Unexpected error fetching vendors:", error)
-    return { error: "An unexpected error occurred", data: [] }
-  }
-}
-
-// Create a new vendor
-export async function createVendor(formData: FormData) {
-  try {
-    const supabase = createServerClient()
-    const isDevelopment = process.env.NODE_ENV === "development"
-
-    // Get the current user or use development user ID
-    let userId = "dev-user-id"
-
-    if (!isDevelopment) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        return { error: "You must be logged in to create a vendor" }
-      }
-
-      userId = user.id
-    }
-
-    const name = formData.get("name") as string
-    const website = formData.get("website") as string
-    const phone = formData.get("phone") as string
-    const email = formData.get("email") as string
-    const notes = formData.get("notes") as string
-
-    const { data, error } = await supabase
-      .from("vendors")
-      .insert({
-        name,
-        website: website || null,
-        phone: phone || null,
-        email: email || null,
-        notes: notes || null,
-        user_id: userId,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error("Error creating vendor:", error)
-      return { error: error.message }
-    }
-
-    revalidatePath("/dashboard/parts")
-    return { success: true, data }
-  } catch (error) {
-    console.error("Unexpected error creating vendor:", error)
-    return { error: "An unexpected error occurred" }
-  }
-}
-
-export async function getAllVendors() {
-  try {
-    const supabase = createServerClient()
-    const isDevelopment = process.env.NODE_ENV === "development"
-
-    // Get the current user or use development user ID
-    let userId = "dev-user-id"
-
-    if (!isDevelopment) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        return { error: "You must be logged in to view vendors" }
-      }
-
-      userId = user.id
-    }
-
-    const { data, error } = await supabase
-      .from("vendors")
-      .select("*")
-      .eq("user_id", userId)
-      .order("name", { ascending: true })
-
-    if (error) {
-      console.error("Error fetching vendors:", error)
-      return []
-    }
-
-    return data || []
-  } catch (error) {
-    console.error("Unexpected error fetching vendors:", error)
-    return []
-  }
-}
-
-// Add this function to the existing parts-actions.ts file
-
-// Get parts by vendor ID
-export async function getPartsByVendorId(vendorId: string) {
-  try {
-    const supabase = createServerClient()
-
-    const { data, error } = await supabase
-      .from("project_parts")
-      .select(`
-        *,
-        vehicle_projects (id, title, make, model, year)
-      `)
-      .eq("vendor_id", vendorId)
-      .order("created_at", { ascending: false })
-
-    if (error) {
-      console.error("Error fetching parts by vendor:", error)
-      return []
-    }
-
-    return data || []
-  } catch (error) {
-    console.error("Unexpected error fetching parts by vendor:", error)
-    return []
+    console.error("Error deleting part:", error)
+    return { error: error instanceof Error ? error.message : "An unexpected error occurred" }
   }
 }

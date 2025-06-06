@@ -51,6 +51,18 @@ CREATE INDEX IF NOT EXISTS idx_project_tasks_priority ON project_tasks(priority)
 CREATE INDEX IF NOT EXISTS idx_project_tasks_build_stage ON project_tasks(build_stage);
 CREATE INDEX IF NOT EXISTS idx_project_tasks_due_date ON project_tasks(due_date);
 
+-- Create vendors table
+CREATE TABLE IF NOT EXISTS vendors (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  name TEXT NOT NULL,
+  website TEXT,
+  contact_email TEXT,
+  contact_phone TEXT,
+  notes TEXT
+);
+
 -- Create project_parts table
 CREATE TABLE IF NOT EXISTS project_parts (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -58,18 +70,36 @@ CREATE TABLE IF NOT EXISTS project_parts (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   name TEXT NOT NULL,
   description TEXT,
+  part_number TEXT,
   price DECIMAL(10, 2),
   quantity INTEGER DEFAULT 1,
-  status TEXT DEFAULT 'needed',
+  status TEXT DEFAULT 'needed' CHECK (status IN ('needed', 'ordered', 'received', 'installed', 'returned')),
+  condition TEXT,
+  location TEXT,
+  notes TEXT,
   project_id UUID NOT NULL REFERENCES vehicle_projects(id) ON DELETE CASCADE,
+  vendor_id UUID REFERENCES vendors(id) ON DELETE SET NULL,
   purchase_date TIMESTAMP WITH TIME ZONE,
-  purchase_url TEXT
+  purchase_url TEXT,
+  image_url TEXT
 );
+
+-- Create indexes for vendors table
+CREATE INDEX IF NOT EXISTS idx_vendors_name ON vendors(name);
+
+-- Create indexes for project_parts table
+CREATE INDEX IF NOT EXISTS idx_project_parts_project_id ON project_parts(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_parts_status ON project_parts(status);
+CREATE INDEX IF NOT EXISTS idx_project_parts_part_number ON project_parts(part_number);
+CREATE INDEX IF NOT EXISTS idx_project_parts_vendor_id ON project_parts(vendor_id);
+CREATE INDEX IF NOT EXISTS idx_project_parts_condition ON project_parts(condition);
+CREATE INDEX IF NOT EXISTS idx_project_parts_location ON project_parts(location);
 
 -- Create RLS policies
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vehicle_projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE project_tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vendors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE project_parts ENABLE ROW LEVEL SECURITY;
 
 -- Profiles policies
@@ -131,6 +161,23 @@ CREATE POLICY "Users can delete tasks for their projects"
     AND vehicle_projects.user_id = auth.uid()
   ));
 
+-- Vendors policies (vendors are shared across all users)
+CREATE POLICY "Users can view all vendors" 
+  ON vendors FOR SELECT 
+  USING (true);
+
+CREATE POLICY "Authenticated users can create vendors" 
+  ON vendors FOR INSERT 
+  WITH CHECK (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Authenticated users can update vendors" 
+  ON vendors FOR UPDATE 
+  USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Authenticated users can delete vendors" 
+  ON vendors FOR DELETE 
+  USING (auth.uid() IS NOT NULL);
+
 -- Project parts policies
 CREATE POLICY "Users can view parts for their projects" 
   ON project_parts FOR SELECT 
@@ -184,6 +231,10 @@ FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
 
 CREATE TRIGGER update_project_tasks_updated_at
 BEFORE UPDATE ON project_tasks
+FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
+
+CREATE TRIGGER update_vendors_updated_at
+BEFORE UPDATE ON vendors
 FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
 
 CREATE TRIGGER update_project_parts_updated_at

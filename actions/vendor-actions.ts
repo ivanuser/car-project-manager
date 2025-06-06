@@ -1,323 +1,293 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { createServerClient } from "@/lib/supabase"
-import { getPartsByVendorId } from "@/actions/parts-actions"
+import db from '@/lib/db'
+import { cookies } from 'next/headers'
+import jwtUtils from '@/lib/auth/jwt'
 
-// Get all vendors
+/**
+ * Get the current user ID from the session
+ * @returns User ID or null if not authenticated
+ */
+async function getCurrentUserId() {
+  const cookieStore = cookies()
+  const authToken = cookieStore.get('cajpro_auth_token')?.value
+  
+  if (!authToken) {
+    return null
+  }
+  
+  // Validate token and get user ID
+  try {
+    const payload = jwtUtils.verifyToken(authToken)
+    if (!payload) {
+      return null
+    }
+    
+    // Extract user ID from the token
+    const userId = payload.sub
+    return userId
+  } catch (error) {
+    console.error("Error getting current user ID:", error)
+    return null
+  }
+}
+
+/**
+ * Get all vendors (vendors are shared across all users)
+ * @returns Array of vendors
+ */
 export async function getAllVendors() {
+  // Get the current user (for authentication check)
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
+    console.log("No authenticated user found, returning empty vendors array")
+    return { data: [], error: null }
+  }
+  
   try {
-    const supabase = createServerClient()
-    const isDevelopment = process.env.NODE_ENV === "development"
-
-    // Get the current user or use development user ID
-    let userId = "dev-user-id"
-
-    if (!isDevelopment) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        return { error: "You must be logged in to view vendors" }
-      }
-
-      userId = user.id
-    }
-
-    const { data, error } = await supabase
-      .from("vendors")
-      .select("*")
-      .eq("user_id", userId)
-      .order("name", { ascending: true })
-
-    if (error) {
-      console.error("Error fetching vendors:", error)
-      return { error: error.message }
-    }
-
-    return { data }
+    // Vendors are shared across all users, so we don't filter by user_id
+    const vendorsResult = await db.query(
+      `SELECT * FROM vendors ORDER BY name ASC`
+    )
+    
+    return { data: vendorsResult.rows || [], error: null }
   } catch (error) {
-    console.error("Unexpected error fetching vendors:", error)
-    return { error: "An unexpected error occurred", data: [] }
+    console.error("Error fetching vendors:", error)
+    return { data: [], error: error instanceof Error ? error.message : "An unexpected error occurred" }
   }
 }
 
-// Get a single vendor by ID
-export async function getVendor(id: string) {
+/**
+ * Get a single vendor by ID
+ * @param id - Vendor ID
+ * @returns Vendor data or null if not found
+ */
+export async function getVendorById(id: string) {
+  // Get the current user (for authentication check)
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
+    console.log("No authenticated user found, returning null for vendor")
+    return null
+  }
+  
   try {
-    const supabase = createServerClient()
-
-    const { data, error } = await supabase.from("vendors").select("*").eq("id", id).single()
-
-    if (error) {
-      console.error("Error fetching vendor:", error)
-      return { error: error.message }
+    const vendorResult = await db.query(
+      `SELECT * FROM vendors WHERE id = $1`,
+      [id]
+    )
+    
+    if (vendorResult.rows.length === 0) {
+      return null
     }
-
-    return { data }
+    
+    return vendorResult.rows[0]
   } catch (error) {
-    console.error("Unexpected error fetching vendor:", error)
-    return { error: "An unexpected error occurred" }
+    console.error("Error fetching vendor:", error)
+    return null
   }
 }
 
-// Create a new vendor
+/**
+ * Create a new vendor
+ * @param formData - Form data
+ * @returns Result of the operation
+ */
 export async function createVendor(formData: FormData) {
+  // Get the current user
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
+    return { error: "You must be logged in to create a vendor" }
+  }
+  
+  const name = formData.get("name") as string
+  const website = formData.get("website") as string
+  const contactEmail = formData.get("contactEmail") as string
+  const contactPhone = formData.get("contactPhone") as string
+  const notes = formData.get("notes") as string
+  
   try {
-    const supabase = createServerClient()
-    const isDevelopment = process.env.NODE_ENV === "development"
-
-    // Get the current user or use development user ID
-    let userId = "dev-user-id"
-
-    if (!isDevelopment) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        return { error: "You must be logged in to create a vendor" }
-      }
-
-      userId = user.id
-    }
-
-    const name = formData.get("name") as string
-    const website = formData.get("website") as string
-    const phone = formData.get("phone") as string
-    const email = formData.get("email") as string
-    const address = formData.get("address") as string
-    const category = formData.get("category") as string
-    const rating = formData.get("rating") ? Number.parseInt(formData.get("rating") as string) : null
-    const notes = formData.get("notes") as string
-    const contactName = formData.get("contact_name") as string
-    const contactPosition = formData.get("contact_position") as string
-
-    const { data, error } = await supabase
-      .from("vendors")
-      .insert({
+    // Create the vendor
+    const vendorResult = await db.query(
+      `INSERT INTO vendors (
+         name, website, contact_email, contact_phone, notes
+       )
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [
         name,
-        website: website || null,
-        phone: phone || null,
-        email: email || null,
-        address: address || null,
-        category: category || null,
-        rating: rating || null,
-        notes: notes || null,
-        contact_name: contactName || null,
-        contact_position: contactPosition || null,
-        user_id: userId,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error("Error creating vendor:", error)
-      return { error: error.message }
-    }
-
+        website || null,
+        contactEmail || null,
+        contactPhone || null,
+        notes || null
+      ]
+    )
+    
     revalidatePath("/dashboard/vendors")
     revalidatePath("/dashboard/parts")
-    return { success: true, data }
+    return { success: true, data: vendorResult.rows[0] }
   } catch (error) {
-    console.error("Unexpected error creating vendor:", error)
-    return { error: "An unexpected error occurred" }
+    console.error("Error creating vendor:", error)
+    return { error: error instanceof Error ? error.message : "An unexpected error occurred" }
   }
 }
 
-// Update an existing vendor
-export async function updateVendor(formData: FormData) {
+/**
+ * Update an existing vendor
+ * @param id - Vendor ID
+ * @param formData - Form data
+ * @returns Result of the operation
+ */
+export async function updateVendor(id: string, formData: FormData) {
+  // Get the current user
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
+    return { error: "You must be logged in to update a vendor" }
+  }
+  
+  const name = formData.get("name") as string
+  const website = formData.get("website") as string
+  const contactEmail = formData.get("contactEmail") as string
+  const contactPhone = formData.get("contactPhone") as string
+  const notes = formData.get("notes") as string
+  
   try {
-    const supabase = createServerClient()
-    const id = formData.get("id") as string
-
-    if (!id) {
-      return { error: "Vendor ID is required" }
-    }
-
-    const name = formData.get("name") as string
-    const website = formData.get("website") as string
-    const phone = formData.get("phone") as string
-    const email = formData.get("email") as string
-    const address = formData.get("address") as string
-    const category = formData.get("category") as string
-    const rating = formData.get("rating") ? Number.parseInt(formData.get("rating") as string) : null
-    const notes = formData.get("notes") as string
-    const contactName = formData.get("contact_name") as string
-    const contactPosition = formData.get("contact_position") as string
-
-    const { data, error } = await supabase
-      .from("vendors")
-      .update({
+    // Update the vendor
+    const vendorResult = await db.query(
+      `UPDATE vendors SET
+        name = $1,
+        website = $2,
+        contact_email = $3,
+        contact_phone = $4,
+        notes = $5,
+        updated_at = $6
+       WHERE id = $7
+       RETURNING *`,
+      [
         name,
-        website: website || null,
-        phone: phone || null,
-        email: email || null,
-        address: address || null,
-        category: category || null,
-        rating: rating || null,
-        notes: notes || null,
-        contact_name: contactName || null,
-        contact_position: contactPosition || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .select()
-      .single()
-
-    if (error) {
-      console.error("Error updating vendor:", error)
-      return { error: error.message }
+        website || null,
+        contactEmail || null,
+        contactPhone || null,
+        notes || null,
+        new Date().toISOString(),
+        id
+      ]
+    )
+    
+    if (vendorResult.rows.length === 0) {
+      return { error: "Vendor not found" }
     }
-
+    
     revalidatePath(`/dashboard/vendors/${id}`)
     revalidatePath("/dashboard/vendors")
     revalidatePath("/dashboard/parts")
-    return { success: true, data }
+    return { success: true, data: vendorResult.rows[0] }
   } catch (error) {
-    console.error("Unexpected error updating vendor:", error)
-    return { error: "An unexpected error occurred" }
+    console.error("Error updating vendor:", error)
+    return { error: error instanceof Error ? error.message : "An unexpected error occurred" }
   }
 }
 
-// Delete a vendor
+/**
+ * Delete a vendor
+ * @param id - Vendor ID
+ * @returns Result of the operation
+ */
 export async function deleteVendor(id: string) {
+  // Get the current user
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
+    return { error: "You must be logged in to delete a vendor" }
+  }
+  
   try {
-    const supabase = createServerClient()
-
-    // Check if vendor has associated parts
-    const parts = await getPartsByVendorId(id)
-    if (parts && parts.length > 0) {
-      return {
-        error: "This vendor has associated parts. Please reassign or delete those parts before deleting this vendor.",
-        hasAssociatedParts: true,
-        parts,
+    // Begin transaction
+    await db.transaction(async (client) => {
+      // Check if vendor has associated parts
+      const partsResult = await client.query(
+        `SELECT COUNT(*) as count FROM project_parts WHERE vendor_id = $1`,
+        [id]
+      )
+      
+      const partCount = parseInt(partsResult.rows[0].count)
+      
+      if (partCount > 0) {
+        throw new Error(`This vendor has ${partCount} associated parts. Please reassign or delete those parts before deleting this vendor.`)
       }
-    }
-
-    const { error } = await supabase.from("vendors").delete().eq("id", id)
-
-    if (error) {
-      console.error("Error deleting vendor:", error)
-      return { error: error.message }
-    }
-
+      
+      // Delete the vendor
+      const deleteResult = await client.query(
+        `DELETE FROM vendors WHERE id = $1 RETURNING *`,
+        [id]
+      )
+      
+      if (deleteResult.rows.length === 0) {
+        throw new Error("Vendor not found")
+      }
+    })
+    
     revalidatePath("/dashboard/vendors")
     revalidatePath("/dashboard/parts")
     return { success: true }
   } catch (error) {
-    console.error("Unexpected error deleting vendor:", error)
-    return { error: "An unexpected error occurred" }
+    console.error("Error deleting vendor:", error)
+    return { error: error instanceof Error ? error.message : "An unexpected error occurred" }
   }
 }
 
-// Get vendor categories
-export async function getVendorCategories() {
-  try {
-    const supabase = createServerClient()
-    const isDevelopment = process.env.NODE_ENV === "development"
-
-    // Get the current user or use development user ID
-    let userId = "dev-user-id"
-
-    if (!isDevelopment) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        return { error: "You must be logged in to view vendor categories" }
-      }
-
-      userId = user.id
-    }
-
-    // Get distinct categories from vendors
-    const { data, error } = await supabase
-      .from("vendors")
-      .select("category")
-      .eq("user_id", userId)
-      .not("category", "is", null)
-      .order("category", { ascending: true })
-
-    if (error) {
-      console.error("Error fetching vendor categories:", error)
-      return { error: error.message }
-    }
-
-    // Extract unique categories
-    const categories = [...new Set(data.map((item) => item.category))]
-
-    return { data: categories }
-  } catch (error) {
-    console.error("Unexpected error fetching vendor categories:", error)
-    return { error: "An unexpected error occurred", data: [] }
-  }
-}
-
-// Get vendor spending analytics
+/**
+ * Get vendor spending analytics
+ * @returns Array of vendor spending data
+ */
 export async function getVendorSpendingAnalytics() {
+  // Get the current user
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
+    console.log("No authenticated user found, returning empty analytics")
+    return { data: [], error: null }
+  }
+  
   try {
-    const supabase = createServerClient()
-    const isDevelopment = process.env.NODE_ENV === "development"
-
-    // Get the current user or use development user ID
-    let userId = "dev-user-id"
-
-    if (!isDevelopment) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        return { error: "You must be logged in to view vendor analytics" }
-      }
-
-      userId = user.id
-    }
-
-    // Get all parts with vendor information
-    const { data: parts, error } = await supabase
-      .from("project_parts")
-      .select(`
-        price,
-        quantity,
-        vendor_id,
-        vendors (name)
-      `)
-      .not("vendor_id", "is", null)
-      .not("price", "is", null)
-
-    if (error) {
-      console.error("Error fetching vendor spending data:", error)
-      return { error: error.message }
-    }
-
-    // Calculate spending by vendor
-    const vendorSpending = parts.reduce((acc: Record<string, any>, part) => {
-      const vendorId = part.vendor_id
-      const vendorName = part.vendors?.name || "Unknown"
-      const totalPrice = (part.price || 0) * (part.quantity || 1)
-
-      if (!acc[vendorId]) {
-        acc[vendorId] = {
-          id: vendorId,
-          name: vendorName,
-          totalSpent: 0,
-          partCount: 0,
-        }
-      }
-
-      acc[vendorId].totalSpent += totalPrice
-      acc[vendorId].partCount += 1
-
-      return acc
-    }, {})
-
-    return { data: Object.values(vendorSpending) }
+    // Get spending by vendor for user's projects
+    const analyticsResult = await db.query(
+      `SELECT 
+         v.id,
+         v.name,
+         COUNT(p.id) as part_count,
+         SUM(p.price * p.quantity) as total_spent
+       FROM 
+         vendors v
+       LEFT JOIN 
+         project_parts p ON v.id = p.vendor_id
+       LEFT JOIN 
+         vehicle_projects vp ON p.project_id = vp.id
+       WHERE 
+         vp.user_id = $1 OR vp.user_id IS NULL
+       GROUP BY 
+         v.id, v.name
+       HAVING 
+         COUNT(p.id) > 0
+       ORDER BY 
+         total_spent DESC`,
+      [userId]
+    )
+    
+    const formattedData = analyticsResult.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      partCount: parseInt(row.part_count),
+      totalSpent: parseFloat(row.total_spent) || 0
+    }))
+    
+    return { data: formattedData, error: null }
   } catch (error) {
-    console.error("Unexpected error fetching vendor analytics:", error)
-    return { error: "An unexpected error occurred", data: [] }
+    console.error("Error fetching vendor analytics:", error)
+    return { data: [], error: error instanceof Error ? error.message : "An unexpected error occurred" }
   }
 }

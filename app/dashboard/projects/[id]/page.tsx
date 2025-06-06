@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { format } from "date-fns"
-import { getVehicleProject, getProjectTasks } from "@/actions/project-actions"
+import { getVehicleProject, getProjectTasks, getProjectParts } from "@/actions/project-actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Calendar, DollarSign, Edit, Plus, Tag, Clock, CheckCircle, ListTodo, AlertTriangle } from "lucide-react"
+import { ArrowLeft, Calendar, DollarSign, Edit, Plus, Tag, Clock, CheckCircle, ListTodo, AlertTriangle, Package } from "lucide-react"
 import { DeleteProjectDialog } from "@/components/projects/delete-project-dialog"
 
 interface ProjectPageProps {
@@ -19,9 +19,10 @@ interface ProjectPageProps {
 }
 
 export default async function ProjectPage({ params, searchParams }: ProjectPageProps) {
-  const [project, tasks] = await Promise.all([
+  const [project, tasks, parts] = await Promise.all([
     getVehicleProject(params.id),
-    getProjectTasks(params.id)
+    getProjectTasks(params.id),
+    getProjectParts(params.id)
   ])
 
   if (!project) {
@@ -54,6 +55,69 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
   const inProgressTasks = tasks.filter(task => task.status === "in_progress")
   const completedTasks = tasks.filter(task => task.status === "completed")
   const blockedTasks = tasks.filter(task => task.status === "blocked")
+
+  // Parts statistics
+  const neededParts = parts.filter(part => part.status === "needed")
+  const orderedParts = parts.filter(part => part.status === "ordered")
+  const receivedParts = parts.filter(part => part.status === "received")
+  const installedParts = parts.filter(part => part.status === "installed")
+
+  // Parts rendering function
+  const renderPartCard = (part: any) => {
+    const statusColors = {
+      needed: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
+      ordered: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+      received: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+      installed: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
+      returned: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+    }
+
+    const statusColor = statusColors[part.status as keyof typeof statusColors] || statusColors.needed
+
+    return (
+      <Card key={part.id} className="mb-3">
+        <CardContent className="pt-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <h4 className="font-medium">{part.name}</h4>
+                <Badge variant="outline" className={`text-xs ${statusColor}`}>
+                  {part.status.charAt(0).toUpperCase() + part.status.slice(1)}
+                </Badge>
+              </div>
+              {part.description && (
+                <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{part.description}</p>
+              )}
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                {part.part_number && (
+                  <span className="inline-flex items-center">
+                    <Tag className="h-3 w-3 mr-1" />
+                    {part.part_number}
+                  </span>
+                )}
+                {part.price && (
+                  <span className="inline-flex items-center">
+                    <DollarSign className="h-3 w-3 mr-1" />
+                    ${part.price.toFixed(2)}
+                    {part.quantity > 1 && ` × ${part.quantity}`}
+                  </span>
+                )}
+                {part.purchase_date && (
+                  <span className="inline-flex items-center">
+                    <Calendar className="h-3 w-3 mr-1" />
+                    Purchased {format(new Date(part.purchase_date), "MMM d")}
+                  </span>
+                )}
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={`/dashboard/parts/${part.id}`}>View</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   // Task rendering function
   const renderTaskCard = (task: any) => {
@@ -252,7 +316,14 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="parts">Parts</TabsTrigger>
+          <TabsTrigger value="parts" className="relative">
+            Parts
+            {parts.length > 0 && (
+              <Badge variant="secondary" className="ml-2 text-xs">
+                {parts.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="gallery">Gallery</TabsTrigger>
         </TabsList>
         
@@ -288,6 +359,49 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
                     <span className="text-sm text-muted-foreground">Tasks:</span>
                     <span className="text-sm font-medium">{tasks.length} total</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Parts:</span>
+                    <span className="text-sm font-medium">{parts.length} total</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Parts Statistics */}
+            <Card className="md:col-span-2">
+              <CardHeader>
+                <CardTitle>Parts Progress</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <div className="flex items-center justify-center w-12 h-12 bg-yellow-100 rounded-lg mx-auto mb-2">
+                      <Package className="h-6 w-6 text-yellow-600" />
+                    </div>
+                    <p className="text-2xl font-bold">{neededParts.length}</p>
+                    <p className="text-sm text-muted-foreground">Needed</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg mx-auto mb-2">
+                      <Clock className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <p className="text-2xl font-bold">{orderedParts.length}</p>
+                    <p className="text-sm text-muted-foreground">Ordered</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg mx-auto mb-2">
+                      <CheckCircle className="h-6 w-6 text-green-600" />
+                    </div>
+                    <p className="text-2xl font-bold">{receivedParts.length}</p>
+                    <p className="text-sm text-muted-foreground">Received</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg mx-auto mb-2">
+                      <CheckCircle className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <p className="text-2xl font-bold">{installedParts.length}</p>
+                    <p className="text-sm text-muted-foreground">Installed</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -304,16 +418,18 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
                       Add Task
                     </Link>
                   </Button>
-                  <Button variant="outline" className="w-full justify-start" disabled>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Part
+                  <Button asChild variant="outline" className="w-full justify-start">
+                    <Link href={`/dashboard/projects/${project.id}/parts/new`}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Part
+                    </Link>
                   </Button>
                   <Button variant="outline" className="w-full justify-start" disabled>
                     <Plus className="mr-2 h-4 w-4" />
                     Upload Photo
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground mt-3">Parts and photo features coming soon</p>
+                <p className="text-xs text-muted-foreground mt-3">Photo features coming soon</p>
               </CardContent>
             </Card>
 
@@ -459,18 +575,101 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
         
         <TabsContent value="parts" className="mt-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium">Parts</h3>
-            <Button size="sm" disabled>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Part
+            <h3 className="text-lg font-medium">Parts ({parts.length})</h3>
+            <Button size="sm" asChild>
+              <Link href={`/dashboard/projects/${project.id}/parts/new`}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Part
+              </Link>
             </Button>
           </div>
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground mb-4">Parts inventory coming soon</p>
-              <p className="text-sm text-muted-foreground">Manage your parts inventory, track orders, and organize your build.</p>
-            </CardContent>
-          </Card>
+          
+          {parts.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground mb-4">No parts added yet</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Start tracking your project parts by adding the components you need for your build.
+                </p>
+                <Button asChild>
+                  <Link href={`/dashboard/projects/${project.id}/parts/new`}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add First Part
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {/* Part Status Tabs */}
+              <Tabs defaultValue="all" className="w-full">
+                <TabsList className="grid w-full grid-cols-5">
+                  <TabsTrigger value="all">
+                    All ({parts.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="needed">
+                    Needed ({neededParts.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="ordered">
+                    Ordered ({orderedParts.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="received">
+                    Received ({receivedParts.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="installed">
+                    Installed ({installedParts.length})
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="all" className="mt-4">
+                  <div className="space-y-2">
+                    {parts.map(renderPartCard)}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="needed" className="mt-4">
+                  <div className="space-y-2">
+                    {neededParts.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">No parts needed</p>
+                    ) : (
+                      neededParts.map(renderPartCard)
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="ordered" className="mt-4">
+                  <div className="space-y-2">
+                    {orderedParts.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">No parts ordered</p>
+                    ) : (
+                      orderedParts.map(renderPartCard)
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="received" className="mt-4">
+                  <div className="space-y-2">
+                    {receivedParts.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">No parts received</p>
+                    ) : (
+                      receivedParts.map(renderPartCard)
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="installed" className="mt-4">
+                  <div className="space-y-2">
+                    {installedParts.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">No parts installed</p>
+                    ) : (
+                      installedParts.map(renderPartCard)
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </div>
+          )}
         </TabsContent>
         
         <TabsContent value="gallery" className="mt-4">
