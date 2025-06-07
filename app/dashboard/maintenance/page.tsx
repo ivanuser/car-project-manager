@@ -3,8 +3,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getAllMaintenanceSchedules, checkMaintenanceNotifications } from "@/actions/maintenance-actions"
+import { getVehicleProjects } from "@/actions/project-actions"
 import { MaintenanceScheduleList } from "@/components/maintenance/maintenance-schedule-list"
-import { RefreshCcw } from "lucide-react"
+import { RefreshCcw, Plus, Car } from "lucide-react"
 
 export default async function MaintenanceDashboardPage() {
   // Check for due maintenance and create notifications
@@ -12,6 +13,9 @@ export default async function MaintenanceDashboardPage() {
 
   // Get all maintenance schedules for the user
   const schedules = await getAllMaintenanceSchedules()
+
+  // Get user's projects to check if they have any
+  const projects = await getVehicleProjects()
 
   // Group schedules by status
   const overdueSchedules = schedules.filter((schedule) => schedule.status === "overdue")
@@ -26,12 +30,29 @@ export default async function MaintenanceDashboardPage() {
           <p className="text-muted-foreground">Track and manage maintenance schedules for all your vehicles</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/dashboard/maintenance?refresh=true">
-              <RefreshCcw className="mr-2 h-4 w-4" />
-              Check for Due Maintenance
-            </Link>
-          </Button>
+          {projects.length > 0 ? (
+            <>
+              <Button asChild>
+                <Link href="/dashboard/maintenance/new">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Maintenance Schedule
+                </Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/dashboard/maintenance?refresh=true">
+                  <RefreshCcw className="mr-2 h-4 w-4" />
+                  Check for Due Maintenance
+                </Link>
+              </Button>
+            </>
+          ) : (
+            <Button asChild>
+              <Link href="/dashboard/projects/new">
+                <Car className="mr-2 h-4 w-4" />
+                Create Your First Project
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -77,17 +98,42 @@ export default async function MaintenanceDashboardPage() {
             <MaintenanceScheduleList
               schedules={schedules.map((s) => ({
                 ...s,
-                project_id: s.vehicle_projects?.id || s.project_id,
+                project_id: s.project_id,
               }))}
               projectId=""
             />
           ) : (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-10">
-                <p className="mb-4 text-center text-muted-foreground">No maintenance schedules found</p>
-                <p className="mb-4 text-center text-sm text-muted-foreground">
-                  Add maintenance schedules to your vehicles to track service intervals
-                </p>
+                {projects.length > 0 ? (
+                  <>
+                    <Plus className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="mb-2 text-center font-medium">No maintenance schedules found</p>
+                    <p className="mb-6 text-center text-sm text-muted-foreground max-w-md">
+                      Create maintenance schedules for your vehicles to track oil changes, tire rotations, and other service intervals
+                    </p>
+                    <Button asChild>
+                      <Link href="/dashboard/maintenance/new">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Your First Maintenance Schedule
+                      </Link>
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Car className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="mb-2 text-center font-medium">No vehicle projects found</p>
+                    <p className="mb-6 text-center text-sm text-muted-foreground max-w-md">
+                      Create a vehicle project first, then add maintenance schedules to track service intervals
+                    </p>
+                    <Button asChild>
+                      <Link href="/dashboard/projects/new">
+                        <Car className="mr-2 h-4 w-4" />
+                        Create Your First Project
+                      </Link>
+                    </Button>
+                  </>
+                )}
               </CardContent>
             </Card>
           )}
@@ -97,7 +143,7 @@ export default async function MaintenanceDashboardPage() {
             <MaintenanceScheduleList
               schedules={overdueSchedules.map((s) => ({
                 ...s,
-                project_id: s.vehicle_projects?.id || s.project_id,
+                project_id: s.project_id,
               }))}
               projectId=""
             />
@@ -117,7 +163,7 @@ export default async function MaintenanceDashboardPage() {
             <MaintenanceScheduleList
               schedules={dueSchedules.map((s) => ({
                 ...s,
-                project_id: s.vehicle_projects?.id || s.project_id,
+                project_id: s.project_id,
               }))}
               projectId=""
             />
@@ -137,7 +183,7 @@ export default async function MaintenanceDashboardPage() {
             <MaintenanceScheduleList
               schedules={upcomingSchedules.map((s) => ({
                 ...s,
-                project_id: s.vehicle_projects?.id || s.project_id,
+                project_id: s.project_id,
               }))}
               projectId=""
             />

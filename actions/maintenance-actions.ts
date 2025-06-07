@@ -120,7 +120,7 @@ export async function getAllMaintenanceSchedules() {
 
     // Get maintenance schedules for all user's projects
     const result = await db.query(
-      `SELECT ms.*, vp.title as project_title, vp as vehicle_projects
+      `SELECT ms.*, vp.title as project_title, vp.make as project_make, vp.model as project_model, vp.year as project_year
        FROM maintenance_schedules ms 
        JOIN vehicle_projects vp ON ms.project_id = vp.id 
        WHERE ms.project_id = ANY($1) 
