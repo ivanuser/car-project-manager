@@ -24,17 +24,58 @@ export async function POST(request: NextRequest) {
         is_active BOOLEAN DEFAULT true,
         is_admin BOOLEAN DEFAULT false,
         email_verified BOOLEAN DEFAULT false,
-        email_verified_at TIMESTAMP WITH TIME ZONE,
-        last_sign_in_at TIMESTAMP WITH TIME ZONE,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `;
     
     await client.query(createUsersTable);
-    console.log('✅ Users table created/updated with authentication fields');
+    console.log('✅ Users table created/verified');
     
-    // 2. Create sessions table for authentication
+    // 2. Add missing authentication columns to existing users table
+    const alterUsersTable = `
+      -- Add missing authentication columns if they don't exist
+      DO $$ 
+      BEGIN 
+        -- Add email_verified_at column
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                      WHERE table_name = 'users' AND column_name = 'email_verified_at') THEN
+          ALTER TABLE users ADD COLUMN email_verified_at TIMESTAMP WITH TIME ZONE;
+        END IF;
+        
+        -- Add last_sign_in_at column
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                      WHERE table_name = 'users' AND column_name = 'last_sign_in_at') THEN
+          ALTER TABLE users ADD COLUMN last_sign_in_at TIMESTAMP WITH TIME ZONE;
+        END IF;
+        
+        -- Ensure email_verified column exists as BOOLEAN (it might exist as different type)
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                      WHERE table_name = 'users' AND column_name = 'email_verified' AND data_type = 'boolean') THEN
+          -- Drop and recreate if exists with wrong type
+          IF EXISTS (SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'users' AND column_name = 'email_verified') THEN
+            ALTER TABLE users DROP COLUMN email_verified;
+          END IF;
+          ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT false;
+        END IF;
+        
+        -- Ensure is_admin column exists as BOOLEAN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                      WHERE table_name = 'users' AND column_name = 'is_admin' AND data_type = 'boolean') THEN
+          IF EXISTS (SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'users' AND column_name = 'is_admin') THEN
+            ALTER TABLE users DROP COLUMN is_admin;
+          END IF;
+          ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT false;
+        END IF;
+      END $$;
+    `;
+    
+    await client.query(alterUsersTable);
+    console.log('✅ Users table structure updated with authentication columns');
+    
+    // 3. Create sessions table for authentication
     const createSessionsTable = `
       CREATE TABLE IF NOT EXISTS sessions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -58,7 +99,7 @@ export async function POST(request: NextRequest) {
     await client.query(createSessionsTable);
     console.log('✅ Sessions table created with proper indexes');
     
-    // 3. Create profiles table (linked to users)
+    // 4. Create profiles table (linked to users)
     const createProfilesTable = `
       CREATE TABLE IF NOT EXISTS profiles (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -79,7 +120,7 @@ export async function POST(request: NextRequest) {
     await client.query(createProfilesTable);
     console.log('✅ Profiles table created');
     
-    // 4. Create user_preferences table
+    // 5. Create user_preferences table
     const createPreferencesTable = `
       CREATE TABLE IF NOT EXISTS user_preferences (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -103,7 +144,7 @@ export async function POST(request: NextRequest) {
     await client.query(createPreferencesTable);
     console.log('✅ User preferences table created');
     
-    // 5. Create updated_at trigger function
+    // 6. Create updated_at trigger function
     const createTriggerFunction = `
       CREATE OR REPLACE FUNCTION update_updated_at_column()
       RETURNS TRIGGER AS $$
@@ -117,7 +158,7 @@ export async function POST(request: NextRequest) {
     await client.query(createTriggerFunction);
     console.log('✅ Trigger function created');
     
-    // 6. Create triggers for updated_at
+    // 7. Create triggers for updated_at
     const createTriggers = [
       `DROP TRIGGER IF EXISTS update_users_updated_at ON users;`,
       `CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();`,
@@ -134,7 +175,7 @@ export async function POST(request: NextRequest) {
     }
     console.log('✅ Triggers created');
     
-    // 7. Clean up expired sessions
+    // 8. Clean up expired sessions
     const cleanupExpiredSessions = `
       DELETE FROM sessions 
       WHERE expires_at < CURRENT_TIMESTAMP 
@@ -144,7 +185,7 @@ export async function POST(request: NextRequest) {
     const cleanupResult = await client.query(cleanupExpiredSessions);
     console.log(`✅ Cleaned up ${cleanupResult.rowCount || 0} expired sessions`);
     
-    // 8. Create session cleanup function
+    // 9. Create session cleanup function
     const createCleanupFunction = `
       CREATE OR REPLACE FUNCTION cleanup_expired_sessions()
       RETURNS INTEGER AS $$
@@ -164,7 +205,7 @@ export async function POST(request: NextRequest) {
     await client.query(createCleanupFunction);
     console.log('✅ Session cleanup function created');
     
-    // 9. Create unique token generation function
+    // 10. Create unique token generation function
     const createTokenFunction = `
       CREATE OR REPLACE FUNCTION generate_unique_session_token()
       RETURNS TEXT AS $$
@@ -197,7 +238,18 @@ export async function POST(request: NextRequest) {
     await client.query(createTokenFunction);
     console.log('✅ Unique token generation function created');
     
-    // 10. Create or update admin user with hashed password
+    // 11. Verify table structure before creating admin user
+    const checkColumns = `
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'users' 
+      ORDER BY ordinal_position;
+    `;
+    
+    const columnsResult = await client.query(checkColumns);
+    console.log('Users table columns:', columnsResult.rows);
+    
+    // 12. Create or update admin user with hashed password
     const adminEmail = 'admin@cajpro.local';
     const adminPassword = 'admin123';
     const hashedPassword = await bcrypt.hash(adminPassword, 12);
@@ -209,13 +261,14 @@ export async function POST(request: NextRequest) {
         password_hash = EXCLUDED.password_hash,
         is_admin = true,
         email_verified = true,
+        email_verified_at = CURRENT_TIMESTAMP,
         updated_at = CURRENT_TIMESTAMP;
     `;
     
     await client.query(createAdminUser, [adminEmail, hashedPassword]);
     console.log('✅ Admin user created/updated');
     
-    // 11. Create profile for admin user
+    // 13. Create profile for admin user
     const createAdminProfile = `
       INSERT INTO profiles (user_id, full_name)
       SELECT id, 'CAJ-Pro Administrator'
@@ -229,7 +282,7 @@ export async function POST(request: NextRequest) {
     await client.query(createAdminProfile, [adminEmail]);
     console.log('✅ Admin profile created/updated');
     
-    // 12. Create preferences for admin user
+    // 14. Create preferences for admin user
     const createAdminPreferences = `
       INSERT INTO user_preferences (user_id)
       SELECT id FROM users WHERE email = $1
@@ -239,7 +292,7 @@ export async function POST(request: NextRequest) {
     await client.query(createAdminPreferences, [adminEmail]);
     console.log('✅ Admin preferences created/updated');
     
-    // 13. Verify database structure
+    // 15. Verify database structure
     const verifyTables = `
       SELECT 
         table_name,
@@ -253,7 +306,7 @@ export async function POST(request: NextRequest) {
     const verifyResult = await client.query(verifyTables);
     const tables = verifyResult.rows;
     
-    // 14. Count existing data
+    // 16. Count existing data
     const countUsers = await client.query('SELECT COUNT(*) as count FROM users');
     const countSessions = await client.query('SELECT COUNT(*) as count FROM sessions');
     const countProfiles = await client.query('SELECT COUNT(*) as count FROM profiles');
@@ -283,7 +336,8 @@ export async function POST(request: NextRequest) {
           email: adminEmail,
           password: 'admin123',
           note: 'Use these credentials for testing'
-        }
+        },
+        usersTableColumns: columnsResult.rows
       },
       nextSteps: [
         'Test registration with a new user account',
@@ -326,7 +380,8 @@ export async function GET(request: NextRequest) {
       'Sets up proper database indexes and triggers',
       'Provides session cleanup utilities',
       'Creates profiles and user preferences tables',
-      'Comprehensive authentication system ready for production'
+      'Comprehensive authentication system ready for production',
+      'Handles existing tables by adding missing columns safely'
     ]
   });
 }
