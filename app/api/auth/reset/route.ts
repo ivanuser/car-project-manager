@@ -1,6 +1,8 @@
+// Force dynamic to prevent static generation
+export const dynamic = 'force-dynamic'
+
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { createServerClient } from "@/lib/supabase"
 
 export async function GET(request: Request) {
   try {
@@ -17,7 +19,8 @@ export async function GET(request: Request) {
         cookie.name.startsWith('next-auth') || 
         cookie.name.startsWith('sb-') || 
         cookie.name.includes('supabase') ||
-        cookie.name.includes('auth')
+        cookie.name.includes('auth') ||
+        cookie.name.includes('cajpro')
       ) {
         try {
           cookieStore.delete(cookie.name)
@@ -29,14 +32,7 @@ export async function GET(request: Request) {
       }
     }
     
-    // Try to sign out from Supabase
-    const supabase = createServerClient()
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-      console.error("Error signing out from Supabase:", error)
-    } else {
-      console.log("Successfully signed out from Supabase")
-    }
+    console.log("Successfully cleared auth cookies")
     
     // Serve an HTML page with a script to clear client-side storage
     const html = `
@@ -130,7 +126,7 @@ export async function GET(request: Request) {
     
     // Clear localStorage
     if (typeof localStorage !== 'undefined') {
-      // Clear all Supabase auth-related items
+      // Clear all auth-related items
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -138,6 +134,7 @@ export async function GET(request: Request) {
           key.includes('supabase') || 
           key.includes('sb-') || 
           key.includes('auth') ||
+          key.includes('cajpro') ||
           key.startsWith('next-auth')
         )) {
           keysToRemove.push(key);
@@ -151,8 +148,8 @@ export async function GET(request: Request) {
       });
       
       // Also clear our custom backup items
-      localStorage.removeItem('supabase-auth-user-email');
-      localStorage.removeItem('supabase-auth-user-id');
+      localStorage.removeItem('cajpro_auth_user');
+      localStorage.removeItem('cajpro_dev_mode');
     }
     
     // Clear sessionStorage
@@ -181,7 +178,8 @@ export async function GET(request: Request) {
     console.error("Error in auth reset route:", error)
     return NextResponse.json({
       error: "An unexpected error occurred",
-      details: error instanceof Error ? error.message : String(error)
+      details: error instanceof Error ? error.message : String(error),
+      authSystem: "PostgreSQL"
     }, { status: 500 })
   }
 }

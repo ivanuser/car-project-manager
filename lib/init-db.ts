@@ -1,14 +1,15 @@
-import { createServerClient } from "@/lib/supabase"
+import db from "@/lib/db"
 
-// SQL statements to create tables if they don't exist
+// SQL statements to create tables if they don't exist (without Supabase auth references)
 const createTablesSQL = `
 -- Create profiles table
 CREATE TABLE IF NOT EXISTS profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   full_name TEXT,
-  avatar_url TEXT
+  avatar_url TEXT,
+  user_id UUID NOT NULL
 );
 
 -- Create vehicle_projects table with updated fields
@@ -79,78 +80,26 @@ CREATE TABLE IF NOT EXISTS project_parts (
   user_id UUID NOT NULL
 );
 
--- Create RLS policies for parts
-ALTER TABLE project_parts ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY IF NOT EXISTS "Users can view parts for their projects" 
-  ON project_parts FOR SELECT 
-  USING (EXISTS (
-    SELECT 1 FROM vehicle_projects 
-    WHERE vehicle_projects.id = project_parts.project_id 
-    AND vehicle_projects.user_id = auth.uid()
-  ));
-
-CREATE POLICY IF NOT EXISTS "Users can create parts for their projects" 
-  ON project_parts FOR INSERT 
-  WITH CHECK (EXISTS (
-    SELECT 1 FROM vehicle_projects 
-    WHERE vehicle_projects.id = project_parts.project_id 
-    AND vehicle_projects.user_id = auth.uid()
-  ));
-
-CREATE POLICY IF NOT EXISTS "Users can update parts for their projects" 
-  ON project_parts FOR UPDATE 
-  USING (EXISTS (
-    SELECT 1 FROM vehicle_projects 
-    WHERE vehicle_projects.id = project_parts.project_id 
-    AND vehicle_projects.user_id = auth.uid()
-  ));
-
-CREATE POLICY IF NOT EXISTS "Users can delete parts for their projects" 
-  ON project_parts FOR DELETE 
-  USING (EXISTS (
-    SELECT 1 FROM vehicle_projects 
-    WHERE vehicle_projects.id = project_parts.project_id 
-    AND vehicle_projects.user_id = auth.uid()
-  ));
-
--- Create RLS policies for vendors
-ALTER TABLE vendors ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY IF NOT EXISTS "Users can view their own vendors" 
-  ON vendors FOR SELECT 
-  USING (auth.uid() = user_id);
-
-CREATE POLICY IF NOT EXISTS "Users can create their own vendors" 
-  ON vendors FOR INSERT 
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY IF NOT EXISTS "Users can update their own vendors" 
-  ON vendors FOR UPDATE 
-  USING (auth.uid() = user_id);
-
-CREATE POLICY IF NOT EXISTS "Users can delete their own vendors" 
-  ON vendors FOR DELETE 
-  USING (auth.uid() = user_id);
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_vehicle_projects_user_id ON vehicle_projects(user_id);
+CREATE INDEX IF NOT EXISTS idx_project_tasks_project_id ON project_tasks(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_parts_project_id ON project_parts(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_parts_user_id ON project_parts(user_id);
+CREATE INDEX IF NOT EXISTS idx_vendors_user_id ON vendors(user_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON profiles(user_id);
 `
 
 export async function initializeDatabase() {
   try {
     console.log("Initializing database tables...")
-    const supabase = createServerClient()
-
-    // Since we can't directly execute SQL in the Supabase JavaScript client without the exec_sql function,
-    // we'll skip the SQL execution for development and assume the database is already set up
     
-    console.log("Development mode: Skipping SQL execution - assuming database is already set up")
+    // Execute the SQL to create tables and policies
+    await db.query(createTablesSQL)
     
-    // In production, you should use proper migrations or have the exec_sql function available
-    // For now, we'll return success to allow development to continue
-
     console.log("Database tables initialized successfully")
     return { success: true }
   } catch (error) {
-    console.error("Unexpected error initializing database:", error)
-    return { success: false, error }
+    console.error("Error initializing database:", error)
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" }
   }
 }

@@ -1,8 +1,9 @@
 "use server"
 
-import { createClient } from "@/lib/supabase"
+import db from "@/lib/db"
 import { cookies } from "next/headers"
 import { revalidatePath } from "next/cache"
+import { getCurrentUserId } from "@/lib/auth/current-user"
 
 export type UserStats = {
   totalUsers: number

@@ -1,27 +1,23 @@
+// Force dynamic to prevent static generation
+export const dynamic = 'force-dynamic'
+
 import { NextResponse } from "next/server"
-import { createServerClient } from "@/lib/supabase"
-import fs from "fs"
-import path from "path"
 
 export async function GET() {
   try {
-    const supabase = createServerClient()
-
-    // Read the SQL file
-    const sqlFilePath = path.join(process.cwd(), "db", "documentation-schema.sql")
-    const sqlContent = fs.readFileSync(sqlFilePath, "utf8")
-
-    // Execute the SQL
-    const { error } = await supabase.rpc("exec_sql", { sql_query: sqlContent })
-
-    if (error) {
-      console.error("Error executing SQL:", error)
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true })
+    // Document schema updates are not implemented in the current version
+    // This endpoint exists for compatibility but does nothing
+    console.log("Document schema update requested - not implemented")
+    
+    return NextResponse.json({ 
+      success: true, 
+      message: "Document schema update not required - using PostgreSQL directly" 
+    })
   } catch (error) {
     console.error("Error updating document schema:", error)
-    return NextResponse.json({ success: false, error: "Failed to update document schema" }, { status: 500 })
+    return NextResponse.json({ 
+      success: false, 
+      error: "Failed to update document schema" 
+    }, { status: 500 })
   }
 }

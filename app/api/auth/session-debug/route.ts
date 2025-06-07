@@ -1,10 +1,12 @@
+// Force dynamic to prevent static generation
+export const dynamic = 'force-dynamic'
+
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { createServerClient } from "@/lib/supabase"
+import { getCurrentUser } from "@/lib/auth/current-user"
 
 export async function GET() {
   try {
-    const supabase = createServerClient()
     const cookieStore = cookies()
 
     // Get all cookies for debugging
@@ -12,30 +14,26 @@ export async function GET() {
     const cookieNames = allCookies.map((cookie) => cookie.name)
 
     // Check for specific cookies
-    const authCookie = cookieStore.get("supabase-auth-token")
+    const authCookie = cookieStore.get("auth-token") || cookieStore.get("cajpro_auth_token")
     const debugCookie = cookieStore.get("auth-debug")
 
-    // Get the session
-    const { data, error } = await supabase.auth.getSession()
-
-    // Try to get user
-    const userResult = await supabase.auth.getUser()
+    // Get the current user using our PostgreSQL auth system
+    const currentUser = await getCurrentUser()
 
     return NextResponse.json({
-      session: data.session
+      session: currentUser
         ? {
             exists: true,
             user: {
-              id: data.session.user.id,
-              email: data.session.user.email,
+              id: currentUser.userId,
+              email: currentUser.email,
             },
-            expires_at: data.session.expires_at,
           }
         : null,
-      user: userResult.data.user
+      user: currentUser
         ? {
-            id: userResult.data.user.id,
-            email: userResult.data.user.email,
+            id: currentUser.userId,
+            email: currentUser.email,
           }
         : null,
       cookies: {
@@ -55,7 +53,8 @@ export async function GET() {
             }
           : null,
       },
-      error: error ? error.message : null,
+      authSystem: "PostgreSQL",
+      error: null,
     })
   } catch (error) {
     console.error("Session debug error:", error)
@@ -63,6 +62,7 @@ export async function GET() {
       {
         error: "Failed to debug session",
         errorDetails: error instanceof Error ? error.message : String(error),
+        authSystem: "PostgreSQL",
       },
       { status: 500 },
     )

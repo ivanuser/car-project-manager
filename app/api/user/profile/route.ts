@@ -1,3 +1,6 @@
+// Force dynamic to prevent static generation
+export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import jwtUtils from '@/lib/auth/jwt';

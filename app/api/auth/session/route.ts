@@ -4,6 +4,9 @@
  * Created on: May 4, 2025
  */
 
+// Force dynamic to prevent static generation
+export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server';
 import { authService, authMiddleware } from '@/lib/auth';
 

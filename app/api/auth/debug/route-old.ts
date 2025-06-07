@@ -1,6 +1,3 @@
-// Force dynamic to prevent static generation
-export const dynamic = 'force-dynamic'
-
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { getCurrentUser } from "@/lib/auth/current-user"
@@ -38,8 +35,15 @@ export async function GET(request: Request) {
       },
       user: {
         exists: !!currentUser,
-        email: currentUser?.email || null,
-        id: currentUser?.userId ? currentUser.userId.substring(0, 8) + '...' : null
+        userId: currentUser?.userId || null,
+        expiresAt: sessionData?.session?.expires_at ? new Date(sessionData.session.expires_at * 1000).toISOString() : null,
+        error: sessionError ? sessionError.message : null
+      },
+      user: {
+        exists: !!userData?.user,
+        email: userData?.user?.email || null,
+        id: userData?.user?.id ? userData.user.id.substring(0, 8) + '...' : null,
+        error: userError ? userError.message : null
       }
     }
 
@@ -135,15 +139,15 @@ export async function GET(request: Request) {
     <div class="section">
       <h2>Status</h2>
       <div>
-        <span class="status ${currentUser ? 'status-success' : 'status-error'}">
-          ${currentUser ? '✓ Authenticated' : '✕ Not Authenticated'}
+        <span class="status ${userData?.user ? 'status-success' : 'status-error'}">
+          ${userData?.user ? '✓ Authenticated' : '✕ Not Authenticated'}
         </span>
-        ${currentUser ? `as <strong>${currentUser.email}</strong>` : ''}
+        ${userData?.user ? `as <strong>${userData.user.email}</strong>` : ''}
       </div>
       
       <div class="action-buttons">
         <a href="/login" class="button">Go to Login</a>
-        <a href="/api/auth/logout" class="button button-reset">Logout</a>
+        <a href="/api/auth/reset" class="button button-reset">Reset Auth</a>
       </div>
     </div>
     
@@ -213,10 +217,49 @@ export async function GET(request: Request) {
           }
         }
         
+        // Fetch current auth status from client
+        let supabaseAuth = null;
+        try {
+          // Try to dynamically import the Supabase client
+          const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+          
+          // Use the NEXT_PUBLIC environment variables from the server response
+          const supabaseUrl = '${process.env.NEXT_PUBLIC_SUPABASE_URL}';
+          const supabaseAnonKey = '${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}';
+          
+          if (supabaseUrl && supabaseAnonKey) {
+            const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+              auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true
+              }
+            });
+            
+            const { data, error } = await supabase.auth.getSession();
+            if (error) {
+              supabaseAuth = { error: error.message };
+            } else {
+              supabaseAuth = {
+                hasSession: !!data.session,
+                user: data.session?.user?.email || null,
+                expiresAt: data.session?.expires_at 
+                  ? new Date(data.session.expires_at * 1000).toISOString()
+                  : null
+              };
+            }
+          } else {
+            supabaseAuth = { error: 'Missing Supabase configuration' };
+          }
+        } catch (e) {
+          supabaseAuth = { error: e.message };
+        }
+        
         // Display all the data
         const clientDebug = {
           time: new Date().toISOString(),
-          browserStorage: storage
+          browserStorage: storage,
+          supabaseClientAuth: supabaseAuth
         };
         
         debugEl.innerHTML = \`<pre>\${JSON.stringify(clientDebug, null, 2)}</pre>\`;
