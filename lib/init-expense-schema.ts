@@ -1,88 +1,74 @@
-import { createServerClient } from "@/lib/supabase"
+import db from '@/lib/db'
 
 export async function initializeExpenseSchema() {
   try {
-    const supabase = createServerClient()
-
     // Check if expense_reports table exists
-    const { data: tableExists, error: checkError } = await supabase
-      .from("information_schema.tables")
-      .select("table_name")
-      .eq("table_name", "expense_reports")
-      .eq("table_schema", "public")
-      .limit(1)
+    const tableExistsResult = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'expense_reports'
+      );
+    `)
 
-    if (checkError) {
-      console.error("Error checking if expense_reports table exists:", checkError)
-      return { success: false, error: checkError.message }
-    }
+    const tableExists = tableExistsResult.rows[0].exists
 
     // If the table doesn't exist, create it
-    if (!tableExists || tableExists.length === 0) {
-      // Create expense_reports table
-      const { error: createError } = await supabase
-        .from("expense_reports")
-        .insert({
-          id: "00000000-0000-0000-0000-000000000000",
-          title: "Temporary record for table creation",
-          status: "draft",
-          user_id: "00000000-0000-0000-0000-000000000000",
-          total_amount: 0,
-          start_date: new Date().toISOString(),
-          end_date: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .select()
+    if (!tableExists) {
+      await db.query(`
+        CREATE TABLE expense_reports (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          title VARCHAR(255) NOT NULL,
+          description TEXT,
+          start_date DATE NOT NULL,
+          end_date DATE NOT NULL,
+          total_amount DECIMAL(10,2) DEFAULT 0,
+          status VARCHAR(50) DEFAULT 'draft',
+          user_id UUID NOT NULL,
+          project_id UUID REFERENCES vehicle_projects(id) ON DELETE CASCADE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `)
 
-      if (createError && createError.code !== "23505") {
-        // Ignore duplicate key errors
-        console.error("Error creating expense_reports table:", createError)
-        return { success: false, error: createError.message }
-      }
+      // Create indexes
+      await db.query(`
+        CREATE INDEX idx_expense_reports_user_id ON expense_reports(user_id);
+        CREATE INDEX idx_expense_reports_project_id ON expense_reports(project_id);
+        CREATE INDEX idx_expense_reports_status ON expense_reports(status);
+      `)
 
-      // Delete the temporary record
-      await supabase.from("expense_reports").delete().eq("id", "00000000-0000-0000-0000-000000000000")
+      // Create trigger for updated_at
+      await db.query(`
+        CREATE TRIGGER update_expense_reports_updated_at
+        BEFORE UPDATE ON expense_reports
+        FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+      `)
     }
 
     // Check if budget_items table has expense_report_id column
-    const { data: columnExists, error: columnError } = await supabase
-      .from("information_schema.columns")
-      .select("column_name")
-      .eq("table_name", "budget_items")
-      .eq("column_name", "expense_report_id")
-      .limit(1)
+    const columnExistsResult = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'budget_items'
+        AND column_name = 'expense_report_id'
+      );
+    `)
 
-    if (columnError) {
-      console.error("Error checking if expense_report_id column exists:", columnError)
-      return { success: false, error: columnError.message }
-    }
+    const columnExists = columnExistsResult.rows[0].exists
 
-    // If the column doesn't exist, try to add it
-    if (!columnExists || columnExists.length === 0) {
-      // This is a workaround since we can't directly execute ALTER TABLE
-      // In a real application, you would use a proper migration system
-      try {
-        // Try to add a record with the new column
-        const { error: insertError } = await supabase
-          .from("budget_items")
-          .insert({
-            project_id: "00000000-0000-0000-0000-000000000000",
-            title: "Temporary record for column creation",
-            amount: 0,
-            date: new Date().toISOString(),
-            expense_report_id: null,
-          })
-          .select()
+    // If the column doesn't exist, add it
+    if (!columnExists) {
+      await db.query(`
+        ALTER TABLE budget_items 
+        ADD COLUMN expense_report_id UUID REFERENCES expense_reports(id) ON DELETE SET NULL;
+      `)
 
-        if (insertError && !insertError.message.includes("expense_report_id")) {
-          console.error("Error adding expense_report_id column:", insertError)
-          // Continue anyway, as we can't directly alter the table
-        }
-      } catch (error) {
-        console.error("Error in column creation attempt:", error)
-        // Continue anyway, as we can't directly alter the table
-      }
+      // Create index for the new column
+      await db.query(`
+        CREATE INDEX idx_budget_items_expense_report_id ON budget_items(expense_report_id);
+      `)
     }
 
     return { success: true }

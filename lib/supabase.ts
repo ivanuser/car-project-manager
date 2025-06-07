@@ -1,39 +1,27 @@
 /**
- * Supabase.ts - Compatibility layer for migrated PostgreSQL application
- * For Caj-pro car project build tracking application
- * Created on: May 5, 2025
- * 
- * This file provides compatibility for any components still expecting Supabase
- * It forwards all calls to our custom auth-client implementation that works with direct PostgreSQL
+ * Supabase.ts - Legacy compatibility stub
+ * This file exists to prevent import errors from old code that still references Supabase
+ * All functionality has been migrated to direct PostgreSQL and should use the appropriate actions
  */
 
-import authClient from './auth/auth-client';
-import { createPostgresClient } from './postgres/postgres-client';
+// Stub functions that throw errors to prevent accidental usage
+export const createServerClient = () => {
+  throw new Error("Supabase has been removed. Use PostgreSQL actions instead.")
+}
 
-// Use our PostgreSQL client for database operations
-export const createServerClient = async () => {
-  const postgresClient = await createPostgresClient();
-  return postgresClient;
-};
+export const createBrowserClient = () => {
+  throw new Error("Supabase has been removed. Use PostgreSQL actions instead.")
+}
 
-export const createBrowserClient = async () => {
-  const postgresClient = await createPostgresClient();
-  return postgresClient;
-};
+export const supabase = null
 
-// Export a singleton instance for client-side usage (compatibility)
-export const supabase = null; // We'll initialize this lazily when needed
+export const createCompatClient = () => {
+  throw new Error("Supabase has been removed. Use PostgreSQL actions instead.")
+}
 
-// Re-export createClient for backward compatibility with a different name
-export const createCompatClient = async () => {
-  const postgresClient = await createPostgresClient();
-  return postgresClient;
-};
-
-// This ensures any components still expecting Supabase will continue to work
 export default {
   createServerClient,
   createBrowserClient,
   supabase,
   createCompatClient
-};
+}

@@ -1,3 +1,6 @@
+'use client'
+
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -7,15 +10,72 @@ import { getVehicleProjects } from "@/actions/project-actions"
 import { MaintenanceScheduleList } from "@/components/maintenance/maintenance-schedule-list"
 import { RefreshCcw, Plus, Car } from "lucide-react"
 
-export default async function MaintenanceDashboardPage() {
-  // Check for due maintenance and create notifications
-  await checkMaintenanceNotifications()
+// Force dynamic to prevent static generation
+export const dynamic = 'force-dynamic'
 
-  // Get all maintenance schedules for the user
-  const schedules = await getAllMaintenanceSchedules()
+interface MaintenanceSchedule {
+  id: string
+  title: string
+  description: string | null
+  type: string
+  interval_type: string
+  interval_value: number
+  last_completed_at: string | null
+  next_due_at: string | null
+  status: string
+  project_id: string
+  created_at: string
+  updated_at: string
+}
 
-  // Get user's projects to check if they have any
-  const projects = await getVehicleProjects()
+export default function MaintenanceDashboardPage() {
+  const [schedules, setSchedules] = useState<MaintenanceSchedule[]>([])
+  const [projects, setProjects] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        // Check for due maintenance and create notifications
+        await checkMaintenanceNotifications()
+
+        // Get all maintenance schedules for the user
+        const schedulesData = await getAllMaintenanceSchedules()
+        setSchedules(schedulesData)
+
+        // Get user's projects to check if they have any
+        const projectsData = await getVehicleProjects()
+        setProjects(projectsData)
+      } catch (error) {
+        console.error("Error loading maintenance data:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-8 w-64 bg-gray-200 rounded animate-pulse" />
+        <div className="grid gap-4 md:grid-cols-3">
+          {[...Array(3)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 w-12 bg-gray-200 rounded animate-pulse mb-2" />
+                <div className="h-3 w-32 bg-gray-200 rounded animate-pulse" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   // Group schedules by status
   const overdueSchedules = schedules.filter((schedule) => schedule.status === "overdue")

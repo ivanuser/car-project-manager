@@ -1,4 +1,7 @@
 import { Suspense } from "react"
+
+// Force dynamic to prevent static generation
+export const dynamic = 'force-dynamic'
 import { getUserExpenseReports } from "@/actions/expense-actions"
 import { ExpenseReportList } from "@/components/expenses/expense-report-list"
 import { ExpenseAnalytics } from "@/components/expenses/expense-analytics"

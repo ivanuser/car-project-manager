@@ -1,9 +1,10 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { createServerClient } from "@/lib/supabase"
+import db from "@/lib/db"
 import { getBudgetCategories, type BudgetItem } from "@/actions/budget-actions"
 import { initializeExpenseSchema } from "@/lib/init-expense-schema"
+import { getCurrentUserId } from "@/lib/auth/current-user"
 
 export interface ReceiptData {
   vendor: string
@@ -157,500 +158,417 @@ async function suggestExpenseCategory(receiptData: ReceiptData): Promise<string 
 
 // Create a new expense report
 export async function createExpenseReport(formData: FormData) {
-  const supabase = await createServerClient()
+  try {
+    // Ensure the expense schema is initialized
+    await initializeExpenseSchema()
 
-  // Ensure the expense schema is initialized
-  await initializeExpenseSchema()
+    const title = formData.get("title") as string
+    const description = (formData.get("description") as string) || null
+    const startDate = formData.get("startDate") as string
+    const endDate = formData.get("endDate") as string
+    const projectId = (formData.get("projectId") as string) || null
 
-  const title = formData.get("title") as string
-  const description = (formData.get("description") as string) || null
-  const startDate = formData.get("startDate") as string
-  const endDate = formData.get("endDate") as string
-  const projectId = (formData.get("projectId") as string) || null
+    // Get current user ID
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return { error: "User not authenticated" }
+    }
 
-  // Get user ID from session
-  const authClient = await createServerClient()
-  const {
-    data: { session },
-  } = await authClient.auth.getSession()
-  const userId = session?.user?.id
+    // Create the report
+    const result = await db.query(`
+      INSERT INTO expense_reports (title, description, start_date, end_date, status, user_id, project_id, total_amount)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `, [title, description, startDate, endDate, 'draft', userId, projectId, 0])
 
-  if (!userId) {
-    return { error: "User not authenticated" }
-  }
+    const data = result.rows[0]
 
-  // Create the report
-  const reportResult = await supabase
-    .from("expense_reports")
-    .insert({
-      title,
-      description,
-      start_date: startDate,
-      end_date: endDate,
-      status: "draft",
-      user_id: userId,
-      project_id: projectId,
-      total_amount: 0, // Will be updated when items are added
-    })
-    .select()
-    .execute()
-
-  const { data, error } = reportResult
-
-  if (error) {
+    revalidatePath("/dashboard/expenses")
+    return { success: true, data }
+  } catch (error) {
     console.error("Error creating expense report:", error)
-    return { error: error.message }
+    return { error: error instanceof Error ? error.message : "Failed to create expense report" }
   }
-
-  revalidatePath("/dashboard/expenses")
-  return { success: true, data }
 }
 
 // Get expense reports for the current user
 export async function getUserExpenseReports() {
-  const supabase = await createServerClient()
-
-  // Ensure the expense schema is initialized
   try {
+    // Ensure the expense schema is initialized
     await initializeExpenseSchema()
+
+    // Get current user ID
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return []
+    }
+
+    // Check if the expense_reports table exists
+    const tableExistsResult = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'expense_reports'
+      );
+    `)
+
+    if (!tableExistsResult.rows[0].exists) {
+      console.error("Expense reports table does not exist")
+      return []
+    }
+
+    const result = await db.query(`
+      SELECT * FROM expense_reports 
+      WHERE user_id = $1 
+      ORDER BY created_at DESC
+    `, [userId])
+
+    return result.rows as ExpenseReport[]
   } catch (error) {
-    console.error("Error initializing expense schema:", error)
-    return []
-  }
-
-  // Get user ID from session
-  const authClient = await createServerClient()
-  const {
-    data: { session },
-  } = await authClient.auth.getSession()
-  const userId = session?.user?.id
-
-  if (!userId) {
-    return []
-  }
-
-  // Check if the expense_reports table exists
-  const result = await supabase
-    .from("information_schema.tables")
-    .select("table_name")
-    .eq("table_name", "expense_reports")
-    .eq("table_schema", "public")
-    .limit(1)
-    .execute()
-    
-  const { data: tableExists, error: checkError } = result
-
-  if (checkError || !tableExists || tableExists.length === 0) {
-    console.error("Expense reports table does not exist:", checkError)
-    return []
-  }
-
-  const { data, error } = await supabase
-    .from("expense_reports")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .execute()
-
-  if (error) {
     console.error("Error fetching expense reports:", error)
     return []
   }
-
-  return data as ExpenseReport[]
 }
 
 // Get a specific expense report with its items
 export async function getExpenseReport(reportId: string) {
-  const supabase = await createServerClient()
-
-  // Ensure the expense schema is initialized
   try {
+    // Ensure the expense schema is initialized
     await initializeExpenseSchema()
-  } catch (error) {
-    console.error("Error initializing expense schema:", error)
-    return null
-  }
 
-  // Check if the expense_reports table exists
-  const tableResult = await supabase
-    .from("information_schema.tables")
-    .select("table_name")
-    .eq("table_name", "expense_reports")
-    .eq("table_schema", "public")
-    .limit(1)
-    .execute()
-    
-  const { data: tableExists, error: checkError } = tableResult
-
-  if (checkError || !tableExists || tableExists.length === 0) {
-    console.error("Expense reports table does not exist:", checkError)
-    return null
-  }
-
-  // Get the report
-  const reportResult = await supabase
-    .from("expense_reports")
-    .select("*")
-    .eq("id", reportId)
-    .single()
-    
-  const { data: report, error: reportError } = reportResult
-
-  if (reportError) {
-    console.error("Error fetching expense report:", reportError)
-    return null
-  }
-
-  // Check if budget_items table has expense_report_id column
-  const columnResult = await supabase
-    .from("information_schema.columns")
-    .select("column_name")
-    .eq("table_name", "budget_items")
-    .eq("column_name", "expense_report_id")
-    .limit(1)
-    .execute()
-    
-  const { data: columnExists, error: columnError } = columnResult
-
-  if (columnError || !columnExists || columnExists.length === 0) {
-    console.error("Expense report ID column does not exist in budget_items:", columnError)
-    return {
-      ...report,
-      items: [],
-    } as ExpenseReport
-  }
-
-  // Get the report items (budget items linked to this report)
-  const itemsResult = await supabase
-    .from("budget_items")
-    .select(`
-      *,
-      budget_categories(name)
+    // Check if the expense_reports table exists
+    const tableExistsResult = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'expense_reports'
+      );
     `)
-    .eq("expense_report_id", reportId)
-    .order("date", { ascending: false })
-    .execute()
-    
-  const { data: items, error: itemsError } = itemsResult
 
-  if (itemsError) {
-    console.error("Error fetching expense report items:", itemsError)
+    if (!tableExistsResult.rows[0].exists) {
+      console.error("Expense reports table does not exist")
+      return null
+    }
+
+    // Get the report
+    const reportResult = await db.query(`
+      SELECT * FROM expense_reports WHERE id = $1
+    `, [reportId])
+
+    if (reportResult.rows.length === 0) {
+      console.error("Expense report not found")
+      return null
+    }
+
+    const report = reportResult.rows[0]
+
+    // Check if budget_items table has expense_report_id column
+    const columnExistsResult = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'budget_items'
+        AND column_name = 'expense_report_id'
+      );
+    `)
+
+    if (!columnExistsResult.rows[0].exists) {
+      console.error("Expense report ID column does not exist in budget_items")
+      return {
+        ...report,
+        items: [],
+      } as ExpenseReport
+    }
+
+    // Get the report items (budget items linked to this report)
+    const itemsResult = await db.query(`
+      SELECT bi.*, bc.name as category_name
+      FROM budget_items bi
+      LEFT JOIN budget_categories bc ON bi.category_id = bc.id
+      WHERE bi.expense_report_id = $1
+      ORDER BY bi.date DESC
+    `, [reportId])
+
+    const items = itemsResult.rows
+
     return {
       ...report,
-      items: [],
+      items,
     } as ExpenseReport
+  } catch (error) {
+    console.error("Error fetching expense report:", error)
+    return null
   }
-
-  // Format the data to include category_name
-  const formattedItems = items.map((item) => ({
-    ...item,
-    category_name: item.budget_categories?.name || null,
-  }))
-
-  return {
-    ...report,
-    items: formattedItems,
-  } as ExpenseReport
 }
 
 // Update expense report status
 export async function updateExpenseReportStatus(reportId: string, status: string) {
-  const supabase = await createServerClient()
+  try {
+    // Ensure the expense schema is initialized
+    await initializeExpenseSchema()
 
-  // Ensure the expense schema is initialized
-  await initializeExpenseSchema()
+    const result = await db.query(`
+      UPDATE expense_reports 
+      SET status = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+    `, [status, reportId])
 
-  const updateResult = await supabase
-    .from("expense_reports")
-    .update({
-      status,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", reportId)
-    .select()
-    .execute()
-    
-  const { data, error } = updateResult
+    const data = result.rows[0]
 
-  if (error) {
+    revalidatePath(`/dashboard/expenses/${reportId}`)
+    return { success: true, data }
+  } catch (error) {
     console.error("Error updating expense report status:", error)
-    return { error: error.message }
+    return { error: error instanceof Error ? error.message : "Failed to update expense report status" }
   }
-
-  revalidatePath(`/dashboard/expenses/${reportId}`)
-  return { success: true, data }
 }
 
 // Add an expense item to a report
 export async function addExpenseToReport(reportId: string, itemId: string) {
-  const supabase = await createServerClient()
+  try {
+    // Ensure the expense schema is initialized
+    await initializeExpenseSchema()
 
-  // Ensure the expense schema is initialized
-  await initializeExpenseSchema()
+    // Check if budget_items table has expense_report_id column
+    const columnExistsResult = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'budget_items'
+        AND column_name = 'expense_report_id'
+      );
+    `)
 
-  // Check if budget_items table has expense_report_id column
-  const columnResult = await supabase
-    .from("information_schema.columns")
-    .select("column_name")
-    .eq("table_name", "budget_items")
-    .eq("column_name", "expense_report_id")
-    .limit(1)
-    .execute()
-    
-  const { data: columnExists, error: columnError } = columnResult
+    if (!columnExistsResult.rows[0].exists) {
+      console.error("Expense report ID column does not exist in budget_items")
+      return { error: "Database schema is not properly set up for expense reports" }
+    }
 
-  if (columnError || !columnExists || columnExists.length === 0) {
-    console.error("Expense report ID column does not exist in budget_items:", columnError)
-    return { error: "Database schema is not properly set up for expense reports" }
+    // Update the budget item to link it to the report
+    const itemResult = await db.query(`
+      UPDATE budget_items 
+      SET expense_report_id = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+    `, [reportId, itemId])
+
+    if (itemResult.rows.length === 0) {
+      return { error: "Budget item not found" }
+    }
+
+    // Update the report's total amount
+    const reportItemsResult = await db.query(`
+      SELECT COALESCE(SUM(amount), 0) as total_amount
+      FROM budget_items 
+      WHERE expense_report_id = $1
+    `, [reportId])
+
+    const totalAmount = reportItemsResult.rows[0].total_amount
+
+    await db.query(`
+      UPDATE expense_reports 
+      SET total_amount = $1, updated_at = NOW()
+      WHERE id = $2
+    `, [totalAmount, reportId])
+
+    revalidatePath(`/dashboard/expenses/${reportId}`)
+    return { success: true, data: itemResult.rows[0] }
+  } catch (error) {
+    console.error("Error adding expense to report:", error)
+    return { error: error instanceof Error ? error.message : "Failed to add expense to report" }
   }
-
-  // Update the budget item to link it to the report
-  const itemResult = await supabase
-    .from("budget_items")
-    .update({
-      expense_report_id: reportId,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", itemId)
-    .select()
-    .execute()
-    
-  const { data: itemData, error: itemError } = itemResult
-
-  if (itemError) {
-    console.error("Error adding expense to report:", itemError)
-    return { error: itemError.message }
-  }
-
-  // Update the report's total amount
-  const reportItemsResult = await supabase
-    .from("budget_items")
-    .select("amount")
-    .eq("expense_report_id", reportId)
-    .execute()
-    
-  const { data: reportItems } = reportItemsResult
-
-  const totalAmount = reportItems?.reduce((sum, item) => sum + (item.amount || 0), 0) || 0
-
-  await supabase
-    .from("expense_reports")
-    .update({
-      total_amount: totalAmount,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", reportId)
-    .execute()
-
-  revalidatePath(`/dashboard/expenses/${reportId}`)
-  return { success: true, data: itemData }
 }
 
 // Remove an expense item from a report
 export async function removeExpenseFromReport(reportId: string, itemId: string) {
-  const supabase = await createServerClient()
+  try {
+    // Ensure the expense schema is initialized
+    await initializeExpenseSchema()
 
-  // Ensure the expense schema is initialized
-  await initializeExpenseSchema()
+    // Check if budget_items table has expense_report_id column
+    const columnExistsResult = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'budget_items'
+        AND column_name = 'expense_report_id'
+      );
+    `)
 
-  // Check if budget_items table has expense_report_id column
-  const columnResult = await supabase
-    .from("information_schema.columns")
-    .select("column_name")
-    .eq("table_name", "budget_items")
-    .eq("column_name", "expense_report_id")
-    .limit(1)
-    .execute()
-    
-  const { data: columnExists, error: columnError } = columnResult
+    if (!columnExistsResult.rows[0].exists) {
+      console.error("Expense report ID column does not exist in budget_items")
+      return { error: "Database schema is not properly set up for expense reports" }
+    }
 
-  if (columnError || !columnExists || columnExists.length === 0) {
-    console.error("Expense report ID column does not exist in budget_items:", columnError)
-    return { error: "Database schema is not properly set up for expense reports" }
+    // Update the budget item to unlink it from the report
+    const itemResult = await db.query(`
+      UPDATE budget_items 
+      SET expense_report_id = NULL, updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `, [itemId])
+
+    if (itemResult.rows.length === 0) {
+      return { error: "Budget item not found" }
+    }
+
+    // Update the report's total amount
+    const reportItemsResult = await db.query(`
+      SELECT COALESCE(SUM(amount), 0) as total_amount
+      FROM budget_items 
+      WHERE expense_report_id = $1
+    `, [reportId])
+
+    const totalAmount = reportItemsResult.rows[0].total_amount
+
+    await db.query(`
+      UPDATE expense_reports 
+      SET total_amount = $1, updated_at = NOW()
+      WHERE id = $2
+    `, [totalAmount, reportId])
+
+    revalidatePath(`/dashboard/expenses/${reportId}`)
+    return { success: true, data: itemResult.rows[0] }
+  } catch (error) {
+    console.error("Error removing expense from report:", error)
+    return { error: error instanceof Error ? error.message : "Failed to remove expense from report" }
   }
-
-  // Update the budget item to unlink it from the report
-  const itemResult = await supabase
-    .from("budget_items")
-    .update({
-      expense_report_id: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", itemId)
-    .select()
-    .execute()
-    
-  const { data: itemData, error: itemError } = itemResult
-
-  if (itemError) {
-    console.error("Error removing expense from report:", itemError)
-    return { error: itemError.message }
-  }
-
-  // Update the report's total amount
-  const reportItemsResult = await supabase
-    .from("budget_items")
-    .select("amount")
-    .eq("expense_report_id", reportId)
-    .execute()
-    
-  const { data: reportItems } = reportItemsResult
-
-  const totalAmount = reportItems?.reduce((sum, item) => sum + (item.amount || 0), 0) || 0
-
-  await supabase
-    .from("expense_reports")
-    .update({
-      total_amount: totalAmount,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", reportId)
-
-  revalidatePath(`/dashboard/expenses/${reportId}`)
-  return { success: true, data: itemData }
 }
 
 // Get expense analytics data
 export async function getExpenseAnalytics(projectId?: string, timeframe = "month") {
-  const supabase = await createServerClient()
-
-  // Ensure the expense schema is initialized
   try {
+    // Ensure the expense schema is initialized
     await initializeExpenseSchema()
+
+    // Define the time range based on the timeframe
+    let startDate: Date
+    const endDate = new Date()
+
+    switch (timeframe) {
+      case "week":
+        startDate = new Date()
+        startDate.setDate(startDate.getDate() - 7)
+        break
+      case "month":
+        startDate = new Date()
+        startDate.setMonth(startDate.getMonth() - 1)
+        break
+      case "quarter":
+        startDate = new Date()
+        startDate.setMonth(startDate.getMonth() - 3)
+        break
+      case "year":
+        startDate = new Date()
+        startDate.setFullYear(startDate.getFullYear() - 1)
+        break
+      default:
+        startDate = new Date()
+        startDate.setMonth(startDate.getMonth() - 1)
+    }
+
+    // Format dates for the query
+    const startDateStr = startDate.toISOString().split("T")[0]
+    const endDateStr = endDate.toISOString().split("T")[0]
+
+    // Build the query
+    let query = `
+      SELECT bi.*, bc.id as category_id, bc.name as category_name, bc.color as category_color
+      FROM budget_items bi
+      LEFT JOIN budget_categories bc ON bi.category_id = bc.id
+      WHERE bi.date >= $1 AND bi.date <= $2
+    `
+    const params = [startDateStr, endDateStr]
+
+    // Add project filter if provided
+    if (projectId) {
+      query += ` AND bi.project_id = $3`
+      params.push(projectId)
+    }
+
+    const result = await db.query(query, params)
+    const data = result.rows
+
+    // Process the data for analytics
+    const formattedItems = data.map((item) => ({
+      ...item,
+      category_name: item.category_name || "Uncategorized",
+      category_color: item.category_color || "#6b7280",
+    }))
+
+    // Calculate spending by category
+    const categorySpending: Record<string, number> = {}
+    const categoryColors: Record<string, string> = {}
+
+    formattedItems.forEach((item) => {
+      const categoryName = item.category_name
+      if (!categorySpending[categoryName]) {
+        categorySpending[categoryName] = 0
+        categoryColors[categoryName] = item.category_color
+      }
+      categorySpending[categoryName] += item.amount || 0
+    })
+
+    // Calculate spending over time (by week or month depending on timeframe)
+    const timeSeriesData: Record<string, number> = {}
+    const timeFormat = timeframe === "week" || timeframe === "month" ? "week" : "month"
+
+    formattedItems.forEach((item) => {
+      const date = new Date(item.date)
+      let key: string
+
+      if (timeFormat === "week") {
+        // Get the week number (Sunday-based)
+        const firstDayOfYear = new Date(date.getFullYear(), 0, 1)
+        const pastDaysOfYear = (date.getTime() - firstDayOfYear.getTime()) / 86400000
+        const weekNum = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7)
+        key = `Week ${weekNum}`
+      } else {
+        // Get month name
+        key = date.toLocaleString("default", { month: "long" })
+      }
+
+      if (!timeSeriesData[key]) {
+        timeSeriesData[key] = 0
+      }
+      timeSeriesData[key] += item.amount || 0
+    })
+
+    // Calculate top vendors
+    const vendorSpending: Record<string, number> = {}
+
+    formattedItems.forEach((item) => {
+      const vendor = item.vendor || "Unknown"
+      if (!vendorSpending[vendor]) {
+        vendorSpending[vendor] = 0
+      }
+      vendorSpending[vendor] += item.amount || 0
+    })
+
+    // Sort and limit to top 5 vendors
+    const topVendors = Object.entries(vendorSpending)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([vendor, amount]) => ({ vendor, amount }))
+
+    return {
+      totalSpent: formattedItems.reduce((sum, item) => sum + (item.amount || 0), 0),
+      itemCount: formattedItems.length,
+      categorySpending: Object.entries(categorySpending).map(([category, amount]) => ({
+        category,
+        amount,
+        color: categoryColors[category],
+      })),
+      timeSeriesData: Object.entries(timeSeriesData).map(([period, amount]) => ({
+        period,
+        amount,
+      })),
+      topVendors,
+      recentItems: formattedItems.slice(0, 5),
+    }
   } catch (error) {
-    console.error("Error initializing expense schema:", error)
-    return null
-  }
-
-  // Define the time range based on the timeframe
-  let startDate: Date
-  const endDate = new Date()
-
-  switch (timeframe) {
-    case "week":
-      startDate = new Date()
-      startDate.setDate(startDate.getDate() - 7)
-      break
-    case "month":
-      startDate = new Date()
-      startDate.setMonth(startDate.getMonth() - 1)
-      break
-    case "quarter":
-      startDate = new Date()
-      startDate.setMonth(startDate.getMonth() - 3)
-      break
-    case "year":
-      startDate = new Date()
-      startDate.setFullYear(startDate.getFullYear() - 1)
-      break
-    default:
-      startDate = new Date()
-      startDate.setMonth(startDate.getMonth() - 1)
-  }
-
-  // Format dates for the query
-  const startDateStr = startDate.toISOString().split("T")[0]
-  const endDateStr = endDate.toISOString().split("T")[0]
-
-  // Build the query
-  let query = supabase
-    .from("budget_items")
-    .select(`
-      *,
-      budget_categories(id, name, color)
-    `)
-    .gte("date", startDateStr)
-    .lte("date", endDateStr)
-
-  // Add project filter if provided
-  if (projectId) {
-    query = query.eq("project_id", projectId)
-  }
-
-  const queryResult = await query.execute()
-  const { data, error } = queryResult
-
-  if (error) {
     console.error("Error fetching expense analytics:", error)
     return null
-  }
-
-  // Process the data for analytics
-  const formattedItems = data.map((item) => ({
-    ...item,
-    category_name: item.budget_categories?.name || "Uncategorized",
-    category_color: item.budget_categories?.color || "#6b7280",
-  }))
-
-  // Calculate spending by category
-  const categorySpending: Record<string, number> = {}
-  const categoryColors: Record<string, string> = {}
-
-  formattedItems.forEach((item) => {
-    const categoryName = item.category_name
-    if (!categorySpending[categoryName]) {
-      categorySpending[categoryName] = 0
-      categoryColors[categoryName] = item.category_color
-    }
-    categorySpending[categoryName] += item.amount || 0
-  })
-
-  // Calculate spending over time (by week or month depending on timeframe)
-  const timeSeriesData: Record<string, number> = {}
-  const timeFormat = timeframe === "week" || timeframe === "month" ? "week" : "month"
-
-  formattedItems.forEach((item) => {
-    const date = new Date(item.date)
-    let key: string
-
-    if (timeFormat === "week") {
-      // Get the week number (Sunday-based)
-      const firstDayOfYear = new Date(date.getFullYear(), 0, 1)
-      const pastDaysOfYear = (date.getTime() - firstDayOfYear.getTime()) / 86400000
-      const weekNum = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7)
-      key = `Week ${weekNum}`
-    } else {
-      // Get month name
-      key = date.toLocaleString("default", { month: "long" })
-    }
-
-    if (!timeSeriesData[key]) {
-      timeSeriesData[key] = 0
-    }
-    timeSeriesData[key] += item.amount || 0
-  })
-
-  // Calculate top vendors
-  const vendorSpending: Record<string, number> = {}
-
-  formattedItems.forEach((item) => {
-    const vendor = item.vendor || "Unknown"
-    if (!vendorSpending[vendor]) {
-      vendorSpending[vendor] = 0
-    }
-    vendorSpending[vendor] += item.amount || 0
-  })
-
-  // Sort and limit to top 5 vendors
-  const topVendors = Object.entries(vendorSpending)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([vendor, amount]) => ({ vendor, amount }))
-
-  return {
-    totalSpent: formattedItems.reduce((sum, item) => sum + (item.amount || 0), 0),
-    itemCount: formattedItems.length,
-    categorySpending: Object.entries(categorySpending).map(([category, amount]) => ({
-      category,
-      amount,
-      color: categoryColors[category],
-    })),
-    timeSeriesData: Object.entries(timeSeriesData).map(([period, amount]) => ({
-      period,
-      amount,
-    })),
-    topVendors,
-    recentItems: formattedItems.slice(0, 5),
   }
 }
