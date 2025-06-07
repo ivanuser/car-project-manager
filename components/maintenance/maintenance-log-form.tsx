@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -14,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
 import { logMaintenanceCompletion, type MaintenanceSchedule } from "@/actions/maintenance-actions"
 
 const formSchema = z.object({
@@ -34,6 +36,8 @@ interface MaintenanceLogFormProps {
 }
 
 export function MaintenanceLogForm({ projectId, schedule }: MaintenanceLogFormProps) {
+  const router = useRouter()
+  const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const defaultValues: Partial<FormValues> = {
@@ -54,26 +58,52 @@ export function MaintenanceLogForm({ projectId, schedule }: MaintenanceLogFormPr
   async function onSubmit(values: FormValues) {
     setIsSubmitting(true)
 
-    const formData = new FormData()
-    formData.append("schedule_id", schedule.id)
-    formData.append("project_id", projectId)
-    formData.append("title", values.title)
-    formData.append("description", values.description || "")
-    formData.append("performed_at", values.performed_at.toISOString())
-    formData.append("performed_value", values.performed_value.toString())
-    formData.append("cost", values.cost?.toString() || "0")
-    formData.append("notes", values.notes || "")
+    try {
+      const formData = new FormData()
+      formData.append("schedule_id", schedule.id)
+      formData.append("project_id", projectId)
+      formData.append("title", values.title)
+      formData.append("description", values.description || "")
+      formData.append("performed_at", values.performed_at.toISOString())
+      formData.append("performed_value", values.performed_value.toString())
+      formData.append("cost", values.cost?.toString() || "0")
+      formData.append("notes", values.notes || "")
 
-    // Split parts used by commas and add each part
-    if (values.parts_used) {
-      const parts = values.parts_used.split(",").map((part) => part.trim())
-      parts.forEach((part) => {
-        if (part) formData.append("parts_used", part)
+      // Split parts used by commas and add each part
+      if (values.parts_used) {
+        const parts = values.parts_used.split(",").map((part) => part.trim())
+        parts.forEach((part) => {
+          if (part) formData.append("parts_used", part)
+        })
+      }
+
+      const result = await logMaintenanceCompletion(formData)
+
+      if (result?.error) {
+        toast({
+          title: "Error",
+          description: result.error,
+          variant: "destructive",
+        })
+      } else if (result?.success) {
+        toast({
+          title: "Success",
+          description: "Maintenance completed and logged successfully",
+        })
+        
+        // Navigate back to project maintenance page
+        router.push(`/dashboard/projects/${projectId}/maintenance`)
+      }
+    } catch (error) {
+      console.error("Error submitting form:", error)
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
       })
+    } finally {
+      setIsSubmitting(false)
     }
-
-    await logMaintenanceCompletion(formData)
-    setIsSubmitting(false)
   }
 
   return (

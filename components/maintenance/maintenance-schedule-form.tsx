@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -15,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
 import {
   createMaintenanceSchedule,
   updateMaintenanceSchedule,
@@ -39,6 +41,8 @@ interface MaintenanceScheduleFormProps {
 }
 
 export function MaintenanceScheduleForm({ projectId, schedule }: MaintenanceScheduleFormProps) {
+  const router = useRouter()
+  const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const defaultValues: Partial<FormValues> = {
@@ -59,24 +63,50 @@ export function MaintenanceScheduleForm({ projectId, schedule }: MaintenanceSche
   async function onSubmit(values: FormValues) {
     setIsSubmitting(true)
 
-    const formData = new FormData()
-    formData.append("project_id", projectId)
-    formData.append("title", values.title)
-    formData.append("description", values.description || "")
-    formData.append("interval_type", values.interval_type)
-    formData.append("interval_value", values.interval_value.toString())
-    formData.append("last_performed_at", values.last_performed_at.toISOString())
-    formData.append("last_performed_value", values.last_performed_value.toString())
-    formData.append("priority", values.priority)
+    try {
+      const formData = new FormData()
+      formData.append("project_id", projectId)
+      formData.append("title", values.title)
+      formData.append("description", values.description || "")
+      formData.append("interval_type", values.interval_type)
+      formData.append("interval_value", values.interval_value.toString())
+      formData.append("last_performed_at", values.last_performed_at.toISOString())
+      formData.append("last_performed_value", values.last_performed_value.toString())
+      formData.append("priority", values.priority)
 
-    if (schedule?.id) {
-      formData.append("id", schedule.id)
-      await updateMaintenanceSchedule(formData)
-    } else {
-      await createMaintenanceSchedule(formData)
+      let result
+      if (schedule?.id) {
+        formData.append("id", schedule.id)
+        result = await updateMaintenanceSchedule(formData)
+      } else {
+        result = await createMaintenanceSchedule(formData)
+      }
+
+      if (result?.error) {
+        toast({
+          title: "Error",
+          description: result.error,
+          variant: "destructive",
+        })
+      } else if (result?.success) {
+        toast({
+          title: "Success",
+          description: schedule ? "Maintenance schedule updated successfully" : "Maintenance schedule created successfully",
+        })
+        
+        // Navigate back to project maintenance page
+        router.push(`/dashboard/projects/${projectId}/maintenance`)
+      }
+    } catch (error) {
+      console.error("Error submitting form:", error)
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
     }
-
-    setIsSubmitting(false)
   }
 
   return (
