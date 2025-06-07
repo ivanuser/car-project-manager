@@ -120,7 +120,7 @@ export async function getAllMaintenanceSchedules() {
 
     // Get maintenance schedules for all user's projects
     const result = await db.query(
-      `SELECT ms.*, vp.title as project_title 
+      `SELECT ms.*, vp.title as project_title, vp as vehicle_projects
        FROM maintenance_schedules ms 
        JOIN vehicle_projects vp ON ms.project_id = vp.id 
        WHERE ms.project_id = ANY($1) 
@@ -494,9 +494,41 @@ export async function dismissNotification(id: string) {
   }
 }
 
+// Update maintenance schedule statuses based on current date
+export async function updateMaintenanceStatuses() {
+  try {
+    // Update all maintenance schedules' statuses based on current date and next_due_at
+    const result = await db.query(`
+      UPDATE maintenance_schedules 
+      SET 
+        status = CASE 
+          WHEN next_due_at IS NULL THEN 'upcoming'
+          WHEN next_due_at < NOW() - INTERVAL '7 days' THEN 'overdue'
+          WHEN next_due_at < NOW() THEN 'due'
+          ELSE 'upcoming'
+        END,
+        updated_at = NOW()
+      WHERE next_due_at IS NOT NULL
+      RETURNING id, status, title
+    `);
+
+    return { 
+      success: true, 
+      updated: result.rows.length,
+      schedules: result.rows
+    };
+  } catch (error) {
+    console.error("Error updating maintenance statuses:", error);
+    return { error: error instanceof Error ? error.message : "Failed to update maintenance statuses" };
+  }
+}
+
 // Check for due maintenance and create notifications
 export async function checkMaintenanceNotifications() {
   try {
+    // First, update all maintenance statuses
+    await updateMaintenanceStatuses();
+
     // Get all maintenance schedules that are due or overdue and haven't sent notifications
     const schedulesResult = await db.query(
       `SELECT ms.*, vp.user_id, vp.title as project_title

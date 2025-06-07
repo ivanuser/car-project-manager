@@ -191,13 +191,52 @@ export default function BasicDashboard() {
             <CardDescription>Track parts for your projects</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-6">
-              <p className="text-muted-foreground">Parts inventory coming soon</p>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Parts Inventory</span>
+                <Link href="/dashboard/parts" className="text-xs text-primary hover:underline">
+                  View All
+                </Link>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Vendors</span>
+                <Link href="/dashboard/vendors" className="text-xs text-primary hover:underline">
+                  View Vendors
+                </Link>
+              </div>
             </div>
           </CardContent>
           <CardFooter>
-            <Button variant="outline" className="w-full hover:bg-secondary/10" disabled>
-              View Parts
+            <Button asChild variant="outline" className="w-full hover:bg-secondary/10">
+              <Link href="/dashboard/parts/new">Add New Part</Link>
+            </Button>
+          </CardFooter>
+        </Card>
+
+        <Card className="shadow-md hover:shadow-lg transition-all duration-300 border-l-4 border-l-green-500/50">
+          <CardHeader>
+            <CardTitle>Maintenance</CardTitle>
+            <CardDescription>Track vehicle maintenance schedules</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Service Schedules</span>
+                <Link href="/dashboard/maintenance" className="text-xs text-primary hover:underline">
+                  View All
+                </Link>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Service History</span>
+                <Link href="/dashboard/maintenance?tab=history" className="text-xs text-primary hover:underline">
+                  View History
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button asChild variant="outline" className="w-full hover:bg-green-500/10">
+              <Link href="/fix-maintenance-schema">Setup Maintenance</Link>
             </Button>
           </CardFooter>
         </Card>

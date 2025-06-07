@@ -249,3 +249,191 @@ FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
 CREATE TRIGGER update_project_parts_updated_at
 BEFORE UPDATE ON project_parts
 FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
+
+-- Create maintenance_schedules table
+CREATE TABLE IF NOT EXISTS maintenance_schedules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  project_id UUID NOT NULL REFERENCES vehicle_projects(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  interval_type TEXT NOT NULL CHECK (interval_type IN ('miles', 'months', 'hours')),
+  interval_value INTEGER NOT NULL CHECK (interval_value > 0),
+  last_performed_at TIMESTAMP WITH TIME ZONE,
+  last_performed_value INTEGER,
+  next_due_at TIMESTAMP WITH TIME ZONE,
+  next_due_value INTEGER,
+  priority TEXT DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'critical')),
+  status TEXT DEFAULT 'upcoming' CHECK (status IN ('upcoming', 'due', 'overdue', 'completed')),
+  notification_sent BOOLEAN DEFAULT FALSE,
+  notification_sent_at TIMESTAMP WITH TIME ZONE
+);
+
+-- Create maintenance_logs table
+CREATE TABLE IF NOT EXISTS maintenance_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  schedule_id UUID REFERENCES maintenance_schedules(id) ON DELETE SET NULL,
+  project_id UUID NOT NULL REFERENCES vehicle_projects(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  performed_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  performed_value INTEGER,
+  cost DECIMAL(10, 2),
+  notes TEXT,
+  parts_used TEXT[]
+);
+
+-- Create maintenance_notifications table
+CREATE TABLE IF NOT EXISTS maintenance_notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  schedule_id UUID NOT NULL REFERENCES maintenance_schedules(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  status TEXT DEFAULT 'unread' CHECK (status IN ('unread', 'read', 'dismissed')),
+  read_at TIMESTAMP WITH TIME ZONE,
+  notification_type TEXT DEFAULT 'upcoming' CHECK (notification_type IN ('upcoming', 'due', 'overdue')),
+  scheduled_for TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+-- Enable RLS for maintenance tables
+ALTER TABLE maintenance_schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE maintenance_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE maintenance_notifications ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policies for maintenance_schedules
+CREATE POLICY "Users can view maintenance schedules for their projects" 
+  ON maintenance_schedules FOR SELECT 
+  USING (EXISTS (
+    SELECT 1 FROM vehicle_projects 
+    WHERE vehicle_projects.id = maintenance_schedules.project_id 
+    AND vehicle_projects.user_id = (SELECT id FROM profiles WHERE id = current_setting('app.current_user_id', true)::uuid)
+  ));
+
+CREATE POLICY "Users can create maintenance schedules for their projects" 
+  ON maintenance_schedules FOR INSERT 
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM vehicle_projects 
+    WHERE vehicle_projects.id = maintenance_schedules.project_id 
+    AND vehicle_projects.user_id = (SELECT id FROM profiles WHERE id = current_setting('app.current_user_id', true)::uuid)
+  ));
+
+CREATE POLICY "Users can update maintenance schedules for their projects" 
+  ON maintenance_schedules FOR UPDATE 
+  USING (EXISTS (
+    SELECT 1 FROM vehicle_projects 
+    WHERE vehicle_projects.id = maintenance_schedules.project_id 
+    AND vehicle_projects.user_id = (SELECT id FROM profiles WHERE id = current_setting('app.current_user_id', true)::uuid)
+  ));
+
+CREATE POLICY "Users can delete maintenance schedules for their projects" 
+  ON maintenance_schedules FOR DELETE 
+  USING (EXISTS (
+    SELECT 1 FROM vehicle_projects 
+    WHERE vehicle_projects.id = maintenance_schedules.project_id 
+    AND vehicle_projects.user_id = (SELECT id FROM profiles WHERE id = current_setting('app.current_user_id', true)::uuid)
+  ));
+
+-- Create RLS policies for maintenance_logs
+CREATE POLICY "Users can view maintenance logs for their projects" 
+  ON maintenance_logs FOR SELECT 
+  USING (EXISTS (
+    SELECT 1 FROM vehicle_projects 
+    WHERE vehicle_projects.id = maintenance_logs.project_id 
+    AND vehicle_projects.user_id = (SELECT id FROM profiles WHERE id = current_setting('app.current_user_id', true)::uuid)
+  ));
+
+CREATE POLICY "Users can create maintenance logs for their projects" 
+  ON maintenance_logs FOR INSERT 
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM vehicle_projects 
+    WHERE vehicle_projects.id = maintenance_logs.project_id 
+    AND vehicle_projects.user_id = (SELECT id FROM profiles WHERE id = current_setting('app.current_user_id', true)::uuid)
+  ));
+
+CREATE POLICY "Users can update maintenance logs for their projects" 
+  ON maintenance_logs FOR UPDATE 
+  USING (EXISTS (
+    SELECT 1 FROM vehicle_projects 
+    WHERE vehicle_projects.id = maintenance_logs.project_id 
+    AND vehicle_projects.user_id = (SELECT id FROM profiles WHERE id = current_setting('app.current_user_id', true)::uuid)
+  ));
+
+CREATE POLICY "Users can delete maintenance logs for their projects" 
+  ON maintenance_logs FOR DELETE 
+  USING (EXISTS (
+    SELECT 1 FROM vehicle_projects 
+    WHERE vehicle_projects.id = maintenance_logs.project_id 
+    AND vehicle_projects.user_id = (SELECT id FROM profiles WHERE id = current_setting('app.current_user_id', true)::uuid)
+  ));
+
+-- Create RLS policies for maintenance_notifications
+CREATE POLICY "Users can view their own maintenance notifications" 
+  ON maintenance_notifications FOR SELECT 
+  USING (user_id = (SELECT id FROM profiles WHERE id = current_setting('app.current_user_id', true)::uuid));
+
+CREATE POLICY "Users can update their own maintenance notifications" 
+  ON maintenance_notifications FOR UPDATE 
+  USING (user_id = (SELECT id FROM profiles WHERE id = current_setting('app.current_user_id', true)::uuid));
+
+CREATE POLICY "Users can delete their own maintenance notifications" 
+  ON maintenance_notifications FOR DELETE 
+  USING (user_id = (SELECT id FROM profiles WHERE id = current_setting('app.current_user_id', true)::uuid));
+
+-- Create indexes for maintenance tables
+CREATE INDEX IF NOT EXISTS idx_maintenance_schedules_project_id ON maintenance_schedules(project_id);
+CREATE INDEX IF NOT EXISTS idx_maintenance_schedules_status ON maintenance_schedules(status);
+CREATE INDEX IF NOT EXISTS idx_maintenance_schedules_priority ON maintenance_schedules(priority);
+CREATE INDEX IF NOT EXISTS idx_maintenance_schedules_next_due_at ON maintenance_schedules(next_due_at);
+CREATE INDEX IF NOT EXISTS idx_maintenance_schedules_notification_sent ON maintenance_schedules(notification_sent);
+
+CREATE INDEX IF NOT EXISTS idx_maintenance_logs_project_id ON maintenance_logs(project_id);
+CREATE INDEX IF NOT EXISTS idx_maintenance_logs_schedule_id ON maintenance_logs(schedule_id);
+CREATE INDEX IF NOT EXISTS idx_maintenance_logs_performed_at ON maintenance_logs(performed_at);
+
+CREATE INDEX IF NOT EXISTS idx_maintenance_notifications_user_id ON maintenance_notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_maintenance_notifications_schedule_id ON maintenance_notifications(schedule_id);
+CREATE INDEX IF NOT EXISTS idx_maintenance_notifications_status ON maintenance_notifications(status);
+CREATE INDEX IF NOT EXISTS idx_maintenance_notifications_notification_type ON maintenance_notifications(notification_type);
+
+-- Create triggers for maintenance tables
+CREATE TRIGGER update_maintenance_schedules_updated_at
+BEFORE UPDATE ON maintenance_schedules
+FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
+
+CREATE TRIGGER update_maintenance_logs_updated_at
+BEFORE UPDATE ON maintenance_logs
+FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
+
+CREATE TRIGGER update_maintenance_notifications_updated_at
+BEFORE UPDATE ON maintenance_notifications
+FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
+
+-- Create function to update maintenance schedule status
+CREATE OR REPLACE FUNCTION update_maintenance_schedule_status()
+RETURNS TRIGGER AS $
+BEGIN
+  -- Update status based on next_due_at
+  IF NEW.next_due_at IS NOT NULL THEN
+    IF NEW.next_due_at < NOW() - INTERVAL '7 days' THEN
+      NEW.status = 'overdue';
+    ELSIF NEW.next_due_at < NOW() THEN
+      NEW.status = 'due';
+    ELSE
+      NEW.status = 'upcoming';
+    END IF;
+  END IF;
+  
+  RETURN NEW;
+END;
+$ LANGUAGE plpgsql;
+
+-- Create trigger for updating maintenance schedule status
+CREATE TRIGGER update_maintenance_schedule_status_trigger
+BEFORE INSERT OR UPDATE ON maintenance_schedules
+FOR EACH ROW EXECUTE PROCEDURE update_maintenance_schedule_status();
