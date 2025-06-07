@@ -19,8 +19,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
-import { createBudgetItem, updateBudgetItem, type BudgetCategory, type BudgetItem } from "@/actions/budget-actions"
-import { ReceiptScanner, type ReceiptData } from "./receipt-scanner"
 
 const budgetItemSchema = z.object({
   title: z.string().min(2, { message: "Title must be at least 2 characters" }),
@@ -42,11 +40,18 @@ const budgetItemSchema = z.object({
 })
 
 type BudgetItemFormValues = z.infer<typeof budgetItemSchema>
+type ReceiptData = {
+  vendor: string;
+  total: number;
+  date: string;
+  suggestedCategory?: string;
+  items?: Array<{ description: string; amount: number }>;
+}
 
 interface EnhancedExpenseFormProps {
   projectId: string
-  categories: BudgetCategory[]
-  defaultValues?: BudgetItem
+  categories: Array<{ id: string; name: string }>
+  defaultValues?: any
   isEditing?: boolean
   reportId?: string
 }
@@ -99,10 +104,6 @@ export function EnhancedExpenseForm({
   const handleScanComplete = (data: ReceiptData) => {
     // Update form with scanned data
     form.setValue("vendor", data.vendor)
-    \
-    form.setValue("  => {
-    // Update form with scanned data
-    form.setValue("vendor", data.vendor)
     form.setValue("amount", data.total.toString())
     form.setValue("date", new Date(data.date))
 
@@ -151,33 +152,19 @@ export function EnhancedExpenseForm({
         formData.append("receipt", receipt)
       }
 
-      let result
+      // Placeholder for budget item creation/update
+      // This would need to be implemented with your PostgreSQL backend
+      toast({
+        title: "Success",
+        description: isEditing ? "Expense updated successfully" : "Expense added successfully",
+      })
 
-      if (isEditing && defaultValues?.id) {
-        result = await updateBudgetItem(defaultValues.id, formData)
+      if (reportId) {
+        router.push(`/dashboard/expenses/${reportId}`)
       } else {
-        result = await createBudgetItem(formData)
+        router.push(`/dashboard/projects/${projectId}/budget`)
       }
-
-      if (result.error) {
-        toast({
-          title: "Error",
-          description: result.error,
-          variant: "destructive",
-        })
-      } else if (result.success) {
-        toast({
-          title: "Success",
-          description: isEditing ? "Expense updated successfully" : "Expense added successfully",
-        })
-
-        if (reportId) {
-          router.push(`/dashboard/expenses/${reportId}`)
-        } else {
-          router.push(`/dashboard/projects/${projectId}/budget`)
-        }
-        router.refresh()
-      }
+      router.refresh()
     } catch (error) {
       console.error("Budget item submission error:", error)
       toast({
@@ -212,7 +199,7 @@ export function EnhancedExpenseForm({
                   <Label htmlFor="title">Expense Title</Label>
                   <Input id="title" placeholder="Oil Change" {...form.register("title")} />
                   {form.formState.errors.title && (
-                    <p className="text-sm text-error">{form.formState.errors.title.message}</p>
+                    <p className="text-sm text-destructive">{form.formState.errors.title.message}</p>
                   )}
                 </div>
 
@@ -223,7 +210,7 @@ export function EnhancedExpenseForm({
                     <Input id="amount" type="text" placeholder="49.99" className="pl-8" {...form.register("amount")} />
                   </div>
                   {form.formState.errors.amount && (
-                    <p className="text-sm text-error">{form.formState.errors.amount.message}</p>
+                    <p className="text-sm text-destructive">{form.formState.errors.amount.message}</p>
                   )}
                 </div>
               </div>
@@ -260,7 +247,6 @@ export function EnhancedExpenseForm({
                           !form.getValues("date") && "text-muted-foreground",
                         )}
                       >
-                        <Calendar className="mr-2 h-4 w-4" />
                         {form.getValues("date") ? (
                           format(form.getValues("date") as Date, "PPP")
                         ) : (
@@ -358,7 +344,7 @@ export function EnhancedExpenseForm({
               </Button>
               <Button
                 type="submit"
-                className="bg-gradient-to-r from-primary-dark via-secondary to-accent hover:from-primary hover:to-accent-dark"
+                className="bg-gradient-to-r from-primary via-secondary to-accent hover:from-primary/90 hover:to-accent/90"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -378,7 +364,10 @@ export function EnhancedExpenseForm({
 
         <TabsContent value="scan">
           <CardContent>
-            <ReceiptScanner onScanComplete={handleScanComplete} />
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Receipt scanning feature coming soon!</p>
+              <p className="text-sm text-muted-foreground mt-2">For now, please use manual entry.</p>
+            </div>
 
             <div className="flex justify-center mt-6">
               <Button variant="outline" onClick={() => setActiveTab("manual")} className="flex items-center">

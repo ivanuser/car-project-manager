@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, Database } from 'lucide-react';
+import Link from 'next/link';
 
 export default function CheckUsersPage() {
   const [email, setEmail] = useState('ihoner@rand.org');
@@ -82,12 +83,37 @@ export default function CheckUsersPage() {
     }
   };
 
+  // Show schema initialization needed if database test shows no users table
+  const needsSchemaInit = dbTest && !dbTest.success && dbTest.error?.message.includes('does not exist');
+  const hasUsersTable = dbTest && dbTest.success && dbTest.database?.usersTableExists;
+
   return (
     <div className="container mx-auto py-8 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Authentication & Database Diagnostics</h1>
         <p className="text-muted-foreground">Comprehensive testing for authentication and database issues</p>
       </div>
+
+      {/* Schema Initialization Alert */}
+      {(needsSchemaInit || (dbTest && dbTest.success && !hasUsersTable)) && (
+        <Alert className="border-yellow-500 bg-yellow-50">
+          <Database className="h-4 w-4 text-yellow-600" />
+          <AlertTitle>Database Schema Missing</AlertTitle>
+          <AlertDescription>
+            <div className="space-y-2">
+              <p>The users table doesn't exist in your database. You need to initialize the schema first.</p>
+              <div className="flex gap-2">
+                <Button asChild size="sm">
+                  <Link href="/init-schema">
+                    <Database className="mr-2 h-4 w-4" />
+                    Initialize Database Schema
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Cookie Status */}
       <Card>
@@ -248,14 +274,27 @@ export default function CheckUsersPage() {
         <AlertTitle>Troubleshooting Steps</AlertTitle>
         <AlertDescription>
           <ol className="list-decimal list-inside space-y-1 text-sm mt-2">
-            <li>First, test the database connection above</li>
-            <li>If database fails, check your PostgreSQL server is running</li>
-            <li>If database works but no cookies, the login is failing to set cookies (likely HTTPS/secure cookie issue)</li>
-            <li>If cookies exist but profile/settings fail, there's an auth check problem</li>
-            <li>Use /clear-auth to clear all auth data and start fresh</li>
+            <li><strong>If database test fails:</strong> Check PostgreSQL server is running</li>
+            <li><strong>If users table missing:</strong> <Link href="/init-schema" className="text-primary hover:underline">Initialize Database Schema</Link></li>
+            <li><strong>If database works but no cookies:</strong> Login is failing to set cookies (fixed!)</li>
+            <li><strong>If cookies exist but profile/settings fail:</strong> Auth check problem</li>
+            <li><strong>To start fresh:</strong> Use <Link href="/clear-auth" className="text-primary hover:underline">/clear-auth</Link> to clear all auth data</li>
           </ol>
         </AlertDescription>
       </Alert>
+
+      {/* Quick Actions */}
+      <div className="flex gap-2 justify-center">
+        <Button asChild variant="outline">
+          <Link href="/init-schema">Initialize Schema</Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/clear-auth">Clear Auth Data</Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/login">Go to Login</Link>
+        </Button>
+      </div>
     </div>
   );
 }

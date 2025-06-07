@@ -18,11 +18,9 @@ export function MilestoneList({ milestones, projectId }: MilestoneListProps) {
 
   const filteredMilestones = milestones.filter((milestone) => {
     if (filter === "all") return true
-    \
-    if (filter === "completed\") return milestone.complete  => {
-    if (filter === "all") return true
     if (filter === "completed") return milestone.completed_at
     if (filter === "upcoming") return !milestone.completed_at
+    return true
   })
 
   // Sort milestones by due date
