@@ -1,5 +1,8 @@
 'use client';
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useState } from 'react';
 import { checkAuthStatus } from "@/lib/auth-utils";
 import { PreferencesForm } from "@/components/profile/preferences-form";

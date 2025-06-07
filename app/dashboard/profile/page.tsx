@@ -1,10 +1,10 @@
 'use client';
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useState } from 'react';
 import { checkAuthStatus } from "@/lib/auth-utils";
-import { AvatarUpload } from "@/components/profile/avatar-upload"
-import { ProfileForm } from "@/components/profile/profile-form"
-import { PasswordForm } from "@/components/profile/password-form"
 
 export default function ProfilePage() {
   const [user, setUser] = useState<{ id: string; email: string } | null>(null);
@@ -23,7 +23,7 @@ export default function ProfilePage() {
             email: authUser.email
           });
           
-          // Fetch user profile data
+          // Only fetch profile if we have user authentication
           try {
             console.log("Fetching profile for user ID:", authUser.id);
             const profileResponse = await fetch(`/api/user/profile?userId=${authUser.id}`);
@@ -35,8 +35,6 @@ export default function ProfilePage() {
               }
             } else {
               console.warn('Failed to load profile data');
-              const errorData = await profileResponse.json();
-              console.error('Profile error details:', errorData);
               setError('Failed to load profile data');
             }
           } catch (error) {
@@ -86,13 +84,46 @@ export default function ProfilePage() {
         <p className="text-muted-foreground">Manage your account information and preferences.</p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-[250px_1fr]">
-        <div>
-          <AvatarUpload currentAvatarUrl={profile?.avatar_url} userId={user.id} />
+      <div className="space-y-6">
+        {/* Basic Profile Info */}
+        <div className="grid gap-6">
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-medium">Account Information</h3>
+              <div className="mt-2 space-y-2">
+                <div>
+                  <span className="text-sm font-medium text-muted-foreground">Email:</span>
+                  <span className="ml-2">{user.email}</span>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-muted-foreground">User ID:</span>
+                  <span className="ml-2 font-mono text-xs">{user.id}</span>
+                </div>
+                {profile?.full_name && (
+                  <div>
+                    <span className="text-sm font-medium text-muted-foreground">Full Name:</span>
+                    <span className="ml-2">{profile.full_name}</span>
+                  </div>
+                )}
+                {profile?.bio && (
+                  <div>
+                    <span className="text-sm font-medium text-muted-foreground">Bio:</span>
+                    <span className="ml-2">{profile.bio}</span>
+                  </div>
+                )}
+                {profile?.location && (
+                  <div>
+                    <span className="text-sm font-medium text-muted-foreground">Location:</span>
+                    <span className="ml-2">{profile.location}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="space-y-6">
-          <ProfileForm profile={profile || {}} />
-          <PasswordForm email={user.email} />
+        
+        <div className="text-sm text-muted-foreground">
+          <p>Profile editing functionality will be added in a future update.</p>
         </div>
       </div>
     </div>

@@ -1,145 +1,97 @@
+'use client';
+
 import type React from "react"
-import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { Header } from "@/components/dashboard/header"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/toaster"
 import { GradientBackground } from "@/components/gradient-background"
-import jwtUtils from "@/lib/auth/jwt"
-import db from "@/lib/db"
+import { checkAuthStatus } from "@/lib/auth-utils"
 
-export default async function DashboardLayout({
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const isDevelopment = process.env.NODE_ENV === "development";
-  
-  // Initialize user data as null
-  let userProfile = null;
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
-  try {
-    // Get auth token from cookies
-    const cookieStore = cookies();
-    const authToken = cookieStore.get('cajpro_auth_token')?.value;
-    
-    console.log("Dashboard: Checking authentication");
-    
-    let userId = null;
-    
-    // Verify token if it exists
-    if (authToken) {
+  useEffect(() => {
+    const loadUserData = async () => {
       try {
-        const payload = jwtUtils.verifyToken(authToken);
-        if (payload && !jwtUtils.isTokenExpired(authToken)) {
-          userId = payload.sub;
-          console.log("Dashboard: Found valid authentication token for user:", userId);
+        console.log('Dashboard Layout: Checking auth status...');
+        const result = await checkAuthStatus();
+        
+        if (result.authenticated && result.user) {
+          console.log('Dashboard Layout: User is authenticated as', result.user.email);
+          
+          // Try to fetch profile data
+          try {
+            const profileResponse = await fetch(`/api/user/profile?userId=${result.user.id}`);
+            if (profileResponse.ok) {
+              const profileData = await profileResponse.json();
+              setUserProfile({
+                id: result.user.id,
+                email: result.user.email,
+                fullName: profileData.profile?.full_name,
+                avatarUrl: profileData.profile?.avatar_url,
+              });
+            } else {
+              // Fallback to basic user info
+              setUserProfile({
+                id: result.user.id,
+                email: result.user.email,
+              });
+            }
+          } catch (profileError) {
+            console.error('Error fetching profile:', profileError);
+            // Fallback to basic user info
+            setUserProfile({
+              id: result.user.id,
+              email: result.user.email,
+            });
+          }
+        } else {
+          console.log('Dashboard Layout: User is not authenticated, redirecting...');
+          router.push('/login');
+          return;
         }
-      } catch (tokenError) {
-        console.error("Dashboard: Token validation error:", 
-          tokenError instanceof Error ? tokenError.message : String(tokenError));
+      } catch (error) {
+        console.error('Dashboard Layout: Error checking auth', error);
+        router.push('/login');
+        return;
+      } finally {
+        setLoading(false);
       }
-    }
+    };
     
-    // Special case for development mode
-    if (!userId && isDevelopment) {
-      console.log("Dashboard: Development mode detected, checking for admin user");
-      
-      // In development, try to find admin user
-      const adminResult = await db.query(
-        `SELECT id FROM auth.users WHERE email = 'admin@cajpro.local' LIMIT 1`
-      );
-      
-      if (adminResult.rows.length > 0) {
-        userId = adminResult.rows[0].id;
-        console.log("Dashboard: Using admin user for development:", userId);
-      }
-    }
-    
-    if (userId) {
-      // Get user data
-      const userResult = await db.query(
-        `SELECT email FROM auth.users WHERE id = $1`,
-        [userId]
-      );
-      
-      if (userResult.rows.length > 0) {
-        const email = userResult.rows[0].email;
-        
-        // Get profile data
-        const profileResult = await db.query(
-          `SELECT full_name, avatar_url FROM profiles WHERE id = $1`,
-          [userId]
-        );
-        
-        userProfile = {
-          id: userId,
-          email: email,
-          fullName: profileResult.rows[0]?.full_name || undefined,
-          avatarUrl: profileResult.rows[0]?.avatar_url || undefined,
-        };
-        
-        console.log("Dashboard: Using authenticated user:", userProfile.email);
-      }
-    }
-    
-    if (!userProfile && !isDevelopment) {
-      console.log("Dashboard: No authenticated user found - will redirect");
-      
-      // Return content that will redirect client-side
-      return (
-        <html lang="en">
-          <body>
-            <div className="flex min-h-screen items-center justify-center bg-background">
-              <div className="text-center">
-                <h1 className="text-2xl font-bold">Authentication Required</h1>
-                <p className="mt-2">Redirecting to login page...</p>
-                <script dangerouslySetInnerHTML={{ __html: `
-                  console.log("Redirecting to login due to missing authentication");
-                  window.location.href = '/login';
-                `}} />
-              </div>
-            </div>
-          </body>
-        </html>
-      );
-    }
-    
-    // For development, use a default user if none found
-    if (!userProfile && isDevelopment) {
-      console.log("Dashboard: Creating default user profile for development");
-      userProfile = {
-        id: "admin-dev-mode",
-        email: "admin@cajpro.local",
-        fullName: "Admin User",
-        avatarUrl: undefined,
-      };
-    }
-  } catch (error) {
-    console.error("Error in dashboard auth check:", error);
-    // Continue with development mode if available
-    if (isDevelopment) {
-      userProfile = {
-        id: "admin-dev-mode",
-        email: "admin@cajpro.local",
-        fullName: "Admin User",
-        avatarUrl: undefined,
-      };
-    }
+    loadUserData();
+  }, [router]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+          <p className="mt-4 text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
   }
 
-  // Database initialization check
-  if (isDevelopment) {
-    const initializeDb = process.env.INITIALIZE_DB === 'true';
-    if (initializeDb) {
-      console.log("Database initialization enabled - will initialize database");
-      // Here you would add logic to initialize the database
-      // For now we're just logging that it's enabled
-    } else {
-      console.log("Database initialization skipped - set INITIALIZE_DB=true to enable");
-    }
+  if (!userProfile) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold">Authentication Required</h1>
+          <p className="mt-2">Redirecting to login page...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
