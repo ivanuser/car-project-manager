@@ -1,14 +1,54 @@
+'use client'
+
 import Link from "next/link"
 import { getAllTasks } from "@/actions/project-actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CalendarDays, CheckCircle, Clock, ListTodo, Plus, AlertTriangle } from "lucide-react"
+import { CalendarDays, CheckCircle, Clock, ListTodo, Plus, AlertTriangle, Loader2 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
+import { useEffect, useState } from "react"
 
-export default async function TasksPage() {
-  // Get all tasks
-  const tasks = await getAllTasks()
+// Prevent static generation
+export const dynamic = 'force-dynamic'
+
+interface Task {
+  id: string
+  title: string
+  description?: string
+  status: 'todo' | 'in_progress' | 'completed' | 'blocked'
+  priority: 'low' | 'medium' | 'high'
+  build_stage?: string
+  due_date?: string
+  estimated_hours?: number
+  vehicle_projects?: {
+    id: string
+    title: string
+  }
+}
+
+export default function TasksPage() {
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function loadTasks() {
+      try {
+        setLoading(true)
+        setError(null)
+        const tasksData = await getAllTasks()
+        setTasks(tasksData)
+      } catch (err) {
+        console.error('Error loading tasks:', err)
+        setError('Failed to load tasks')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadTasks()
+  }, [])
 
   // Group tasks by status
   const todoTasks = tasks.filter((task) => task.status === "todo")
@@ -17,14 +57,14 @@ export default async function TasksPage() {
   const blockedTasks = tasks.filter((task) => task.status === "blocked")
 
   // Function to render task card
-  const renderTaskCard = (task: any) => {
+  const renderTaskCard = (task: Task) => {
     const priorityColors = {
       low: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
       medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
       high: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
     }
 
-    const priorityColor = priorityColors[task.priority as keyof typeof priorityColors] || priorityColors.medium
+    const priorityColor = priorityColors[task.priority] || priorityColors.medium
 
     return (
       <Card key={task.id} className="mb-4 shadow-sm hover:shadow-md transition-all duration-200">
@@ -67,6 +107,69 @@ export default async function TasksPage() {
           </Button>
         </CardFooter>
       </Card>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Tasks</h2>
+            <p className="text-muted-foreground">Manage and track your project tasks.</p>
+          </div>
+          <Button asChild>
+            <Link href="/dashboard/tasks/new">
+              <Plus className="mr-2 h-4 w-4" />
+              New Task
+            </Link>
+          </Button>
+        </div>
+        
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+            <p className="text-muted-foreground">Loading your tasks...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Tasks</h2>
+            <p className="text-muted-foreground">Manage and track your project tasks.</p>
+          </div>
+          <Button asChild>
+            <Link href="/dashboard/tasks/new">
+              <Plus className="mr-2 h-4 w-4" />
+              New Task
+            </Link>
+          </Button>
+        </div>
+        
+        <Card>
+          <CardContent className="py-12 text-center">
+            <div className="mx-auto mb-4 h-24 w-24 rounded-full bg-red-100 flex items-center justify-center">
+              <AlertTriangle className="h-12 w-12 text-red-600" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2 text-red-600">Error Loading Tasks</h3>
+            <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
+              {error}. Please try refreshing the page or check your connection.
+            </p>
+            <Button 
+              onClick={() => window.location.reload()} 
+              variant="outline"
+            >
+              Refresh Page
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     )
   }
 

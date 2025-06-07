@@ -1,86 +1,170 @@
-import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { NextResponse } from "next/server"
+import db from "@/lib/db"
 
-/**
- * GET /api/debug/db-schema
- * Debug endpoint to check database schema
- * Only available in development mode
- */
-export async function GET(req: NextRequest) {
-  // Only allow in development mode for security
-  if (process.env.NODE_ENV !== 'development') {
-    return NextResponse.json(
-      { error: 'This endpoint is only available in development mode' },
-      { status: 403 }
-    );
-  }
-  
+export async function GET() {
   try {
-    // Check if the user_preferences table exists
-    const tableCheckResult = await db.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public'
-        AND table_name = 'user_preferences'
-      ) as exists
-    `);
+    console.log("=== Database Debug Information ===")
     
-    const tableExists = tableCheckResult.rows[0].exists;
+    // Test basic connection
+    console.log("Testing database connection...")
+    const connectionTest = await db.query("SELECT NOW() as current_time, version() as postgres_version")
+    console.log("✓ Database connection successful")
+    console.log("PostgreSQL Version:", connectionTest.rows[0].postgres_version)
+    console.log("Current Time:", connectionTest.rows[0].current_time)
     
-    // Get table structure if it exists
-    let schema = null;
-    if (tableExists) {
-      const schemaResult = await db.query(`
-        SELECT column_name, data_type, is_nullable
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-        AND table_name = 'user_preferences'
-        ORDER BY ordinal_position
-      `);
-      schema = schemaResult.rows;
+    // Check if UUID extension is enabled
+    console.log("\nChecking UUID extension...")
+    const uuidTest = await db.query("SELECT uuid_generate_v4() as test_uuid")
+    console.log("✓ UUID extension working:", uuidTest.rows[0].test_uuid)
+    
+    // List all tables
+    console.log("\nListing all tables...")
+    const tablesResult = await db.query(`
+      SELECT 
+        table_name,
+        table_type,
+        table_schema
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      ORDER BY table_name
+    `)
+    
+    console.log(`Found ${tablesResult.rows.length} tables:`)
+    tablesResult.rows.forEach(table => {
+      console.log(`  - ${table.table_name} (${table.table_type})`)
+    })
+    
+    // Check specific tables and their columns
+    const criticalTables = ['users', 'profiles', 'vehicle_projects', 'project_tasks', 'vendors', 'project_parts']
+    const tableDetails = {}
+    
+    for (const tableName of criticalTables) {
+      console.log(`\nChecking table: ${tableName}`)
+      try {
+        const tableExists = await db.query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = $1
+          ) as exists
+        `, [tableName])
+        
+        if (tableExists.rows[0].exists) {
+          // Get column information
+          const columnsResult = await db.query(`
+            SELECT 
+              column_name,
+              data_type,
+              is_nullable,
+              column_default
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' 
+            AND table_name = $1
+            ORDER BY ordinal_position
+          `, [tableName])
+          
+          // Get row count
+          const countResult = await db.query(`SELECT COUNT(*) as count FROM ${tableName}`)
+          
+          tableDetails[tableName] = {
+            exists: true,
+            columns: columnsResult.rows,
+            rowCount: parseInt(countResult.rows[0].count)
+          }
+          
+          console.log(`  ✓ Table exists with ${columnsResult.rows.length} columns and ${countResult.rows[0].count} rows`)
+          console.log(`  Columns: ${columnsResult.rows.map(c => c.column_name).join(', ')}`)
+        } else {
+          tableDetails[tableName] = {
+            exists: false,
+            columns: [],
+            rowCount: 0
+          }
+          console.log(`  ✗ Table does not exist`)
+        }
+      } catch (error) {
+        console.error(`  ✗ Error checking table ${tableName}:`, error)
+        tableDetails[tableName] = {
+          exists: false,
+          error: error instanceof Error ? error.message : "Unknown error"
+        }
+      }
     }
     
-    // Check table data - list of IDs and count
-    let data = null;
-    if (tableExists) {
-      const dataResult = await db.query('SELECT id FROM user_preferences');
-      const countResult = await db.query('SELECT COUNT(*) as count FROM user_preferences');
-      data = {
-        ids: dataResult.rows.map(row => row.id),
-        count: countResult.rows[0].count
-      };
+    // Check indexes
+    console.log("\nChecking indexes...")
+    const indexesResult = await db.query(`
+      SELECT 
+        schemaname,
+        tablename,
+        indexname,
+        indexdef
+      FROM pg_indexes 
+      WHERE schemaname = 'public'
+      ORDER BY tablename, indexname
+    `)
+    
+    console.log(`Found ${indexesResult.rows.length} indexes`)
+    
+    // Check for any database errors or warnings
+    console.log("\nChecking for database issues...")
+    const issues = []
+    
+    // Check for missing critical tables
+    const missingTables = criticalTables.filter(table => !tableDetails[table]?.exists)
+    if (missingTables.length > 0) {
+      issues.push(`Missing critical tables: ${missingTables.join(', ')}`)
     }
     
-    // If table doesn't exist, generate SQL to create it
-    const createTableSQL = tableExists ? null : `
-      CREATE TABLE IF NOT EXISTS user_preferences (
-        id UUID PRIMARY KEY,
-        theme VARCHAR(50) DEFAULT 'system',
-        color_scheme VARCHAR(50) DEFAULT 'default',
-        background_intensity VARCHAR(50) DEFAULT 'medium',
-        ui_density VARCHAR(50) DEFAULT 'comfortable',
-        date_format VARCHAR(20) DEFAULT 'MM/DD/YYYY',
-        time_format VARCHAR(10) DEFAULT '12h',
-        measurement_unit VARCHAR(20) DEFAULT 'imperial',
-        currency VARCHAR(5) DEFAULT 'USD',
-        notification_preferences JSONB DEFAULT '{"email": true, "push": true, "maintenance": true, "project_updates": true}'::jsonb,
-        display_preferences JSONB DEFAULT '{"default_project_view": "grid", "default_task_view": "list", "show_completed_tasks": true}'::jsonb,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-      );
-    `;
+    // Check for empty critical tables (except for new installations)
+    const emptyTables = criticalTables.filter(table => 
+      tableDetails[table]?.exists && tableDetails[table]?.rowCount === 0 && table === 'users'
+    )
+    if (emptyTables.length > 0) {
+      issues.push(`Empty critical tables: ${emptyTables.join(', ')} (no users found)`)
+    }
+    
+    console.log("=== Debug Complete ===")
     
     return NextResponse.json({
-      tableExists,
-      schema,
-      data,
-      createTableSQL
-    });
+      success: true,
+      timestamp: new Date().toISOString(),
+      database: {
+        connected: true,
+        version: connectionTest.rows[0].postgres_version,
+        currentTime: connectionTest.rows[0].current_time,
+      },
+      tables: {
+        total: tablesResult.rows.length,
+        list: tablesResult.rows.map(t => t.table_name),
+        details: tableDetails,
+      },
+      indexes: {
+        total: indexesResult.rows.length,
+        list: indexesResult.rows,
+      },
+      issues: issues.length > 0 ? issues : null,
+      recommendations: issues.length > 0 ? [
+        "Run database initialization: GET /api/init-db",
+        "Check database schema files in /db/ directory",
+        "Verify PostgreSQL connection settings"
+      ] : [
+        "Database appears to be properly configured",
+        "All critical tables exist",
+        "Ready for application use"
+      ]
+    })
+    
   } catch (error) {
-    console.error('Error checking database schema:', error);
+    console.error("Database debug error:", error)
     return NextResponse.json(
-      { error: 'Error checking database schema', details: (error as Error).message },
+      {
+        success: false,
+        error: "Database debug failed",
+        details: error instanceof Error ? error.message : "Unknown error",
+        timestamp: new Date().toISOString(),
+      },
       { status: 500 }
-    );
+    )
   }
 }

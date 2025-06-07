@@ -1,12 +1,114 @@
+'use client'
+
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Plus, Calendar, DollarSign, Wrench } from "lucide-react"
+import { Plus, Calendar, DollarSign, Wrench, Loader2 } from "lucide-react"
 import { getVehicleProjects } from "@/actions/project-actions"
+import { useEffect, useState } from "react"
 
-export default async function ProjectsPage() {
-  // Fetch actual projects from the database
-  const projects = await getVehicleProjects()
+// Prevent static generation
+export const dynamic = 'force-dynamic'
+
+interface Project {
+  id: string
+  title: string
+  description?: string
+  make: string
+  model: string
+  year?: number
+  status?: string
+  budget?: string
+  start_date?: string
+  project_type?: string
+  thumbnail_url?: string
+}
+
+export default function ProjectsPage() {
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function loadProjects() {
+      try {
+        setLoading(true)
+        setError(null)
+        const projectsData = await getVehicleProjects()
+        setProjects(projectsData)
+      } catch (err) {
+        console.error('Error loading projects:', err)
+        setError('Failed to load projects')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadProjects()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Projects</h2>
+            <p className="text-muted-foreground">Manage all your vehicle projects in one place.</p>
+          </div>
+          <Button asChild>
+            <Link href="/dashboard/projects/new">
+              <Plus className="mr-2 h-4 w-4" />
+              New Project
+            </Link>
+          </Button>
+        </div>
+        
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+            <p className="text-muted-foreground">Loading your projects...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Projects</h2>
+            <p className="text-muted-foreground">Manage all your vehicle projects in one place.</p>
+          </div>
+          <Button asChild>
+            <Link href="/dashboard/projects/new">
+              <Plus className="mr-2 h-4 w-4" />
+              New Project
+            </Link>
+          </Button>
+        </div>
+        
+        <Card>
+          <CardContent className="py-12 text-center">
+            <div className="mx-auto mb-4 h-24 w-24 rounded-full bg-red-100 flex items-center justify-center">
+              <Wrench className="h-12 w-12 text-red-600" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2 text-red-600">Error Loading Projects</h3>
+            <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
+              {error}. Please try refreshing the page or check your connection.
+            </p>
+            <Button 
+              onClick={() => window.location.reload()} 
+              variant="outline"
+            >
+              Refresh Page
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
