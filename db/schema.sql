@@ -416,7 +416,7 @@ FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
 
 -- Create function to update maintenance schedule status
 CREATE OR REPLACE FUNCTION update_maintenance_schedule_status()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 BEGIN
   -- Update status based on next_due_at
   IF NEW.next_due_at IS NOT NULL THEN
@@ -431,7 +431,7 @@ BEGIN
   
   RETURN NEW;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 -- Create trigger for updating maintenance schedule status
 CREATE TRIGGER update_maintenance_schedule_status_trigger
