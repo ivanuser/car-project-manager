@@ -2,11 +2,12 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { format } from "date-fns"
 import { getVehicleProject, getProjectTasks, getProjectParts } from "@/actions/project-actions"
+import { getMaintenanceSchedules, checkMaintenanceNotifications } from "@/actions/maintenance-actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Calendar, DollarSign, Edit, Plus, Tag, Clock, CheckCircle, ListTodo, AlertTriangle, Package } from "lucide-react"
+import { ArrowLeft, Calendar, DollarSign, Edit, Plus, Tag, Clock, CheckCircle, ListTodo, AlertTriangle, Package, Wrench } from "lucide-react"
 import { DeleteProjectDialog } from "@/components/projects/delete-project-dialog"
 
 interface ProjectPageProps {
@@ -19,10 +20,14 @@ interface ProjectPageProps {
 }
 
 export default async function ProjectPage({ params, searchParams }: ProjectPageProps) {
-  const [project, tasks, parts] = await Promise.all([
+  // Check for due maintenance and create notifications
+  await checkMaintenanceNotifications()
+  
+  const [project, tasks, parts, schedules] = await Promise.all([
     getVehicleProject(params.id),
     getProjectTasks(params.id),
-    getProjectParts(params.id)
+    getProjectParts(params.id),
+    getMaintenanceSchedules(params.id)
   ])
 
   if (!project) {
@@ -61,6 +66,11 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
   const orderedParts = parts.filter(part => part.status === "ordered")
   const receivedParts = parts.filter(part => part.status === "received")
   const installedParts = parts.filter(part => part.status === "installed")
+
+  // Maintenance statistics
+  const overdueSchedules = schedules.filter(schedule => schedule.status === "overdue")
+  const dueSchedules = schedules.filter(schedule => schedule.status === "due")
+  const upcomingSchedules = schedules.filter(schedule => schedule.status === "upcoming")
 
   // Parts rendering function
   const renderPartCard = (part: any) => {
@@ -324,6 +334,14 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="maintenance" className="relative">
+            Maintenance
+            {(overdueSchedules.length + dueSchedules.length) > 0 && (
+              <Badge variant="destructive" className="ml-2 text-xs">
+                {overdueSchedules.length + dueSchedules.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="gallery">Gallery</TabsTrigger>
         </TabsList>
         
@@ -362,6 +380,10 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Parts:</span>
                     <span className="text-sm font-medium">{parts.length} total</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Maintenance:</span>
+                    <span className="text-sm font-medium">{schedules.length} schedules</span>
                   </div>
                 </div>
               </CardContent>
@@ -422,6 +444,12 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
                     <Link href={`/dashboard/projects/${project.id}/parts/new`}>
                       <Plus className="mr-2 h-4 w-4" />
                       Add Part
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" className="w-full justify-start">
+                    <Link href={`/dashboard/projects/${project.id}/maintenance/new`}>
+                      <Wrench className="mr-2 h-4 w-4" />
+                      Add Maintenance
                     </Link>
                   </Button>
                   <Button variant="outline" className="w-full justify-start" disabled>
@@ -668,6 +696,134 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
                   </div>
                 </TabsContent>
               </Tabs>
+            </div>
+          )}
+        </TabsContent>
+        
+        <TabsContent value="maintenance" className="mt-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium">Maintenance ({schedules.length})</h3>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" asChild>
+                <Link href={`/dashboard/projects/${project.id}/maintenance`}>
+                  <Wrench className="mr-2 h-4 w-4" />
+                  View All
+                </Link>
+              </Button>
+              <Button size="sm" asChild>
+                <Link href={`/dashboard/projects/${project.id}/maintenance/new`}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Schedule
+                </Link>
+              </Button>
+            </div>
+          </div>
+          
+          {schedules.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Wrench className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground mb-4">No maintenance schedules yet</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Set up maintenance schedules to track oil changes, tire rotations, and other regular service.
+                </p>
+                <Button asChild>
+                  <Link href={`/dashboard/projects/${project.id}/maintenance/new`}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add First Schedule
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {/* Maintenance Status Overview */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-red-500" />
+                      Overdue
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-red-500">{overdueSchedules.length}</div>
+                    <p className="text-xs text-muted-foreground">Past due date</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <Wrench className="h-4 w-4 text-yellow-500" />
+                      Due Soon
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-yellow-500">{dueSchedules.length}</div>
+                    <p className="text-xs text-muted-foreground">Due now</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-blue-500" />
+                      Upcoming
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-blue-500">{upcomingSchedules.length}</div>
+                    <p className="text-xs text-muted-foreground">Future maintenance</p>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              {/* Recent Maintenance Schedules */}
+              <div className="space-y-2">
+                {schedules.slice(0, 5).map((schedule) => (
+                  <Card key={schedule.id}>
+                    <CardContent className="pt-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-medium">{schedule.title}</h4>
+                            <Badge variant="outline" className={
+                              schedule.status === "overdue" ? "bg-red-100 text-red-800" :
+                              schedule.status === "due" ? "bg-yellow-100 text-yellow-800" :
+                              "bg-blue-100 text-blue-800"
+                            }>
+                              {schedule.status.charAt(0).toUpperCase() + schedule.status.slice(1)}
+                            </Badge>
+                          </div>
+                          {schedule.description && (
+                            <p className="text-sm text-muted-foreground mb-2">{schedule.description}</p>
+                          )}
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <span>Every {schedule.interval_value} {schedule.interval_type}</span>
+                            {schedule.next_due_at && (
+                              <span>Next due: {format(new Date(schedule.next_due_at), "MMM d, yyyy")}</span>
+                            )}
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="sm" asChild>
+                          <Link href={`/dashboard/projects/${project.id}/maintenance/${schedule.id}/log`}>
+                            Log Completion
+                          </Link>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              
+              {schedules.length > 5 && (
+                <div className="text-center pt-4">
+                  <Button variant="outline" asChild>
+                    <Link href={`/dashboard/projects/${project.id}/maintenance`}>
+                      View All {schedules.length} Schedules
+                    </Link>
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </TabsContent>

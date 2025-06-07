@@ -1,1 +1,148 @@
-"use client"\n\nimport { useState, useEffect } from \"react\"\nimport Link from \"next/link\"\nimport { Button } from \"@/components/ui/button\"\nimport { Card, CardContent, CardDescription, CardHeader, CardTitle } from \"@/components/ui/card\"\nimport { ArrowLeft, Car, Wrench, Plus } from \"lucide-react\"\nimport { getVehicleProjects } from \"@/actions/project-actions\"\n\nexport default function NewMaintenanceSchedulePage() {\n  const [projects, setProjects] = useState<any[]>([])\n  const [loading, setLoading] = useState(true)\n\n  useEffect(() => {\n    async function fetchProjects() {\n      try {\n        const userProjects = await getVehicleProjects()\n        setProjects(userProjects)\n      } catch (error) {\n        console.error(\"Error fetching projects:\", error)\n      } finally {\n        setLoading(false)\n      }\n    }\n    fetchProjects()\n  }, [])\n\n  if (loading) {\n    return (\n      <div className=\"space-y-6\">\n        <div className=\"flex items-center gap-2\">\n          <Button variant=\"outline\" size=\"icon\" asChild>\n            <Link href=\"/dashboard/maintenance\">\n              <ArrowLeft className=\"h-4 w-4\" />\n              <span className=\"sr-only\">Back</span>\n            </Link>\n          </Button>\n          <div>\n            <h2 className=\"text-2xl font-bold tracking-tight\">Add Maintenance Schedule</h2>\n            <p className=\"text-muted-foreground\">Loading your projects...</p>\n          </div>\n        </div>\n      </div>\n    )\n  }\n\n  if (projects.length === 0) {\n    return (\n      <div className=\"space-y-6\">\n        <div className=\"flex items-center gap-2\">\n          <Button variant=\"outline\" size=\"icon\" asChild>\n            <Link href=\"/dashboard/maintenance\">\n              <ArrowLeft className=\"h-4 w-4\" />\n              <span className=\"sr-only\">Back</span>\n            </Link>\n          </Button>\n          <div>\n            <h2 className=\"text-2xl font-bold tracking-tight\">Add Maintenance Schedule</h2>\n            <p className=\"text-muted-foreground\">Create a vehicle project first</p>\n          </div>\n        </div>\n\n        <Card>\n          <CardContent className=\"flex flex-col items-center justify-center py-12\">\n            <Car className=\"mx-auto h-16 w-16 text-muted-foreground mb-4\" />\n            <h3 className=\"text-lg font-medium mb-2\">No Vehicle Projects Found</h3>\n            <p className=\"text-center text-muted-foreground mb-6 max-w-md\">\n              You need to create a vehicle project before you can add maintenance schedules. \n              Projects help organize maintenance by vehicle.\n            </p>\n            <Button asChild size=\"lg\">\n              <Link href=\"/dashboard/projects/new\">\n                <Car className=\"mr-2 h-4 w-4\" />\n                Create Your First Project\n              </Link>\n            </Button>\n          </CardContent>\n        </Card>\n      </div>\n    )\n  }\n\n  return (\n    <div className=\"space-y-6\">\n      <div className=\"flex items-center gap-2\">\n        <Button variant=\"outline\" size=\"icon\" asChild>\n          <Link href=\"/dashboard/maintenance\">\n            <ArrowLeft className=\"h-4 w-4\" />\n            <span className=\"sr-only\">Back</span>\n          </Link>\n        </Button>\n        <div>\n          <h2 className=\"text-2xl font-bold tracking-tight\">Add Maintenance Schedule</h2>\n          <p className=\"text-muted-foreground\">Choose which vehicle to add maintenance for</p>\n        </div>\n      </div>\n\n      <div className=\"grid gap-4 md:grid-cols-2 lg:grid-cols-3\">\n        {projects.map((project) => (\n          <Card key={project.id} className=\"hover:shadow-lg transition-shadow cursor-pointer group\">\n            <CardHeader>\n              <div className=\"flex items-center gap-3\">\n                <div className=\"w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center\">\n                  <Car className=\"h-6 w-6 text-primary\" />\n                </div>\n                <div className=\"flex-1\">\n                  <CardTitle className=\"text-lg\">{project.title}</CardTitle>\n                  <CardDescription>\n                    {project.year} {project.make} {project.model}\n                  </CardDescription>\n                </div>\n              </div>\n            </CardHeader>\n            <CardContent>\n              <div className=\"space-y-3\">\n                <div className=\"text-sm text-muted-foreground\">\n                  <p><strong>Status:</strong> {project.status}</p>\n                  <p><strong>Stage:</strong> {project.build_stage}</p>\n                </div>\n                <Button asChild className=\"w-full group-hover:bg-primary/90\">\n                  <Link href={`/dashboard/projects/${project.id}/maintenance/new`}>\n                    <Plus className=\"mr-2 h-4 w-4\" />\n                    Add Maintenance Schedule\n                  </Link>\n                </Button>\n              </div>\n            </CardContent>\n          </Card>\n        ))}\n      </div>\n\n      <Card className=\"border-dashed\">\n        <CardContent className=\"flex items-center justify-center py-8\">\n          <div className=\"text-center\">\n            <Plus className=\"mx-auto h-8 w-8 text-muted-foreground mb-2\" />\n            <p className=\"text-sm text-muted-foreground mb-4\">Need to add maintenance for a different vehicle?</p>\n            <Button variant=\"outline\" asChild>\n              <Link href=\"/dashboard/projects/new\">\n                <Car className=\"mr-2 h-4 w-4\" />\n                Create New Project\n              </Link>\n            </Button>\n          </div>\n        </CardContent>\n      </Card>\n    </div>\n  )\n}\n
+"use client"
+
+import { useState, useEffect } from "react"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { ArrowLeft, Car, Wrench, Plus } from "lucide-react"
+import { getVehicleProjects } from "@/actions/project-actions"
+
+export default function NewMaintenanceSchedulePage() {
+  const [projects, setProjects] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchProjects() {
+      try {
+        const userProjects = await getVehicleProjects()
+        setProjects(userProjects)
+      } catch (error) {
+        console.error("Error fetching projects:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchProjects()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" asChild>
+            <Link href="/dashboard/maintenance">
+              <ArrowLeft className="h-4 w-4" />
+              <span className="sr-only">Back</span>
+            </Link>
+          </Button>
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Add Maintenance Schedule</h2>
+            <p className="text-muted-foreground">Loading your projects...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (projects.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" asChild>
+            <Link href="/dashboard/maintenance">
+              <ArrowLeft className="h-4 w-4" />
+              <span className="sr-only">Back</span>
+            </Link>
+          </Button>
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Add Maintenance Schedule</h2>
+            <p className="text-muted-foreground">Create a vehicle project first</p>
+          </div>
+        </div>
+
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Car className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">No Vehicle Projects Found</h3>
+            <p className="text-center text-muted-foreground mb-6 max-w-md">
+              You need to create a vehicle project before you can add maintenance schedules. 
+              Projects help organize maintenance by vehicle.
+            </p>
+            <Button asChild size="lg">
+              <Link href="/dashboard/projects/new">
+                <Car className="mr-2 h-4 w-4" />
+                Create Your First Project
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="icon" asChild>
+          <Link href="/dashboard/maintenance">
+            <ArrowLeft className="h-4 w-4" />
+            <span className="sr-only">Back</span>
+          </Link>
+        </Button>
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Add Maintenance Schedule</h2>
+          <p className="text-muted-foreground">Choose which vehicle to add maintenance for</p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {projects.map((project) => (
+          <Card key={project.id} className="hover:shadow-lg transition-shadow cursor-pointer group">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Car className="h-6 w-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <CardTitle className="text-lg">{project.title}</CardTitle>
+                  <CardDescription>
+                    {project.year} {project.make} {project.model}
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="text-sm text-muted-foreground">
+                  <p><strong>Status:</strong> {project.status}</p>
+                  <p><strong>Stage:</strong> {project.build_stage}</p>
+                </div>
+                <Button asChild className="w-full group-hover:bg-primary/90">
+                  <Link href={`/dashboard/projects/${project.id}/maintenance/new`}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Maintenance Schedule
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="border-dashed">
+        <CardContent className="flex items-center justify-center py-8">
+          <div className="text-center">
+            <Plus className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+            <p className="text-sm text-muted-foreground mb-4">Need to add maintenance for a different vehicle?</p>
+            <Button variant="outline" asChild>
+              <Link href="/dashboard/projects/new">
+                <Car className="mr-2 h-4 w-4" />
+                Create New Project
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 
 interface MaintenanceLogsTableProps {
   logs: MaintenanceLog[]
+  projectId: string
 }
 
 export function MaintenanceLogsTable({ logs }: MaintenanceLogsTableProps) {
