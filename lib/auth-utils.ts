@@ -21,27 +21,30 @@ export async function checkAuthStatus() {
     // Find the Cajpro auth token
     const authCookie = cookies.find(c => c.startsWith('cajpro_auth_token='));
     
-    // If not found, check if we're in development mode and use alternative methods
+    // If not found, check for fallback auth methods
     if (!authCookie) {
       console.log("Auth check: No auth token found in cookies");
       
-      // For development, check localStorage for auth info
-      // This is a fallback mechanism
+      // For development, check localStorage for auth info (but don't use dev admin mode)
       const localAuthData = localStorage.getItem('cajpro_auth_user');
       if (localAuthData) {
         try {
           const userData = JSON.parse(localAuthData);
           console.log("Found auth data in localStorage:", userData);
-          return {
-            authenticated: true,
-            user: userData
-          };
+          
+          // Only use this if it's not the dev admin user
+          if (userData.email !== 'admin@cajpro.local') {
+            return {
+              authenticated: true,
+              user: userData
+            };
+          }
         } catch (e) {
           console.error("Error parsing local auth data:", e);
         }
       }
       
-      // If session storage also has auth info, use that as a fallback
+      // Check session storage for auth info
       const sessionAuthData = sessionStorage.getItem('cajpro_auth_session');
       if (sessionAuthData) {
         try {
@@ -56,24 +59,6 @@ export async function checkAuthStatus() {
           };
         } catch (e) {
           console.error("Error parsing session auth data:", e);
-        }
-      }
-      
-      // Check for special admin development mode
-      // This allows us to bypass auth during development
-      if (process.env.NODE_ENV === 'development') {
-        // See if we have a special development flag set
-        const devMode = localStorage.getItem('cajpro_dev_mode');
-        if (devMode === 'admin') {
-          console.log("Using development admin mode");
-          return {
-            authenticated: true,
-            user: {
-              id: 'admin-dev-mode',
-              email: 'admin@cajpro.local',
-              isAdmin: true
-            }
-          };
         }
       }
       
@@ -126,22 +111,10 @@ export async function checkAuthStatus() {
 
 /**
  * Enable development admin mode
- * Only for development and testing
+ * DISABLED - No longer automatically enabling
  */
 export function enableDevAdminMode() {
-  if (process.env.NODE_ENV !== 'production') {
-    localStorage.setItem('cajpro_dev_mode', 'admin');
-    
-    // Store minimal user info
-    localStorage.setItem('cajpro_auth_user', JSON.stringify({
-      id: 'admin-dev-mode',
-      email: 'admin@cajpro.local',
-      isAdmin: true
-    }));
-    
-    console.log("Development admin mode enabled");
-    return true;
-  }
+  console.log("Dev admin mode is disabled - use real authentication");
   return false;
 }
 

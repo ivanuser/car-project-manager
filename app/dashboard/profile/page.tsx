@@ -1,40 +1,82 @@
-import { createServerClient } from "@/lib/auth/auth-client"
+'use client';
+
+import { useEffect, useState } from 'react';
+import { checkAuthStatus } from "@/lib/auth-utils";
 import { AvatarUpload } from "@/components/profile/avatar-upload"
 import { ProfileForm } from "@/components/profile/profile-form"
 import { PasswordForm } from "@/components/profile/password-form"
-import { getUserProfile } from "@/actions/profile-actions"
 
-export default async function ProfilePage() {
-  const authClient = await createServerClient()
+export default function ProfilePage() {
+  const [user, setUser] = useState<{ id: string; email: string } | null>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Get the current user
-  const {
-    data: { user },
-  } = await authClient.auth.getUser()
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const { authenticated, user: authUser } = await checkAuthStatus();
+        
+        if (authenticated && authUser) {
+          setUser({
+            id: authUser.id,
+            email: authUser.email
+          });
+          
+          // Fetch user profile data
+          try {
+            console.log("Fetching profile for user ID:", authUser.id);
+            const profileResponse = await fetch(`/api/user/profile?userId=${authUser.id}`);
+            if (profileResponse.ok) {
+              const profileData = await profileResponse.json();
+              console.log("Received profile data:", profileData);
+              if (profileData.profile) {
+                setProfile(profileData.profile);
+              }
+            } else {
+              console.warn('Failed to load profile data');
+              const errorData = await profileResponse.json();
+              console.error('Profile error details:', errorData);
+              setError('Failed to load profile data');
+            }
+          } catch (error) {
+            console.error('Error fetching profile:', error);
+            setError('Error loading profile');
+          }
+        } else {
+          setError('You must be logged in to view this page');
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+        setError('Error checking authentication');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadUserData();
+  }, []);
 
-  if (!user) {
+  if (loading) {
     return (
       <div className="space-y-6">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Profile</h2>
-          <p className="text-muted-foreground">You must be logged in to view this page.</p>
+          <p className="text-muted-foreground">Loading your profile...</p>
         </div>
       </div>
-    )
+    );
   }
 
-  // Get the user's profile - ensure avatar_url is properly processed if it exists
-  const { profile, error } = await getUserProfile(user.id)
-
-  if (error) {
+  if (error || !user) {
     return (
       <div className="space-y-6">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Profile</h2>
-          <p className="text-destructive">Error loading profile: {error}</p>
+          <p className="text-destructive">{error || 'You must be logged in to view this page.'}</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -46,13 +88,13 @@ export default async function ProfilePage() {
 
       <div className="grid gap-6 md:grid-cols-[250px_1fr]">
         <div>
-          <AvatarUpload currentAvatarUrl={profile.avatar_url} userId={user.id} />
+          <AvatarUpload currentAvatarUrl={profile?.avatar_url} userId={user.id} />
         </div>
         <div className="space-y-6">
-          <ProfileForm profile={profile} />
-          <PasswordForm email={user.email || ""} />
+          <ProfileForm profile={profile || {}} />
+          <PasswordForm email={user.email} />
         </div>
       </div>
     </div>
-  )
+  );
 }
