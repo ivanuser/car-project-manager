@@ -119,18 +119,26 @@ export const setAuthCookies = (
     ? parseInt(process.env.REFRESH_TOKEN_EXPIRATION, 10)
     : 604800; // 7 days in seconds
   
+  // Determine if we should use secure cookies
+  // Only use secure in production or when specifically enabled
+  const isProduction = process.env.NODE_ENV === 'production';
+  const forceSecure = process.env.FORCE_SECURE_COOKIES === 'true';
+  const useSecure = isProduction || forceSecure;
+  
+  console.log('Setting auth cookies with secure:', useSecure);
+  
   response.cookies.set(AUTH_COOKIE_NAME, token, {
     httpOnly: true,
-    secure: true, // Always use secure cookies with Cloudflare tunnel
-    sameSite: 'lax', // Use 'lax' instead of 'strict' for better compatibility with Cloudflare
+    secure: useSecure, // Only secure in production or when forced
+    sameSite: 'lax',
     path: '/',
     maxAge: jwtExpiration,
   });
   
   response.cookies.set(REFRESH_COOKIE_NAME, refreshToken, {
     httpOnly: true,
-    secure: true, // Always use secure cookies with Cloudflare tunnel
-    sameSite: 'lax', // Use 'lax' instead of 'strict' for better compatibility with Cloudflare
+    secure: useSecure, // Only secure in production or when forced
+    sameSite: 'lax',
     path: '/',
     maxAge: refreshTokenExpiration,
   });
