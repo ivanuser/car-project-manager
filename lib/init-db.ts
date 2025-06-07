@@ -24,6 +24,9 @@ export async function initializeDatabase() {
       
       console.log("Database schema initialized successfully")
       
+      // Create default admin user
+      await createDefaultAdminUser()
+      
       // Verify tables were created
       const result = await db.query(`
         SELECT table_name 
@@ -54,6 +57,18 @@ export async function initializeDatabase() {
   }
 }
 
+export async function createDefaultAdminUser() {
+  try {
+    // Import auth service dynamically to avoid circular dependencies
+    const authService = (await import('@/lib/auth/auth-service')).default
+    await authService.createDefaultAdminUser()
+    console.log("Default admin user check completed")
+  } catch (error) {
+    console.error("Error creating default admin user:", error)
+    // Don't fail the entire initialization for this
+  }
+}
+
 export async function checkDatabaseStatus() {
   try {
     // Check if database is connected
@@ -65,11 +80,11 @@ export async function checkDatabaseStatus() {
       FROM information_schema.tables 
       WHERE table_schema = 'public' 
       AND table_type = 'BASE TABLE'
-      AND table_name IN ('users', 'profiles', 'vehicle_projects', 'project_tasks', 'vendors', 'project_parts')
+      AND table_name IN ('users', 'profiles', 'vehicle_projects', 'project_tasks', 'vendors', 'project_parts', 'sessions')
       ORDER BY table_name
     `)
     
-    const expectedTables = ['users', 'profiles', 'vehicle_projects', 'project_tasks', 'vendors', 'project_parts']
+    const expectedTables = ['users', 'profiles', 'vehicle_projects', 'project_tasks', 'vendors', 'project_parts', 'sessions']
     const existingTables = tablesResult.rows.map(r => r.table_name)
     const missingTables = expectedTables.filter(table => !existingTables.includes(table))
     
@@ -95,48 +110,6 @@ export async function checkDatabaseStatus() {
     return {
       connected: false,
       initialized: false,
-      error: error instanceof Error ? error.message : "Unknown error"
-    }
-  }
-}
-
-export async function createDefaultUser() {
-  try {
-    // Check if default user already exists
-    const existingUser = await db.query('SELECT id FROM users WHERE email = $1', ['admin@cajpro.local'])
-    
-    if (existingUser.rows.length > 0) {
-      return {
-        success: true,
-        message: "Default user already exists",
-        userId: existingUser.rows[0].id
-      }
-    }
-    
-    // Create default user
-    const userResult = await db.query(`
-      INSERT INTO users (email, password_hash, email_verified)
-      VALUES ($1, $2, $3)
-      RETURNING id
-    `, ['admin@cajpro.local', '$2b$10$defaulthash', true])
-    
-    const userId = userResult.rows[0].id
-    
-    // Create default profile
-    await db.query(`
-      INSERT INTO profiles (user_id, full_name)
-      VALUES ($1, $2)
-    `, [userId, 'CAJ-Pro Admin'])
-    
-    return {
-      success: true,
-      message: "Default user created successfully",
-      userId
-    }
-  } catch (error) {
-    console.error("Error creating default user:", error)
-    return {
-      success: false,
       error: error instanceof Error ? error.message : "Unknown error"
     }
   }

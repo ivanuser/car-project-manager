@@ -18,61 +18,33 @@ export default function DashboardLayout({
 }) {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     const loadUserData = async () => {
       try {
-        console.log('Dashboard Layout: Checking auth status...');
+        console.log('Dashboard Layout: Checking authentication...');
         const result = await checkAuthStatus();
         
         if (result.authenticated && result.user) {
-          console.log('Dashboard Layout: User is authenticated as', result.user.email);
+          console.log('Dashboard Layout: User authenticated as', result.user.email);
           
-          // Try to fetch profile data
-          try {
-            const profileResponse = await fetch(`/api/user/profile?userId=${result.user.id}`);
-            if (profileResponse.ok) {
-              const profileData = await profileResponse.json();
-              setUserProfile({
-                id: result.user.id,
-                email: result.user.email,
-                fullName: profileData.profile?.full_name,
-                avatarUrl: profileData.profile?.avatar_url,
-              });
-            } else {
-              // Fallback to basic user info
-              setUserProfile({
-                id: result.user.id,
-                email: result.user.email,
-              });
-            }
-          } catch (profileError) {
-            console.error('Error fetching profile:', profileError);
-            // Fallback to basic user info
-            setUserProfile({
-              id: result.user.id,
-              email: result.user.email,
-            });
-          }
+          // Set user profile
+          setUserProfile({
+            id: result.user.id,
+            email: result.user.email,
+            fullName: result.user.fullName || result.user.email,
+            isAdmin: result.user.isAdmin || false,
+          });
         } else {
-          console.log('Dashboard Layout: User is not authenticated');
-          setAuthError('Not authenticated');
-          
-          // Use window.location for a hard redirect to avoid middleware conflicts
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 2000);
+          console.log('Dashboard Layout: User not authenticated, redirecting...');
+          router.push('/login');
+          return;
         }
       } catch (error) {
-        console.error('Dashboard Layout: Error checking auth', error);
-        setAuthError(error instanceof Error ? error.message : 'Authentication error');
-        
-        // Use window.location for a hard redirect to avoid middleware conflicts  
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 2000);
+        console.error('Dashboard Layout: Authentication error', error);
+        router.push('/login');
+        return;
       } finally {
         setLoading(false);
       }
@@ -92,20 +64,12 @@ export default function DashboardLayout({
     );
   }
 
-  if (!userProfile || authError) {
+  if (!userProfile) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2">Authentication Required</h1>
-          <p className="text-muted-foreground mb-4">Redirecting to login page...</p>
-          {authError && (
-            <p className="text-sm text-red-600">Error: {authError}</p>
-          )}
-          <div className="mt-4">
-            <div className="animate-pulse">
-              <div className="h-2 bg-primary/20 rounded w-48 mx-auto"></div>
-            </div>
-          </div>
+          <h1 className="text-2xl font-bold mb-2">Redirecting to Login</h1>
+          <p className="text-muted-foreground">Please wait...</p>
         </div>
       </div>
     );
@@ -113,7 +77,6 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider defaultOpen={true}>
-      {/* Gradient background with increased intensity */}
       <GradientBackground intensity="strong" />
 
       <div className="flex min-h-screen bg-background/80 backdrop-blur-[2px] relative">

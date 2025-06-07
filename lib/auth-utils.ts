@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * Check authentication status based on JWT in cookies (Enhanced for debugging)
+ * Check authentication status using the proper API
  */
 export async function checkAuthStatus() {
   console.log("Checking authentication status...");
@@ -12,67 +12,25 @@ export async function checkAuthStatus() {
   }
   
   try {
-    // Look for our auth token cookie
-    const cookies = document.cookie.split(';').map(c => c.trim());
-    console.log("Available cookies:", cookies);
-
-    // Find the Cajpro auth token
-    const authCookie = cookies.find(c => c.startsWith('cajpro_auth_token='));
+    // Check with the auth API
+    const response = await fetch('/api/auth/user', {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
     
-    if (!authCookie) {
-      console.log("Auth check: No auth token found in cookies");
-      return { authenticated: false, user: null };
-    }
-    
-    // Extract the token
-    const token = authCookie.split('=')[1];
-    
-    if (!token) {
-      console.log("Auth check: Empty auth token");
-      return { authenticated: false, user: null };
-    }
-    
-    console.log("Auth check: Found token:", token.substring(0, 10) + "...");
-    
-    // Check if it's the dev token
-    if (token === 'dev-token-12345') {
-      console.log("Auth check: Using dev token");
-      const devUser = {
-        id: 'dev-user-001',
-        email: 'dev@cajpro.local',
-        isAdmin: true
-      };
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Auth check: Authenticated as", data.user?.email);
       
       return {
         authenticated: true,
-        user: devUser
+        user: data.user
       };
-    }
-    
-    // For real tokens, try to validate via API
-    try {
-      const response = await fetch('/api/auth/user', {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Auth check: API validation successful", data.user?.email);
-        
-        return {
-          authenticated: true,
-          user: data.user
-        };
-      } else {
-        console.log("Auth check: API validation failed", response.status);
-        return { authenticated: false, user: null };
-      }
-    } catch (apiError) {
-      console.error("Auth check: API error", apiError);
+    } else {
+      console.log("Auth check: Not authenticated", response.status);
       return { authenticated: false, user: null };
     }
   } catch (error) {
@@ -90,15 +48,11 @@ export async function signOutClient() {
   try {
     console.log("Signing out...");
     
-    // Clear all auth-related items
+    // Clear any local storage
     localStorage.removeItem('cajpro_auth_user');
-    localStorage.removeItem('cajpro_dev_mode');
-    sessionStorage.removeItem('cajpro_auth_session');
+    sessionStorage.clear();
     
-    // Clear cookies
-    document.cookie = 'cajpro_auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-    
-    // Try to call the logout API endpoint
+    // Call the logout API endpoint
     try {
       const response = await fetch('/api/auth/logout', {
         method: 'POST',
@@ -127,18 +81,7 @@ export async function signOutClient() {
 export function forceSignOut() {
   signOutClient().finally(() => {
     if (typeof window !== 'undefined') {
-      // Redirect to login page
       window.location.href = '/login';
     }
   });
-}
-
-/**
- * Development helper to set dev token
- */
-export function setDevToken() {
-  if (typeof document !== 'undefined') {
-    document.cookie = 'cajpro_auth_token=dev-token-12345; path=/; max-age=' + (60 * 60 * 24 * 7); // 7 days
-    console.log("Dev token set");
-  }
 }

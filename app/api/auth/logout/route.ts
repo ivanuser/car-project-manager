@@ -1,7 +1,5 @@
 /**
  * Logout API route - /api/auth/logout
- * For Caj-pro car project build tracking application
- * Created on: May 5, 2025
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -10,30 +8,23 @@ import middlewareUtils from '@/lib/auth/middleware';
 
 export async function POST(req: NextRequest) {
   try {
-    // Get token from cookies or headers
+    console.log('Logout API: Processing logout request');
+    
+    // Get token from cookies
     const token = middlewareUtils.getToken(req);
     
-    // If no token, just return success (already logged out)
-    if (!token) {
-      return NextResponse.json(
-        { 
-          success: true,
-          message: 'Already logged out',
-          redirectUrl: '/login'
-        },
-        { status: 200 }
-      );
+    if (token) {
+      // Logout user (invalidate session)
+      await authService.logoutUser(token);
+      console.log('Logout API: Session invalidated');
     }
-    
-    // Invalidate session in database
-    await authService.logoutUser(token);
     
     // Create response
     const response = NextResponse.json(
       { 
         success: true,
         message: 'Logout successful',
-        redirectUrl: '/login' 
+        redirectUrl: '/login'
       },
       { status: 200 }
     );
@@ -41,11 +32,13 @@ export async function POST(req: NextRequest) {
     // Clear authentication cookies
     middlewareUtils.clearAuthCookies(response);
     
+    console.log('Logout API: Cookies cleared');
+    
     return response;
   } catch (error: any) {
-    console.error('Logout error:', error);
+    console.error('Logout API: Error', error);
     
-    // Create response with error
+    // Still clear cookies even if there's an error
     const response = NextResponse.json(
       { 
         success: false,
@@ -55,7 +48,6 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
     
-    // Still clear cookies even if database operation fails
     middlewareUtils.clearAuthCookies(response);
     
     return response;

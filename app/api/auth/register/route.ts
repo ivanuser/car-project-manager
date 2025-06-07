@@ -1,7 +1,5 @@
 /**
- * Register API route - /api/auth/register
- * For Caj-pro car project build tracking application
- * Created on: May 5, 2025
+ * Register API route - /api/auth/register (Fixed)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -21,12 +19,16 @@ const registerSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    console.log('Register API: Processing registration request');
+    
     // Parse request body
     const body = await req.json();
+    console.log('Register API: Request body parsed', { email: body.email });
     
     // Validate request
     const validationResult = registerSchema.safeParse(body);
     if (!validationResult.success) {
+      console.log('Register API: Validation failed', validationResult.error.errors);
       return NextResponse.json(
         { error: 'Validation failed', details: validationResult.error.errors },
         { status: 400 }
@@ -35,7 +37,10 @@ export async function POST(req: NextRequest) {
     
     // Attempt registration
     const registrationData = validationResult.data;
+    console.log('Register API: Attempting registration for', registrationData.email);
+    
     const authResult = await authService.registerUser(registrationData);
+    console.log('Register API: Registration successful for', registrationData.email);
     
     // Create response
     const response = NextResponse.json(
@@ -53,9 +58,11 @@ export async function POST(req: NextRequest) {
       authResult.refreshToken
     );
     
+    console.log('Register API: Auth cookies set');
+    
     return response;
   } catch (error: any) {
-    console.error('Registration error:', error);
+    console.error('Register API: Error', error);
     
     // Check if it's a duplicate email error
     if (error.message.includes('already exists')) {

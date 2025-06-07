@@ -1,6 +1,5 @@
 /**
- * middleware.ts - Simplified Next.js middleware for authentication
- * Emergency version to resolve redirect loops
+ * middleware.ts - Next.js middleware for authentication (Production Ready)
  */
 
 import { NextResponse } from "next/server";
@@ -8,35 +7,44 @@ import type { NextRequest } from "next/server";
 
 export async function middleware(req: NextRequest) {
   try {
-    // Skip middleware completely for these routes
+    console.log(`[Middleware] Processing: ${req.nextUrl.pathname}`);
+    
+    // Skip middleware for API routes and static files
     if (
       req.nextUrl.pathname.startsWith('/api/') ||
-      req.nextUrl.pathname.startsWith('/direct-dashboard') ||
-      req.nextUrl.pathname.startsWith('/auth-debug') ||
-      req.nextUrl.pathname.startsWith('/test-login') ||
       req.nextUrl.pathname.startsWith('/_next/') ||
       req.nextUrl.pathname.startsWith('/favicon.ico') ||
-      req.nextUrl.pathname === '/login' ||
-      req.nextUrl.pathname === '/register'
+      req.nextUrl.pathname.startsWith('/public/')
     ) {
       return NextResponse.next();
     }
     
-    // Only protect /dashboard/* routes (not the root dashboard)
-    if (req.nextUrl.pathname.startsWith("/dashboard")) {
-      const authToken = req.cookies.get('cajpro_auth_token')?.value;
-      
-      // If no token, redirect to login
-      if (!authToken) {
-        console.log("[Middleware] No auth token, redirecting to login");
-        const url = new URL('/login', req.url);
-        return NextResponse.redirect(url);
-      }
-      
-      // If token exists (either real or dev), allow access
-      console.log("[Middleware] Auth token found, allowing access");
+    // Get auth token from cookies
+    const authToken = req.cookies.get('cajpro_auth_token')?.value;
+    
+    // Define route types
+    const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard");
+    const isAuthRoute = (
+      req.nextUrl.pathname === "/login" || 
+      req.nextUrl.pathname === "/register" || 
+      req.nextUrl.pathname === "/forgot-password" ||
+      req.nextUrl.pathname === "/reset-password"
+    );
+    
+    // Redirect logic
+    if (isProtectedRoute && !authToken) {
+      console.log(`[Middleware] No auth token for protected route, redirecting to login`);
+      const url = new URL('/login', req.url);
+      url.searchParams.set('callbackUrl', req.nextUrl.pathname);
+      return NextResponse.redirect(url);
     }
     
+    if (isAuthRoute && authToken) {
+      console.log(`[Middleware] User already authenticated, redirecting to dashboard`);
+      return NextResponse.redirect(new URL('/dashboard', req.url));
+    }
+    
+    console.log(`[Middleware] Allowing access to: ${req.nextUrl.pathname}`);
     return NextResponse.next();
   } catch (error) {
     console.error("[Middleware] Error:", error);
@@ -46,7 +54,7 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // Only match dashboard routes and auth routes
-    '/dashboard/:path*',
+    // Match all routes except static files and API routes
+    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
   ],
 };
