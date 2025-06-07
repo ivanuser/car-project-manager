@@ -475,3 +475,96 @@ export async function deletePart(id: string) {
     return { error: error instanceof Error ? error.message : "An unexpected error occurred" }
   }
 }
+
+/**
+ * Get a single part by ID (alias for getPartById for compatibility)
+ * @param id - Part ID
+ * @returns Part data or null if not found
+ */
+export async function getPart(id: string) {
+  return await getPartById(id)
+}
+
+/**
+ * Get all vendors for the current user
+ * @returns Array of vendors
+ */
+export async function getVendors() {
+  // Get the current user
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
+    console.log("No authenticated user found, returning empty vendors array")
+    return []
+  }
+  
+  try {
+    // Get all vendors for this user
+    const vendorsResult = await db.query(
+      `SELECT * 
+       FROM vendors 
+       WHERE user_id = $1
+       ORDER BY name ASC`,
+      [userId]
+    )
+    
+    return vendorsResult.rows || []
+  } catch (error) {
+    console.error("Error fetching vendors:", error)
+    return []
+  }
+}
+
+/**
+ * Get parts by vendor ID
+ * @param vendorId - Vendor ID
+ * @returns Array of parts from this vendor
+ */
+export async function getPartsByVendorId(vendorId: string) {
+  // Get the current user
+  const userId = await getCurrentUserId()
+  
+  if (!userId) {
+    console.log("No authenticated user found, returning empty parts array")
+    return []
+  }
+  
+  try {
+    // Get all parts from this vendor for projects owned by the user
+    const partsResult = await db.query(
+      `SELECT 
+         p.*,
+         vp.id as project_id,
+         vp.title as project_title,
+         vp.make as project_make,
+         vp.model as project_model,
+         vp.year as project_year
+       FROM 
+         project_parts p
+       JOIN 
+         vehicle_projects vp ON p.project_id = vp.id
+       WHERE 
+         p.vendor_id = $1 AND vp.user_id = $2
+       ORDER BY 
+         p.created_at DESC`,
+      [vendorId, userId]
+    )
+    
+    // Format the results to include vehicle_projects data
+    const formattedParts = partsResult.rows.map(part => ({
+      ...part,
+      vehicle_projects: {
+        id: part.project_id,
+        title: part.project_title,
+        make: part.project_make,
+        model: part.project_model,
+        year: part.project_year
+      }
+    }))
+    
+    return formattedParts
+  } catch (error) {
+    console.error("Error fetching parts by vendor:", error)
+    return []
+  }
+}

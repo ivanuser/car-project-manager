@@ -316,3 +316,12 @@ export async function getVendorSpendingAnalytics() {
     return { data: [], error: error instanceof Error ? error.message : "An unexpected error occurred" }
   }
 }
+
+/**
+ * Get a single vendor by ID (alias for getVendorById for compatibility)
+ * @param id - Vendor ID
+ * @returns Vendor data or null if not found
+ */
+export async function getVendor(id: string) {
+  return await getVendorById(id)
+}
