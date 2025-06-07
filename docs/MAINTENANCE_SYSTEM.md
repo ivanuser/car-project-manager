@@ -128,17 +128,22 @@ The maintenance system uses three main tables:
 - Solution: Run the maintenance schema fix
 - Go to `/fix-maintenance-schema` or use the API endpoint
 
-**2. No maintenance schedules showing**
+**2. "Syntax error at or near 'NOT'" when creating triggers**
+- This occurs because PostgreSQL doesn't support `IF NOT EXISTS` for triggers
+- Solution: The fix uses `DROP TRIGGER IF EXISTS` followed by `CREATE TRIGGER`
+- This is automatically handled in the schema fix
+
+**3. No maintenance schedules showing**
 - Check that you have vehicle projects created
 - Verify the database connection is working
 - Ensure you're logged in with the correct user
 
-**3. Notifications not working**
+**4. Notifications not working**
 - Run the notification check: Call `checkMaintenanceNotifications()`
 - Verify maintenance schedules have proper due dates
 - Check that status updates are working
 
-**4. Date picker issues**
+**5. Date picker issues**
 - Use the enhanced date picker for better year navigation
 - Ensure dates are in the correct format
 - Check timezone settings

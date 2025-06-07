@@ -75,15 +75,18 @@ CREATE INDEX IF NOT EXISTS idx_maintenance_notifications_status ON maintenance_n
 CREATE INDEX IF NOT EXISTS idx_maintenance_notifications_notification_type ON maintenance_notifications(notification_type);
 
 -- Create triggers for updating timestamps
-CREATE TRIGGER IF NOT EXISTS update_maintenance_schedules_updated_at
+DROP TRIGGER IF EXISTS update_maintenance_schedules_updated_at ON maintenance_schedules;
+CREATE TRIGGER update_maintenance_schedules_updated_at
 BEFORE UPDATE ON maintenance_schedules
 FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
 
-CREATE TRIGGER IF NOT EXISTS update_maintenance_logs_updated_at
+DROP TRIGGER IF EXISTS update_maintenance_logs_updated_at ON maintenance_logs;
+CREATE TRIGGER update_maintenance_logs_updated_at
 BEFORE UPDATE ON maintenance_logs
 FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
 
-CREATE TRIGGER IF NOT EXISTS update_maintenance_notifications_updated_at
+DROP TRIGGER IF EXISTS update_maintenance_notifications_updated_at ON maintenance_notifications;
+CREATE TRIGGER update_maintenance_notifications_updated_at
 BEFORE UPDATE ON maintenance_notifications
 FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
 
