@@ -18,6 +18,7 @@ export default function DashboardLayout({
 }) {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -56,14 +57,22 @@ export default function DashboardLayout({
             });
           }
         } else {
-          console.log('Dashboard Layout: User is not authenticated, redirecting...');
-          router.push('/login');
-          return;
+          console.log('Dashboard Layout: User is not authenticated');
+          setAuthError('Not authenticated');
+          
+          // Use window.location for a hard redirect to avoid middleware conflicts
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 2000);
         }
       } catch (error) {
         console.error('Dashboard Layout: Error checking auth', error);
-        router.push('/login');
-        return;
+        setAuthError(error instanceof Error ? error.message : 'Authentication error');
+        
+        // Use window.location for a hard redirect to avoid middleware conflicts  
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
       } finally {
         setLoading(false);
       }
@@ -74,21 +83,29 @@ export default function DashboardLayout({
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
           <p className="mt-4 text-muted-foreground">Loading dashboard...</p>
         </div>
       </div>
     );
   }
 
-  if (!userProfile) {
+  if (!userProfile || authError) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
-          <h1 className="text-2xl font-bold">Authentication Required</h1>
-          <p className="mt-2">Redirecting to login page...</p>
+          <h1 className="text-2xl font-bold mb-2">Authentication Required</h1>
+          <p className="text-muted-foreground mb-4">Redirecting to login page...</p>
+          {authError && (
+            <p className="text-sm text-red-600">Error: {authError}</p>
+          )}
+          <div className="mt-4">
+            <div className="animate-pulse">
+              <div className="h-2 bg-primary/20 rounded w-48 mx-auto"></div>
+            </div>
+          </div>
         </div>
       </div>
     );

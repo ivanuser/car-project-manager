@@ -1,45 +1,65 @@
 /**
- * User API route - /api/auth/user
+ * User API route - /api/auth/user (Simplified for debugging)
  * For Caj-pro car project build tracking application
- * Created on: May 5, 2025
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import authService from '@/lib/auth/auth-service';
-import middlewareUtils from '@/lib/auth/middleware';
-import jwtUtils from '@/lib/auth/jwt';
 
 /**
  * Get authenticated user information
  */
 export async function GET(req: NextRequest) {
   try {
-    // Get token from cookies or headers
-    const token = middlewareUtils.getToken(req);
+    // Get token from cookies
+    const token = req.cookies.get('cajpro_auth_token')?.value;
     
     // If no token, return unauthorized
     if (!token) {
       return NextResponse.json(
-        { error: 'Authentication required' },
+        { error: 'Authentication required - no token found' },
         { status: 401 }
       );
     }
     
-    // Validate session
-    const user = await authService.validateSession(token);
-    if (!user) {
-      // Token might be expired
+    // Check if it's the dev token
+    if (token === 'dev-token-12345') {
+      const devUser = {
+        id: 'dev-user-001',
+        email: 'dev@cajpro.local',
+        isAdmin: true,
+        fullName: 'Development User'
+      };
+      
       return NextResponse.json(
-        { error: 'Invalid or expired token' },
-        { status: 401 }
+        { user: devUser },
+        { status: 200 }
       );
     }
     
-    // Return user information
-    return NextResponse.json(
-      { user },
-      { status: 200 }
-    );
+    // For real tokens, try to validate using the auth service
+    try {
+      // Import auth service dynamically to avoid circular dependencies
+      const authService = (await import('@/lib/auth/auth-service')).default;
+      const user = await authService.validateSession(token);
+      
+      if (user) {
+        return NextResponse.json(
+          { user },
+          { status: 200 }
+        );
+      } else {
+        return NextResponse.json(
+          { error: 'Invalid or expired token' },
+          { status: 401 }
+        );
+      }
+    } catch (authError) {
+      console.error('Auth service error:', authError);
+      return NextResponse.json(
+        { error: 'Authentication service error' },
+        { status: 500 }
+      );
+    }
   } catch (error: any) {
     console.error('Get user error:', error);
     
@@ -55,8 +75,8 @@ export async function GET(req: NextRequest) {
  */
 export async function PATCH(req: NextRequest) {
   try {
-    // Get token from cookies or headers
-    const token = middlewareUtils.getToken(req);
+    // Get token from cookies
+    const token = req.cookies.get('cajpro_auth_token')?.value;
     
     // If no token, return unauthorized
     if (!token) {
@@ -66,28 +86,28 @@ export async function PATCH(req: NextRequest) {
       );
     }
     
-    // Get user ID from token
-    const userId = jwtUtils.getUserIdFromToken(token);
-    if (!userId) {
+    // For dev token, return mock response
+    if (token === 'dev-token-12345') {
+      const devUser = {
+        id: 'dev-user-001',
+        email: 'dev@cajpro.local',
+        isAdmin: true,
+        fullName: 'Development User'
+      };
+      
       return NextResponse.json(
-        { error: 'Invalid token' },
-        { status: 401 }
+        { 
+          user: devUser,
+          message: 'User information updated successfully (dev mode)' 
+        },
+        { status: 200 }
       );
     }
     
-    // Parse request body
-    const body = await req.json();
-    
-    // TODO: Implement user profile update
-    // For now, just return the current user
-    const user = await authService.getUserById(userId);
-    
+    // For real tokens, implement actual update logic here
     return NextResponse.json(
-      { 
-        user,
-        message: 'User information updated successfully' 
-      },
-      { status: 200 }
+      { error: 'User update not implemented yet' },
+      { status: 501 }
     );
   } catch (error: any) {
     console.error('Update user error:', error);
