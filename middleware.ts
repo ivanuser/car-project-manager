@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const publicRoutes = ['/login', '/register', '/api/auth/login', '/api/auth/register', '/api/init-schema', '/api/fix-updated-at', '/landing', '/fix-db'];
+const publicRoutes = ['/login', '/register', '/api/auth/login', '/api/auth/register', '/api/init-schema', '/api/fix-updated-at', '/fix-db'];
 const protectedRoutes = ['/dashboard', '/projects', '/tasks', '/parts', '/expenses', '/gallery', '/maintenance', '/settings', '/profile'];
 
 export function middleware(request: NextRequest) {
@@ -15,18 +15,18 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get('auth-token')?.value;
   const hasToken = token && token.length > 10;
   
-  // Root redirect - show landing page for new users, dashboard for authenticated users
+  // Root redirect - back to original behavior
   if (pathname === '/') {
     if (hasToken) {
       return NextResponse.redirect(new URL('/dashboard', request.url));
     } else {
-      return NextResponse.redirect(new URL('/landing', request.url));
+      return NextResponse.redirect(new URL('/login', request.url));
     }
   }
   
   // Public routes
   if (publicRoutes.some(route => pathname.startsWith(route))) {
-    if (hasToken && (pathname === '/login' || pathname === '/register' || pathname === '/landing')) {
+    if (hasToken && (pathname === '/login' || pathname === '/register')) {
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
     return NextResponse.next();
