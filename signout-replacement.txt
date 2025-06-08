@@ -1,1 +1,1 @@
-// This file was temporary and can be deleted
+// Cleaned up temporary files
