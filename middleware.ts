@@ -1,60 +1,124 @@
 /**
- * middleware.ts - Next.js middleware for authentication (Production Ready)
+ * Production Middleware - Bulletproof Authentication
  */
+import { NextRequest, NextResponse } from 'next/server';
+import authService from '@/lib/auth/production-auth-service';
 
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+// Routes that don't require authentication
+const publicRoutes = [
+  '/login',
+  '/register',
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/init-schema',
+  '/_next',
+  '/favicon.ico',
+  '/static'
+];
 
-export async function middleware(req: NextRequest) {
-  try {
-    console.log(`[Middleware] Processing: ${req.nextUrl.pathname}`);
-    
-    // Skip middleware for API routes and static files
-    if (
-      req.nextUrl.pathname.startsWith('/api/') ||
-      req.nextUrl.pathname.startsWith('/_next/') ||
-      req.nextUrl.pathname.startsWith('/favicon.ico') ||
-      req.nextUrl.pathname.startsWith('/public/')
-    ) {
-      return NextResponse.next();
-    }
-    
-    // Get auth token from cookies
-    const authToken = req.cookies.get('cajpro_auth_token')?.value;
-    
-    // Define route types
-    const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard");
-    const isAuthRoute = (
-      req.nextUrl.pathname === "/login" || 
-      req.nextUrl.pathname === "/register" || 
-      req.nextUrl.pathname === "/forgot-password" ||
-      req.nextUrl.pathname === "/reset-password"
-    );
-    
-    // Redirect logic
-    if (isProtectedRoute && !authToken) {
-      console.log(`[Middleware] No auth token for protected route, redirecting to login`);
-      const url = new URL('/login', req.url);
-      url.searchParams.set('callbackUrl', req.nextUrl.pathname);
-      return NextResponse.redirect(url);
-    }
-    
-    if (isAuthRoute && authToken) {
-      console.log(`[Middleware] User already authenticated, redirecting to dashboard`);
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
-    
-    console.log(`[Middleware] Allowing access to: ${req.nextUrl.pathname}`);
-    return NextResponse.next();
-  } catch (error) {
-    console.error("[Middleware] Error:", error);
+// Routes that require authentication
+const protectedRoutes = [
+  '/dashboard',
+  '/projects',
+  '/tasks',
+  '/parts',
+  '/expenses',
+  '/gallery',
+  '/maintenance',
+  '/settings',
+  '/profile',
+  '/api/auth/user',
+  '/api/auth/logout'
+];
+
+function isPublicRoute(pathname: string): boolean {
+  return publicRoutes.some(route => pathname.startsWith(route));
+}
+
+function isProtectedRoute(pathname: string): boolean {
+  return protectedRoutes.some(route => pathname.startsWith(route));
+}
+
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  
+  // Skip middleware for static files and Next.js internals
+  if (
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/static') ||
+    pathname.includes('.') // Files with extensions
+  ) {
     return NextResponse.next();
   }
+  
+  // Get auth token from cookie
+  const token = request.cookies.get('auth-token')?.value;
+  
+  // Validate session if token exists
+  let user = null;
+  if (token) {
+    try {
+      user = await authService.validateSession(token);
+    } catch (error) {
+      console.error('Middleware: Session validation error:', error);
+    }
+  }
+  
+  const isAuthenticated = !!user;
+  
+  // Handle root route
+  if (pathname === '/') {
+    if (isAuthenticated) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    } else {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+  }
+  
+  // Handle public routes
+  if (isPublicRoute(pathname)) {
+    // If user is authenticated and trying to access login/register, redirect to dashboard
+    if (isAuthenticated && (pathname === '/login' || pathname === '/register')) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+    return NextResponse.next();
+  }
+  
+  // Handle protected routes
+  if (isProtectedRoute(pathname)) {
+    if (!isAuthenticated) {
+      // Store the attempted URL to redirect back after login
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('callbackUrl', pathname);
+      
+      // For API routes, return 401
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json(
+          { error: 'Authentication required' },
+          { status: 401 }
+        );
+      }
+      
+      // For pages, redirect to login
+      return NextResponse.redirect(loginUrl);
+    }
+    
+    // User is authenticated, allow access
+    return NextResponse.next();
+  }
+  
+  // For any other routes, allow access
+  return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    // Match all routes except static files and API routes
-    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };

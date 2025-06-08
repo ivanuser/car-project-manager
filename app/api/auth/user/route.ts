@@ -1,70 +1,17 @@
 /**
- * User API route - /api/auth/user (Fixed)
+ * Production User Info API Route
  */
-
 import { NextRequest, NextResponse } from 'next/server';
-import authService from '@/lib/auth/auth-service';
-import middlewareUtils from '@/lib/auth/middleware';
+import authService from '@/lib/auth/production-auth-service';
 
-/**
- * Get authenticated user information
- */
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    console.log('User API: Processing user info request');
+    // Get token from cookie
+    const token = request.cookies.get('auth-token')?.value;
     
-    // Get token from cookies
-    const token = middlewareUtils.getToken(req);
-    
-    // If no token, return unauthorized
-    if (!token) {
-      console.log('User API: No token found');
-      return NextResponse.json(
-        { error: 'Authentication required - no token found' },
-        { status: 401 }
-      );
-    }
-    
-    console.log('User API: Token found, validating session');
-    
-    // Validate session using the auth service
-    const user = await authService.validateSession(token);
-    
-    if (user) {
-      console.log('User API: Session validated for user', user.email);
-      return NextResponse.json(
-        { user },
-        { status: 200 }
-      );
-    } else {
-      console.log('User API: Session validation failed');
-      return NextResponse.json(
-        { error: 'Invalid or expired token' },
-        { status: 401 }
-      );
-    }
-  } catch (error: any) {
-    console.error('User API: Error', error);
-    
-    return NextResponse.json(
-      { error: error.message || 'Failed to get user information' },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * Update user information (placeholder)
- */
-export async function PATCH(req: NextRequest) {
-  try {
-    // Get token from cookies
-    const token = middlewareUtils.getToken(req);
-    
-    // If no token, return unauthorized
     if (!token) {
       return NextResponse.json(
-        { error: 'Authentication required' },
+        { error: 'Not authenticated' },
         { status: 401 }
       );
     }
@@ -73,26 +20,26 @@ export async function PATCH(req: NextRequest) {
     const user = await authService.validateSession(token);
     
     if (!user) {
-      return NextResponse.json(
-        { error: 'Invalid or expired token' },
+      // Invalid session, clear cookie
+      const response = NextResponse.json(
+        { error: 'Invalid session' },
         { status: 401 }
       );
+      
+      response.cookies.delete('auth-token');
+      return response;
     }
     
-    // For now, just return the current user
-    // TODO: Implement actual user update logic
-    return NextResponse.json(
-      { 
-        user,
-        message: 'User information updated successfully' 
-      },
-      { status: 200 }
-    );
+    return NextResponse.json({
+      success: true,
+      user
+    });
+    
   } catch (error: any) {
-    console.error('User API: Update error', error);
+    console.error('User info API error:', error);
     
     return NextResponse.json(
-      { error: error.message || 'Failed to update user information' },
+      { error: 'Failed to get user info' },
       { status: 500 }
     );
   }

@@ -1,78 +1,58 @@
 /**
- * Register API route - /api/auth/register (Fixed)
+ * Production Registration API Route
  */
-
 import { NextRequest, NextResponse } from 'next/server';
-import authService from '@/lib/auth/auth-service';
-import middlewareUtils from '@/lib/auth/middleware';
-import { z } from 'zod';
+import authService from '@/lib/auth/production-auth-service';
 
-// Validation schema for registration
-const registerSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  confirmPassword: z.string(),
-}).refine(data => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ['confirmPassword'],
-});
-
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    console.log('Register API: Processing registration request');
+    const { email, password, confirmPassword } = await request.json();
     
-    // Parse request body
-    const body = await req.json();
-    console.log('Register API: Request body parsed', { email: body.email });
-    
-    // Validate request
-    const validationResult = registerSchema.safeParse(body);
-    if (!validationResult.success) {
-      console.log('Register API: Validation failed', validationResult.error.errors);
+    if (!email || !password || !confirmPassword) {
       return NextResponse.json(
-        { error: 'Validation failed', details: validationResult.error.errors },
+        { error: 'All fields are required' },
+        { status: 400 }
+      );
+    }
+    
+    if (password !== confirmPassword) {
+      return NextResponse.json(
+        { error: 'Passwords do not match' },
+        { status: 400 }
+      );
+    }
+    
+    if (password.length < 6) {
+      return NextResponse.json(
+        { error: 'Password must be at least 6 characters long' },
         { status: 400 }
       );
     }
     
     // Attempt registration
-    const registrationData = validationResult.data;
-    console.log('Register API: Attempting registration for', registrationData.email);
-    
-    const authResult = await authService.registerUser(registrationData);
-    console.log('Register API: Registration successful for', registrationData.email);
+    const authResult = await authService.registerUser(email, password);
     
     // Create response
-    const response = NextResponse.json(
-      { 
-        user: authResult.user,
-        message: 'Registration successful'
-      },
-      { status: 201 }
-    );
+    const response = NextResponse.json({
+      success: true,
+      user: authResult.user,
+      message: 'Registration successful'
+    });
     
-    // Set authentication cookies
-    middlewareUtils.setAuthCookies(
-      response,
-      authResult.token,
-      authResult.refreshToken
-    );
-    
-    console.log('Register API: Auth cookies set');
+    // Set secure HTTP-only cookie
+    response.cookies.set('auth-token', authResult.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60, // 7 days
+      path: '/'
+    });
     
     return response;
+    
   } catch (error: any) {
-    console.error('Register API: Error', error);
+    console.error('Registration API error:', error);
     
-    // Check if it's a duplicate email error
-    if (error.message.includes('already exists')) {
-      return NextResponse.json(
-        { error: 'User with this email already exists' },
-        { status: 409 }
-      );
-    }
-    
-    // Return appropriate error message
     return NextResponse.json(
       { error: error.message || 'Registration failed' },
       { status: 400 }

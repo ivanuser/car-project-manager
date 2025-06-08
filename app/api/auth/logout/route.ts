@@ -1,55 +1,39 @@
 /**
- * Logout API route - /api/auth/logout
+ * Production Logout API Route
  */
-
 import { NextRequest, NextResponse } from 'next/server';
-import authService from '@/lib/auth/auth-service';
-import middlewareUtils from '@/lib/auth/middleware';
+import authService from '@/lib/auth/production-auth-service';
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    console.log('Logout API: Processing logout request');
-    
-    // Get token from cookies
-    const token = middlewareUtils.getToken(req);
+    // Get token from cookie
+    const token = request.cookies.get('auth-token')?.value;
     
     if (token) {
-      // Logout user (invalidate session)
+      // Invalidate session in database
       await authService.logoutUser(token);
-      console.log('Logout API: Session invalidated');
     }
     
-    // Create response
-    const response = NextResponse.json(
-      { 
-        success: true,
-        message: 'Logout successful',
-        redirectUrl: '/login'
-      },
-      { status: 200 }
-    );
+    // Create response and clear cookie
+    const response = NextResponse.json({
+      success: true,
+      message: 'Logged out successfully'
+    });
     
-    // Clear authentication cookies
-    middlewareUtils.clearAuthCookies(response);
-    
-    console.log('Logout API: Cookies cleared');
+    response.cookies.delete('auth-token');
     
     return response;
-  } catch (error: any) {
-    console.error('Logout API: Error', error);
     
-    // Still clear cookies even if there's an error
+  } catch (error: any) {
+    console.error('Logout API error:', error);
+    
+    // Still clear the cookie even if there's an error
     const response = NextResponse.json(
-      { 
-        success: false,
-        error: error.message || 'Logout failed',
-        redirectUrl: '/login'
-      },
+      { error: 'Logout failed' },
       { status: 500 }
     );
     
-    middlewareUtils.clearAuthCookies(response);
-    
+    response.cookies.delete('auth-token');
     return response;
   }
 }

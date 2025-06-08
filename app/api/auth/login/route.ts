@@ -1,66 +1,44 @@
 /**
- * Login API route - /api/auth/login (Fixed)
+ * Production Login API Route
  */
-
 import { NextRequest, NextResponse } from 'next/server';
-import authService from '@/lib/auth/auth-service';
-import middlewareUtils from '@/lib/auth/middleware';
-import { z } from 'zod';
+import authService from '@/lib/auth/production-auth-service';
 
-// Validation schema for login
-const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(1, 'Password is required'),
-});
-
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    console.log('Login API: Processing login request');
+    const { email, password } = await request.json();
     
-    // Parse request body
-    const body = await req.json();
-    console.log('Login API: Request body parsed', { email: body.email });
-    
-    // Validate request
-    const validationResult = loginSchema.safeParse(body);
-    if (!validationResult.success) {
-      console.log('Login API: Validation failed', validationResult.error.errors);
+    if (!email || !password) {
       return NextResponse.json(
-        { error: 'Validation failed', details: validationResult.error.errors },
+        { error: 'Email and password are required' },
         { status: 400 }
       );
     }
     
     // Attempt login
-    const { email, password } = validationResult.data;
-    console.log('Login API: Attempting login for', email);
-    
-    const authResult = await authService.loginUser({ email, password });
-    console.log('Login API: Login successful for', email);
+    const authResult = await authService.loginUser(email, password);
     
     // Create response
-    const response = NextResponse.json(
-      { 
-        user: authResult.user,
-        message: 'Login successful'
-      },
-      { status: 200 }
-    );
+    const response = NextResponse.json({
+      success: true,
+      user: authResult.user,
+      message: 'Login successful'
+    });
     
-    // Set authentication cookies
-    middlewareUtils.setAuthCookies(
-      response,
-      authResult.token,
-      authResult.refreshToken
-    );
-    
-    console.log('Login API: Auth cookies set');
+    // Set secure HTTP-only cookie
+    response.cookies.set('auth-token', authResult.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60, // 7 days
+      path: '/'
+    });
     
     return response;
-  } catch (error: any) {
-    console.error('Login API: Error', error);
     
-    // Return appropriate error message
+  } catch (error: any) {
+    console.error('Login API error:', error);
+    
     return NextResponse.json(
       { error: error.message || 'Login failed' },
       { status: 401 }
