@@ -1,124 +1,46 @@
-/**
- * Production Middleware - Bulletproof Authentication
- */
 import { NextRequest, NextResponse } from 'next/server';
-import authService from '@/lib/auth/production-auth-service';
 
-// Routes that don't require authentication
-const publicRoutes = [
-  '/login',
-  '/register',
-  '/api/auth/login',
-  '/api/auth/register',
-  '/api/init-schema',
-  '/_next',
-  '/favicon.ico',
-  '/static'
-];
+const publicRoutes = ['/login', '/register', '/api/auth/login', '/api/auth/register', '/api/init-schema'];
+const protectedRoutes = ['/dashboard', '/projects', '/tasks', '/parts', '/expenses', '/gallery', '/maintenance', '/settings', '/profile'];
 
-// Routes that require authentication
-const protectedRoutes = [
-  '/dashboard',
-  '/projects',
-  '/tasks',
-  '/parts',
-  '/expenses',
-  '/gallery',
-  '/maintenance',
-  '/settings',
-  '/profile',
-  '/api/auth/user',
-  '/api/auth/logout'
-];
-
-function isPublicRoute(pathname: string): boolean {
-  return publicRoutes.some(route => pathname.startsWith(route));
-}
-
-function isProtectedRoute(pathname: string): boolean {
-  return protectedRoutes.some(route => pathname.startsWith(route));
-}
-
-export async function middleware(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  // Skip middleware for static files and Next.js internals
-  if (
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/static') ||
-    pathname.includes('.') // Files with extensions
-  ) {
+  // Skip static files
+  if (pathname.startsWith('/_next') || pathname.includes('.')) {
     return NextResponse.next();
   }
   
-  // Get auth token from cookie
+  // Get token (basic check only)
   const token = request.cookies.get('auth-token')?.value;
+  const hasToken = token && token.length > 10;
   
-  // Validate session if token exists
-  let user = null;
-  if (token) {
-    try {
-      user = await authService.validateSession(token);
-    } catch (error) {
-      console.error('Middleware: Session validation error:', error);
-    }
+  // Root redirect
+  if (pathname === '/') {
+    return NextResponse.redirect(new URL(hasToken ? '/dashboard' : '/login', request.url));
   }
   
-  const isAuthenticated = !!user;
-  
-  // Handle root route
-  if (pathname === '/') {
-    if (isAuthenticated) {
+  // Public routes
+  if (publicRoutes.some(route => pathname.startsWith(route))) {
+    if (hasToken && (pathname === '/login' || pathname === '/register')) {
       return NextResponse.redirect(new URL('/dashboard', request.url));
-    } else {
+    }
+    return NextResponse.next();
+  }
+  
+  // Protected routes
+  if (protectedRoutes.some(route => pathname.startsWith(route))) {
+    if (!hasToken) {
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
       return NextResponse.redirect(new URL('/login', request.url));
     }
   }
   
-  // Handle public routes
-  if (isPublicRoute(pathname)) {
-    // If user is authenticated and trying to access login/register, redirect to dashboard
-    if (isAuthenticated && (pathname === '/login' || pathname === '/register')) {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
-    return NextResponse.next();
-  }
-  
-  // Handle protected routes
-  if (isProtectedRoute(pathname)) {
-    if (!isAuthenticated) {
-      // Store the attempted URL to redirect back after login
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('callbackUrl', pathname);
-      
-      // For API routes, return 401
-      if (pathname.startsWith('/api/')) {
-        return NextResponse.json(
-          { error: 'Authentication required' },
-          { status: 401 }
-        );
-      }
-      
-      // For pages, redirect to login
-      return NextResponse.redirect(loginUrl);
-    }
-    
-    // User is authenticated, allow access
-    return NextResponse.next();
-  }
-  
-  // For any other routes, allow access
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
