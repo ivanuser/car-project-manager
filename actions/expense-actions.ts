@@ -1,10 +1,11 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import db from "@/lib/db"
+import { query } from "@/lib/db"
 import { getBudgetCategories, type BudgetItem } from "@/actions/budget-actions"
 import { initializeExpenseSchema } from "@/lib/init-expense-schema"
-import { getCurrentUserId } from "@/lib/auth/current-user"
+import { getCurrentUserId } from "@/lib/auth-utils"
+import { saveUploadedFile } from "@/lib/file-storage"
 
 export interface ReceiptData {
   vendor: string
@@ -30,6 +31,63 @@ export interface ExpenseReport {
   user_id: string
   project_id: string | null
   items: BudgetItem[]
+}
+
+// Upload receipt for a budget item
+export async function uploadReceiptForBudgetItem(budgetItemId: string, formData: FormData) {
+  try {
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return { error: "Unauthorized" }
+    }
+
+    const receipt = formData.get("receipt") as File
+
+    if (!receipt || receipt.size === 0) {
+      return { error: "No receipt file provided" }
+    }
+
+    // Verify budget item ownership through project
+    const budgetItemCheck = await query(
+      `SELECT bi.id, bi.project_id FROM budget_items bi
+       JOIN vehicle_projects vp ON bi.project_id = vp.id
+       WHERE bi.id = $1 AND vp.user_id = $2`,
+      [budgetItemId, userId]
+    )
+
+    if (budgetItemCheck.rows.length === 0) {
+      return { error: "Budget item not found or access denied" }
+    }
+
+    // Save receipt file
+    const uploadResult = await saveUploadedFile(receipt, "receipts", userId)
+
+    if (!uploadResult.success) {
+      return { error: uploadResult.error }
+    }
+
+    // Update budget item with receipt URL
+    const result = await query(
+      "UPDATE budget_items SET receipt_url = $1, updated_at = NOW() WHERE id = $2 RETURNING *",
+      [uploadResult.url, budgetItemId]
+    )
+
+    const projectId = budgetItemCheck.rows[0].project_id
+    revalidatePath(`/dashboard/projects/${projectId}`)
+    revalidatePath("/dashboard/expenses")
+
+    return {
+      success: true,
+      data: {
+        receipt_url: uploadResult.url,
+        file_name: uploadResult.fileName,
+        file_size: uploadResult.fileSize
+      }
+    }
+  } catch (error) {
+    console.error("Receipt upload error:", error)
+    return { error: "An unexpected error occurred" }
+  }
 }
 
 // Scan receipt using OCR and extract data
@@ -175,11 +233,12 @@ export async function createExpenseReport(formData: FormData) {
     }
 
     // Create the report
-    const result = await db.query(`
-      INSERT INTO expense_reports (title, description, start_date, end_date, status, user_id, project_id, total_amount)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING *
-    `, [title, description, startDate, endDate, 'draft', userId, projectId, 0])
+    const result = await query(
+      `INSERT INTO expense_reports (title, description, start_date, end_date, status, user_id, project_id, total_amount)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [title, description, startDate, endDate, 'draft', userId, projectId, 0]
+    )
 
     const data = result.rows[0]
 
@@ -204,24 +263,26 @@ export async function getUserExpenseReports() {
     }
 
     // Check if the expense_reports table exists
-    const tableExistsResult = await db.query(`
-      SELECT EXISTS (
+    const tableExistsResult = await query(
+      `SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
         AND table_name = 'expense_reports'
-      );
-    `)
+      )`,
+      []
+    )
 
     if (!tableExistsResult.rows[0].exists) {
       console.error("Expense reports table does not exist")
       return []
     }
 
-    const result = await db.query(`
-      SELECT * FROM expense_reports 
-      WHERE user_id = $1 
-      ORDER BY created_at DESC
-    `, [userId])
+    const result = await query(
+      `SELECT * FROM expense_reports 
+       WHERE user_id = $1 
+       ORDER BY created_at DESC`,
+      [userId]
+    )
 
     return result.rows as ExpenseReport[]
   } catch (error) {
@@ -237,13 +298,14 @@ export async function getExpenseReport(reportId: string) {
     await initializeExpenseSchema()
 
     // Check if the expense_reports table exists
-    const tableExistsResult = await db.query(`
-      SELECT EXISTS (
+    const tableExistsResult = await query(
+      `SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
         AND table_name = 'expense_reports'
-      );
-    `)
+      )`,
+      []
+    )
 
     if (!tableExistsResult.rows[0].exists) {
       console.error("Expense reports table does not exist")
@@ -251,9 +313,10 @@ export async function getExpenseReport(reportId: string) {
     }
 
     // Get the report
-    const reportResult = await db.query(`
-      SELECT * FROM expense_reports WHERE id = $1
-    `, [reportId])
+    const reportResult = await query(
+      "SELECT * FROM expense_reports WHERE id = $1",
+      [reportId]
+    )
 
     if (reportResult.rows.length === 0) {
       console.error("Expense report not found")
@@ -263,14 +326,15 @@ export async function getExpenseReport(reportId: string) {
     const report = reportResult.rows[0]
 
     // Check if budget_items table has expense_report_id column
-    const columnExistsResult = await db.query(`
-      SELECT EXISTS (
+    const columnExistsResult = await query(
+      `SELECT EXISTS (
         SELECT FROM information_schema.columns 
         WHERE table_schema = 'public' 
         AND table_name = 'budget_items'
         AND column_name = 'expense_report_id'
-      );
-    `)
+      )`,
+      []
+    )
 
     if (!columnExistsResult.rows[0].exists) {
       console.error("Expense report ID column does not exist in budget_items")
@@ -281,13 +345,14 @@ export async function getExpenseReport(reportId: string) {
     }
 
     // Get the report items (budget items linked to this report)
-    const itemsResult = await db.query(`
-      SELECT bi.*, bc.name as category_name
-      FROM budget_items bi
-      LEFT JOIN budget_categories bc ON bi.category_id = bc.id
-      WHERE bi.expense_report_id = $1
-      ORDER BY bi.date DESC
-    `, [reportId])
+    const itemsResult = await query(
+      `SELECT bi.*, bc.name as category_name
+       FROM budget_items bi
+       LEFT JOIN budget_categories bc ON bi.category_id = bc.id
+       WHERE bi.expense_report_id = $1
+       ORDER BY bi.date DESC`,
+      [reportId]
+    )
 
     const items = itemsResult.rows
 
@@ -307,12 +372,13 @@ export async function updateExpenseReportStatus(reportId: string, status: string
     // Ensure the expense schema is initialized
     await initializeExpenseSchema()
 
-    const result = await db.query(`
-      UPDATE expense_reports 
-      SET status = $1, updated_at = NOW()
-      WHERE id = $2
-      RETURNING *
-    `, [status, reportId])
+    const result = await query(
+      `UPDATE expense_reports 
+       SET status = $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [status, reportId]
+    )
 
     const data = result.rows[0]
 

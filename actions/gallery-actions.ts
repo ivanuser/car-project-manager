@@ -1,47 +1,42 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { createServerClient } from "@/lib/supabase"
-import { v4 as uuidv4 } from "uuid"
+import { query } from "@/lib/db"
+import { saveUploadedFile, deleteStoredFile } from "@/lib/file-storage"
+import { getCurrentUserId } from "@/lib/auth-utils"
 
 // Get all photos for a project
 export async function getProjectPhotos(projectId: string) {
   try {
-    const supabase = createServerClient()
-
-    const { data, error } = await supabase
-      .from("project_photos")
-      .select(`
-        *,
-        photo_tag_relations(
-          tag_id,
-          photo_tags(id, name)
-        )
-      `)
-      .eq("project_id", projectId)
-      .order("created_at", { ascending: false })
-
-    if (error) {
-      console.error("Error fetching project photos:", error)
+    const userId = await getCurrentUserId()
+    if (!userId) {
       return []
     }
 
-    // Process the data to format tags
-    const processedData = data.map((photo) => {
-      const tags = photo.photo_tag_relations
-        ? photo.photo_tag_relations.filter((relation) => relation.photo_tags).map((relation) => relation.photo_tags)
-        : []
+    const result = await query(
+      `SELECT pp.*, 
+       COALESCE(
+         json_agg(
+           json_build_object('id', pt.id, 'name', pt.name)
+         ) FILTER (WHERE pt.id IS NOT NULL), 
+         '[]'
+       ) as tags
+       FROM project_photos pp
+       LEFT JOIN photo_tag_relations ptr ON pp.id = ptr.photo_id
+       LEFT JOIN photo_tags pt ON ptr.tag_id = pt.id
+       WHERE pp.project_id = $1
+       AND EXISTS (
+         SELECT 1 FROM vehicle_projects vp 
+         WHERE vp.id = pp.project_id AND vp.user_id = $2
+       )
+       GROUP BY pp.id
+       ORDER BY pp.created_at DESC`,
+      [projectId, userId]
+    )
 
-      return {
-        ...photo,
-        tags,
-        photo_tag_relations: undefined,
-      }
-    })
-
-    return processedData || []
+    return result.rows || []
   } catch (error) {
-    console.error("Unexpected error fetching project photos:", error)
+    console.error("Error fetching project photos:", error)
     return []
   }
 }
@@ -49,39 +44,38 @@ export async function getProjectPhotos(projectId: string) {
 // Get a single photo by ID
 export async function getPhoto(id: string) {
   try {
-    const supabase = createServerClient()
-
-    const { data, error } = await supabase
-      .from("project_photos")
-      .select(`
-        *,
-        photo_tag_relations(
-          tag_id,
-          photo_tags(id, name)
-        )
-      `)
-      .eq("id", id)
-      .single()
-
-    if (error) {
-      console.error("Error fetching photo:", error)
-      return { error: error.message }
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return { error: "Unauthorized" }
     }
 
-    // Process the data to format tags
-    const tags = data.photo_tag_relations
-      ? data.photo_tag_relations.filter((relation) => relation.photo_tags).map((relation) => relation.photo_tags)
-      : []
+    const result = await query(
+      `SELECT pp.*, 
+       COALESCE(
+         json_agg(
+           json_build_object('id', pt.id, 'name', pt.name)
+         ) FILTER (WHERE pt.id IS NOT NULL), 
+         '[]'
+       ) as tags
+       FROM project_photos pp
+       LEFT JOIN photo_tag_relations ptr ON pp.id = ptr.photo_id
+       LEFT JOIN photo_tags pt ON ptr.tag_id = pt.id
+       WHERE pp.id = $1
+       AND EXISTS (
+         SELECT 1 FROM vehicle_projects vp 
+         WHERE vp.id = pp.project_id AND vp.user_id = $2
+       )
+       GROUP BY pp.id`,
+      [id, userId]
+    )
 
-    const processedData = {
-      ...data,
-      tags,
-      photo_tag_relations: undefined,
+    if (result.rows.length === 0) {
+      return { error: "Photo not found" }
     }
 
-    return { data: processedData }
+    return { data: result.rows[0] }
   } catch (error) {
-    console.error("Unexpected error fetching photo:", error)
+    console.error("Error fetching photo:", error)
     return { error: "An unexpected error occurred" }
   }
 }
@@ -89,14 +83,8 @@ export async function getPhoto(id: string) {
 // Upload a photo
 export async function uploadProjectPhoto(formData: FormData) {
   try {
-    const supabase = createServerClient()
-
-    // Get the current user
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
+    const userId = await getCurrentUserId()
+    if (!userId) {
       return { error: "You must be logged in to upload photos" }
     }
 
@@ -118,60 +106,58 @@ export async function uploadProjectPhoto(formData: FormData) {
       return { error: "No photo provided" }
     }
 
-    // Generate a unique filename
-    const fileExt = photoFile.name.split(".").pop()
-    const fileName = `${user.id}-${uuidv4()}.${fileExt}`
-
-    // Upload the original photo
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("project-photos")
-      .upload(fileName, photoFile)
-
-    if (uploadError) {
-      console.error("Photo upload error:", uploadError)
-      return { error: uploadError.message }
+    if (!projectId) {
+      return { error: "Project ID is required" }
     }
 
-    // Get the public URL
-    const { data: urlData } = supabase.storage.from("project-photos").getPublicUrl(fileName)
-    const photoUrl = urlData.publicUrl
+    // Verify project ownership
+    const projectCheck = await query(
+      "SELECT id FROM vehicle_projects WHERE id = $1 AND user_id = $2",
+      [projectId, userId]
+    )
 
-    // Create a thumbnail (in a real app, you'd resize the image)
-    // For now, we'll use the same URL for both
-    const thumbnailUrl = photoUrl
+    if (projectCheck.rows.length === 0) {
+      return { error: "Project not found or access denied" }
+    }
+
+    // Save file
+    const uploadResult = await saveUploadedFile(photoFile, "photos", userId, projectId)
+
+    if (!uploadResult.success) {
+      return { error: uploadResult.error }
+    }
 
     // Insert the photo record
-    const { data, error } = await supabase
-      .from("project_photos")
-      .insert({
-        project_id: projectId,
-        photo_url: photoUrl,
-        thumbnail_url: thumbnailUrl,
-        title: title || null,
-        description: description || null,
-        category: category || "general",
-        is_before_photo: isBefore,
-        is_after_photo: isAfter,
-        is_featured: isFeatured,
-        taken_at: takenAt || null,
-        metadata: {
-          originalFilename: photoFile.name,
-          size: photoFile.size,
-          type: photoFile.type,
-        },
-      })
-      .select()
-      .single()
+    const result = await query(
+      `INSERT INTO project_photos 
+       (project_id, photo_url, thumbnail_url, title, description, category, 
+        is_before_photo, is_after_photo, is_featured, taken_at, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING *`,
+      [
+        projectId,
+        uploadResult.url,
+        uploadResult.url, // TODO: Generate actual thumbnail
+        title || null,
+        description || null,
+        category,
+        isBefore,
+        isAfter,
+        isFeatured,
+        takenAt || null,
+        JSON.stringify({
+          originalFilename: uploadResult.fileName,
+          size: uploadResult.fileSize,
+          type: uploadResult.mimeType,
+        }),
+      ]
+    )
 
-    if (error) {
-      console.error("Error creating photo record:", error)
-      return { error: error.message }
-    }
+    const photoId = result.rows[0].id
 
     // Handle tags if provided
     if (tags && tags.length > 0) {
       for (const tag of tags) {
-        // Check if tag exists
         let tagId = null
 
         if (tag.id) {
@@ -179,35 +165,28 @@ export async function uploadProjectPhoto(formData: FormData) {
           tagId = tag.id
         } else {
           // Create new tag
-          const { data: newTag, error: tagError } = await supabase
-            .from("photo_tags")
-            .insert({
-              name: tag.name,
-              user_id: user.id,
-            })
-            .select()
-            .single()
-
-          if (tagError) {
-            console.error("Error creating tag:", tagError)
-            continue
-          }
-
-          tagId = newTag.id
+          const tagResult = await query(
+            `INSERT INTO photo_tags (name, user_id) 
+             VALUES ($1, $2) 
+             ON CONFLICT (name, user_id) DO UPDATE SET name = EXCLUDED.name
+             RETURNING id`,
+            [tag.name, userId]
+          )
+          tagId = tagResult.rows[0].id
         }
 
         // Create tag relation
-        await supabase.from("photo_tag_relations").insert({
-          photo_id: data.id,
-          tag_id: tagId,
-        })
+        await query(
+          "INSERT INTO photo_tag_relations (photo_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+          [photoId, tagId]
+        )
       }
     }
 
     revalidatePath(`/dashboard/projects/${projectId}`)
-    return { success: true, data }
+    return { success: true, data: result.rows[0] }
   } catch (error) {
-    console.error("Unexpected error uploading photo:", error)
+    console.error("Error uploading photo:", error)
     return { error: "An unexpected error occurred" }
   }
 }
@@ -215,7 +194,10 @@ export async function uploadProjectPhoto(formData: FormData) {
 // Update photo details
 export async function updatePhotoDetails(id: string, formData: FormData) {
   try {
-    const supabase = createServerClient()
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return { error: "You must be logged in to update photos" }
+    }
 
     const title = formData.get("title") as string
     const description = formData.get("description") as string
@@ -228,44 +210,44 @@ export async function updatePhotoDetails(id: string, formData: FormData) {
     const tags = tagsString ? JSON.parse(tagsString) : []
     const projectId = formData.get("project_id") as string
 
+    // Verify photo ownership
+    const photoCheck = await query(
+      `SELECT pp.id FROM project_photos pp
+       JOIN vehicle_projects vp ON pp.project_id = vp.id
+       WHERE pp.id = $1 AND vp.user_id = $2`,
+      [id, userId]
+    )
+
+    if (photoCheck.rows.length === 0) {
+      return { error: "Photo not found or access denied" }
+    }
+
     // Update the photo record
-    const { data, error } = await supabase
-      .from("project_photos")
-      .update({
-        title: title || null,
-        description: description || null,
-        category: category || "general",
-        is_before_photo: isBefore,
-        is_after_photo: isAfter,
-        is_featured: isFeatured,
-        taken_at: takenAt || null,
-      })
-      .eq("id", id)
-      .select()
-      .single()
-
-    if (error) {
-      console.error("Error updating photo:", error)
-      return { error: error.message }
-    }
-
-    // Handle tags
-    // First, get the current user
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return { error: "You must be logged in to update photos" }
-    }
+    const result = await query(
+      `UPDATE project_photos SET 
+       title = $1, description = $2, category = $3, 
+       is_before_photo = $4, is_after_photo = $5, is_featured = $6, 
+       taken_at = $7, updated_at = NOW()
+       WHERE id = $8
+       RETURNING *`,
+      [
+        title || null,
+        description || null,
+        category || "general",
+        isBefore,
+        isAfter,
+        isFeatured,
+        takenAt || null,
+        id,
+      ]
+    )
 
     // Delete existing tag relations
-    await supabase.from("photo_tag_relations").delete().eq("photo_id", id)
+    await query("DELETE FROM photo_tag_relations WHERE photo_id = $1", [id])
 
     // Add new tag relations
     if (tags && tags.length > 0) {
       for (const tag of tags) {
-        // Check if tag exists
         let tagId = null
 
         if (tag.id) {
@@ -273,36 +255,29 @@ export async function updatePhotoDetails(id: string, formData: FormData) {
           tagId = tag.id
         } else {
           // Create new tag
-          const { data: newTag, error: tagError } = await supabase
-            .from("photo_tags")
-            .insert({
-              name: tag.name,
-              user_id: user.id,
-            })
-            .select()
-            .single()
-
-          if (tagError) {
-            console.error("Error creating tag:", tagError)
-            continue
-          }
-
-          tagId = newTag.id
+          const tagResult = await query(
+            `INSERT INTO photo_tags (name, user_id) 
+             VALUES ($1, $2) 
+             ON CONFLICT (name, user_id) DO UPDATE SET name = EXCLUDED.name
+             RETURNING id`,
+            [tag.name, userId]
+          )
+          tagId = tagResult.rows[0].id
         }
 
         // Create tag relation
-        await supabase.from("photo_tag_relations").insert({
-          photo_id: id,
-          tag_id: tagId,
-        })
+        await query(
+          "INSERT INTO photo_tag_relations (photo_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+          [id, tagId]
+        )
       }
     }
 
     revalidatePath(`/dashboard/projects/${projectId}`)
     revalidatePath(`/dashboard/photos/${id}`)
-    return { success: true, data }
+    return { success: true, data: result.rows[0] }
   } catch (error) {
-    console.error("Unexpected error updating photo:", error)
+    console.error("Error updating photo:", error)
     return { error: "An unexpected error occurred" }
   }
 }
@@ -310,53 +285,48 @@ export async function updatePhotoDetails(id: string, formData: FormData) {
 // Delete a photo
 export async function deletePhoto(id: string, projectId: string) {
   try {
-    const supabase = createServerClient()
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return { error: "Unauthorized" }
+    }
 
     // First get the photo to get the storage path
-    const { data: photo, error: fetchError } = await supabase
-      .from("project_photos")
-      .select("photo_url")
-      .eq("id", id)
-      .single()
+    const photoResult = await query(
+      `SELECT pp.photo_url FROM project_photos pp
+       JOIN vehicle_projects vp ON pp.project_id = vp.id
+       WHERE pp.id = $1 AND vp.user_id = $2`,
+      [id, userId]
+    )
 
-    if (fetchError) {
-      console.error("Error fetching photo for deletion:", fetchError)
-      return { error: fetchError.message }
+    if (photoResult.rows.length === 0) {
+      return { error: "Photo not found or access denied" }
     }
 
-    // Delete the photo from storage if we have the URL
-    if (photo && photo.photo_url) {
+    const photo = photoResult.rows[0]
+
+    // Delete the photo record (cascade will handle tag relations)
+    await query("DELETE FROM project_photos WHERE id = $1", [id])
+
+    // Delete file from storage if we have the URL
+    if (photo.photo_url) {
       try {
-        // Extract the filename from the URL
+        // Extract the relative path from the URL
         const url = new URL(photo.photo_url)
-        const pathParts = url.pathname.split("/")
-        const filename = pathParts[pathParts.length - 1]
-
-        // Delete from storage
-        const { error: storageError } = await supabase.storage.from("project-photos").remove([filename])
-
-        if (storageError) {
-          console.error("Error deleting photo from storage:", storageError)
-          // Continue with deletion from database even if storage deletion fails
+        const pathParts = url.pathname.split("/api/storage/")
+        if (pathParts.length > 1) {
+          const filePath = pathParts[1]
+          await deleteStoredFile(filePath)
         }
       } catch (error) {
-        console.error("Error parsing photo URL:", error)
-        // Continue with deletion from database
+        console.error("Error deleting photo file:", error)
+        // Continue even if file deletion fails
       }
-    }
-
-    // Delete the photo record
-    const { error } = await supabase.from("project_photos").delete().eq("id", id)
-
-    if (error) {
-      console.error("Error deleting photo:", error)
-      return { error: error.message }
     }
 
     revalidatePath(`/dashboard/projects/${projectId}`)
     return { success: true }
   } catch (error) {
-    console.error("Unexpected error deleting photo:", error)
+    console.error("Error deleting photo:", error)
     return { error: "An unexpected error occurred" }
   }
 }
@@ -364,31 +334,19 @@ export async function deletePhoto(id: string, projectId: string) {
 // Get all tags for a user
 export async function getUserTags() {
   try {
-    const supabase = createServerClient()
-
-    // Get the current user
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
+    const userId = await getCurrentUserId()
+    if (!userId) {
       return []
     }
 
-    const { data, error } = await supabase
-      .from("photo_tags")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("name", { ascending: true })
+    const result = await query(
+      "SELECT * FROM photo_tags WHERE user_id = $1 ORDER BY name ASC",
+      [userId]
+    )
 
-    if (error) {
-      console.error("Error fetching user tags:", error)
-      return []
-    }
-
-    return data || []
+    return result.rows || []
   } catch (error) {
-    console.error("Unexpected error fetching user tags:", error)
+    console.error("Error fetching user tags:", error)
     return []
   }
 }
@@ -396,40 +354,41 @@ export async function getUserTags() {
 // Get before/after photos for a project
 export async function getBeforeAfterPhotos(projectId: string) {
   try {
-    const supabase = createServerClient()
-
-    // Get before photos
-    const { data: beforePhotos, error: beforeError } = await supabase
-      .from("project_photos")
-      .select("*")
-      .eq("project_id", projectId)
-      .eq("is_before_photo", true)
-      .order("created_at", { ascending: false })
-
-    if (beforeError) {
-      console.error("Error fetching before photos:", beforeError)
+    const userId = await getCurrentUserId()
+    if (!userId) {
       return { before: [], after: [] }
     }
 
-    // Get after photos
-    const { data: afterPhotos, error: afterError } = await supabase
-      .from("project_photos")
-      .select("*")
-      .eq("project_id", projectId)
-      .eq("is_after_photo", true)
-      .order("created_at", { ascending: false })
+    // Get before photos
+    const beforeResult = await query(
+      `SELECT * FROM project_photos pp
+       WHERE pp.project_id = $1 AND pp.is_before_photo = true
+       AND EXISTS (
+         SELECT 1 FROM vehicle_projects vp 
+         WHERE vp.id = pp.project_id AND vp.user_id = $2
+       )
+       ORDER BY pp.created_at DESC`,
+      [projectId, userId]
+    )
 
-    if (afterError) {
-      console.error("Error fetching after photos:", afterError)
-      return { before: beforePhotos || [], after: [] }
-    }
+    // Get after photos
+    const afterResult = await query(
+      `SELECT * FROM project_photos pp
+       WHERE pp.project_id = $1 AND pp.is_after_photo = true
+       AND EXISTS (
+         SELECT 1 FROM vehicle_projects vp 
+         WHERE vp.id = pp.project_id AND vp.user_id = $2
+       )
+       ORDER BY pp.created_at DESC`,
+      [projectId, userId]
+    )
 
     return {
-      before: beforePhotos || [],
-      after: afterPhotos || [],
+      before: beforeResult.rows || [],
+      after: afterResult.rows || [],
     }
   } catch (error) {
-    console.error("Unexpected error fetching before/after photos:", error)
+    console.error("Error fetching before/after photos:", error)
     return { before: [], after: [] }
   }
 }

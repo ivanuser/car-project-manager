@@ -7,7 +7,7 @@ import { Camera, Upload, X, Loader2, Check, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { scanReceipt } from "@/actions/expense-actions"
+import { scanReceipt } from "@/actions/expense-actions-new"
 
 interface ReceiptScannerProps {
   onScanComplete: (data: ReceiptData) => void

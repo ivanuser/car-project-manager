@@ -41,9 +41,10 @@ function getFileExtension(filename: string, mimeType?: string): string {
  */
 export async function saveUploadedFile(
   file: File,
-  category: 'avatars' | 'thumbnails' | 'documents' | 'photos',
-  userId?: string
-): Promise<{ success: boolean; filePath?: string; url?: string; error?: string }> {
+  category: 'avatars' | 'thumbnails' | 'documents' | 'photos' | 'receipts',
+  userId?: string,
+  projectId?: string
+): Promise<{ success: boolean; filePath?: string; url?: string; error?: string; fileSize?: number; fileName?: string; mimeType?: string }> {
   try {
     // Validate file
     if (!file || file.size === 0) {
@@ -57,37 +58,72 @@ export async function saveUploadedFile(
     }
 
     // Validate file type for images
-    if (category === 'avatars' || category === 'thumbnails' || category === 'photos') {
+    if (category === 'avatars' || category === 'thumbnails' || category === 'photos' || category === 'receipts') {
       if (!file.type.startsWith('image/')) {
         return { success: false, error: 'File must be an image' }
       }
     }
 
+    // Validate file types for documents
+    if (category === 'documents') {
+      const allowedTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/plain',
+        'image/jpeg',
+        'image/png',
+        'image/gif'
+      ]
+      if (!allowedTypes.includes(file.type)) {
+        return { success: false, error: 'Invalid file type for documents' }
+      }
+    }
+
     // Create directory structure
     const categoryDir = path.join(STORAGE_BASE_PATH, category)
-    const userDir = userId ? path.join(categoryDir, userId) : categoryDir
+    let targetDir = categoryDir
     
-    ensureDirectoryExists(userDir)
+    if (userId) {
+      targetDir = path.join(categoryDir, userId)
+      if (projectId && (category === 'photos' || category === 'documents')) {
+        targetDir = path.join(targetDir, projectId)
+      }
+    }
+    
+    ensureDirectoryExists(targetDir)
 
     // Generate unique filename
     const fileId = randomUUID()
     const extension = getFileExtension(file.name, file.type)
     const filename = `${fileId}${extension}`
-    const filePath = path.join(userDir, filename)
+    const filePath = path.join(targetDir, filename)
 
     // Convert file to buffer and save
     const buffer = Buffer.from(await file.arrayBuffer())
     fs.writeFileSync(filePath, buffer)
 
-    // Generate public URL
-    const relativePath = userId ? `${category}/${userId}/${filename}` : `${category}/${filename}`
+    // Generate public URL path
+    let relativePath = `${category}/${filename}`
+    if (userId) {
+      relativePath = `${category}/${userId}/${filename}`
+      if (projectId && (category === 'photos' || category === 'documents')) {
+        relativePath = `${category}/${userId}/${projectId}/${filename}`
+      }
+    }
+    
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
     const publicUrl = `${baseUrl}/api/storage/${relativePath}`
 
     return {
       success: true,
       filePath: relativePath,
-      url: publicUrl
+      url: publicUrl,
+      fileSize: file.size,
+      fileName: file.name,
+      mimeType: file.type
     }
   } catch (error) {
     console.error('Error saving uploaded file:', error)
@@ -169,7 +205,7 @@ export async function getFileInfo(filePath: string): Promise<{
  * Clean up old files (utility function)
  */
 export async function cleanupOldFiles(
-  category: 'avatars' | 'thumbnails' | 'documents' | 'photos',
+  category: 'avatars' | 'thumbnails' | 'documents' | 'photos' | 'receipts',
   maxAgeHours: number = 24 * 7 // 7 days default
 ): Promise<{ success: boolean; deletedCount?: number; error?: string }> {
   try {

@@ -106,6 +106,7 @@ export function PhotoUploadForm({ projectId, onSuccess }: PhotoUploadFormProps) 
         })
 
         // Reset form
+        e.currentTarget.reset()
         setPhoto(null)
         setPhotoPreview(null)
         setTakenDate(undefined)

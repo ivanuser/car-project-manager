@@ -1,596 +1,440 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { createServerClient } from "@/lib/supabase"
-import { redirect } from "next/navigation"
+import { query } from "@/lib/db"
+import { saveUploadedFile, deleteStoredFile } from "@/lib/file-storage"
+import { getCurrentUserId } from "@/lib/auth-utils"
 
-// Get all document categories for the current user
-export async function getDocumentCategories() {
-  const supabase = createServerClient()
-  const isDevelopment = process.env.NODE_ENV === "development"
-
-  // Get the current user or use development user ID
-  let userId = "dev-user-id"
-
-  if (!isDevelopment) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      redirect("/login")
+// Get all documents for a user
+export async function getDocuments(projectId?: string) {
+  try {
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return []
     }
 
-    userId = user.id
-  }
+    let sql = `
+      SELECT d.*, 
+             dc.name as category_name,
+             vp.title as project_title,
+             COALESCE(
+               json_agg(
+                 json_build_object('id', dt.id, 'name', dt.name)
+               ) FILTER (WHERE dt.id IS NOT NULL), 
+               '[]'
+             ) as tags
+      FROM documents d
+      LEFT JOIN document_categories dc ON d.category_id = dc.id
+      LEFT JOIN vehicle_projects vp ON d.project_id = vp.id
+      LEFT JOIN document_tag_relations dtr ON d.id = dtr.document_id
+      LEFT JOIN document_tags dt ON dtr.tag_id = dt.id
+      WHERE d.user_id = $1
+    `
+    const params = [userId]
 
-  const { data, error } = await supabase
-    .from("document_categories")
-    .select("*")
-    .eq("user_id", userId)
-    .order("name", { ascending: true })
-
-  if (error) {
-    console.error("Error fetching document categories:", error)
-    return []
-  }
-
-  return data || []
-}
-
-// Create a new document category
-export async function createDocumentCategory(formData: FormData) {
-  const supabase = createServerClient()
-  const isDevelopment = process.env.NODE_ENV === "development"
-
-  // Get the current user or use development user ID
-  let userId = "dev-user-id"
-
-  if (!isDevelopment) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return { error: "You must be logged in to create a category" }
+    if (projectId) {
+      sql += " AND d.project_id = $2"
+      params.push(projectId)
     }
 
-    userId = user.id
-  }
+    sql += `
+      GROUP BY d.id, dc.name, vp.title
+      ORDER BY d.created_at DESC
+    `
 
-  const name = formData.get("name") as string
-  const description = (formData.get("description") as string) || null
-  const icon = (formData.get("icon") as string) || null
-
-  const { data, error } = await supabase
-    .from("document_categories")
-    .insert({
-      name,
-      description,
-      icon,
-      user_id: userId,
-    })
-    .select()
-    .single()
-
-  if (error) {
-    console.error("Error creating document category:", error)
-    return { error: error.message }
-  }
-
-  revalidatePath("/dashboard/documents")
-  return { success: true, data }
-}
-
-// Update a document category
-export async function updateDocumentCategory(id: string, formData: FormData) {
-  const supabase = createServerClient()
-
-  const name = formData.get("name") as string
-  const description = (formData.get("description") as string) || null
-  const icon = (formData.get("icon") as string) || null
-
-  const { data, error } = await supabase
-    .from("document_categories")
-    .update({
-      name,
-      description,
-      icon,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .select()
-    .single()
-
-  if (error) {
-    console.error("Error updating document category:", error)
-    return { error: error.message }
-  }
-
-  revalidatePath("/dashboard/documents")
-  return { success: true, data }
-}
-
-// Delete a document category
-export async function deleteDocumentCategory(id: string) {
-  const supabase = createServerClient()
-
-  const { error } = await supabase.from("document_categories").delete().eq("id", id)
-
-  if (error) {
-    console.error("Error deleting document category:", error)
-    return { error: error.message }
-  }
-
-  revalidatePath("/dashboard/documents")
-  return { success: true }
-}
-
-// Get all documents for the current user
-export async function getDocuments(options?: { projectId?: string; categoryId?: string }) {
-  const supabase = createServerClient()
-  const isDevelopment = process.env.NODE_ENV === "development"
-
-  // Get the current user or use development user ID
-  let userId = "dev-user-id"
-
-  if (!isDevelopment) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      redirect("/login")
-    }
-
-    userId = user.id
-  }
-
-  let query = supabase
-    .from("documents")
-    .select(`
-      *,
-      document_categories(id, name, icon),
-      vehicle_projects(id, title, make, model, year)
-    `)
-    .eq("user_id", userId)
-
-  if (options?.projectId) {
-    query = query.eq("project_id", options.projectId)
-  }
-
-  if (options?.categoryId) {
-    query = query.eq("category_id", options.categoryId)
-  }
-
-  const { data, error } = await query.order("created_at", { ascending: false })
-
-  if (error) {
+    const result = await query(sql, params)
+    return result.rows || []
+  } catch (error) {
     console.error("Error fetching documents:", error)
     return []
   }
-
-  return data || []
 }
 
 // Get a single document by ID
-export async function getDocumentById(id: string) {
-  const supabase = createServerClient()
+export async function getDocument(id: string) {
+  try {
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return { error: "Unauthorized" }
+    }
 
-  const { data, error } = await supabase
-    .from("documents")
-    .select(`
-      *,
-      document_categories(id, name, icon),
-      vehicle_projects(id, title, make, model, year)
-    `)
-    .eq("id", id)
-    .single()
+    const result = await query(
+      `SELECT d.*, 
+             dc.name as category_name,
+             vp.title as project_title,
+             COALESCE(
+               json_agg(
+                 json_build_object('id', dt.id, 'name', dt.name)
+               ) FILTER (WHERE dt.id IS NOT NULL), 
+               '[]'
+             ) as tags
+       FROM documents d
+       LEFT JOIN document_categories dc ON d.category_id = dc.id
+       LEFT JOIN vehicle_projects vp ON d.project_id = vp.id
+       LEFT JOIN document_tag_relations dtr ON d.id = dtr.document_id
+       LEFT JOIN document_tags dt ON dtr.tag_id = dt.id
+       WHERE d.id = $1 AND d.user_id = $2
+       GROUP BY d.id, dc.name, vp.title`,
+      [id, userId]
+    )
 
-  if (error) {
+    if (result.rows.length === 0) {
+      return { error: "Document not found" }
+    }
+
+    return { data: result.rows[0] }
+  } catch (error) {
     console.error("Error fetching document:", error)
-    return null
+    return { error: "An unexpected error occurred" }
   }
-
-  // Get tags for this document
-  const { data: tagRelations, error: tagError } = await supabase
-    .from("document_tag_relations")
-    .select(`
-      tag_id,
-      document_tags(id, name)
-    `)
-    .eq("document_id", id)
-
-  if (tagError) {
-    console.error("Error fetching document tags:", tagError)
-  } else {
-    data.tags = tagRelations.map((relation) => relation.document_tags)
-  }
-
-  return data
 }
 
-// Upload and create a new document
+// Upload a document
 export async function uploadDocument(formData: FormData) {
-  const supabase = createServerClient()
-  const isDevelopment = process.env.NODE_ENV === "development"
-
-  // Get the current user or use development user ID
-  let userId = "dev-user-id"
-
-  if (!isDevelopment) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return { error: "You must be logged in to upload a document" }
-    }
-
-    userId = user.id
-  }
-
-  const title = formData.get("title") as string
-  const description = (formData.get("description") as string) || null
-  const categoryId = (formData.get("categoryId") as string) || null
-  const projectId = (formData.get("projectId") as string) || null
-  const version = (formData.get("version") as string) || null
-  const isPublic = formData.get("isPublic") === "true"
-  const tags = formData.get("tags") ? (formData.get("tags") as string).split(",") : []
-
-  // Handle file upload
-  const file = formData.get("file") as File
-
-  if (!file || file.size === 0) {
-    return { error: "No file provided" }
-  }
-
   try {
-    // Upload file to Supabase Storage
-    const fileExt = file.name.split(".").pop()
-    const fileName = `${userId}-${Date.now()}.${fileExt}`
-    const { data: uploadData, error: uploadError } = await supabase.storage.from("documents").upload(fileName, file)
-
-    if (uploadError) {
-      console.error("Document upload error:", uploadError)
-      return { error: uploadError.message }
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return { error: "You must be logged in to upload documents" }
     }
 
-    // Get the public URL
-    const { data: urlData } = supabase.storage.from("documents").getPublicUrl(fileName)
-    const fileUrl = urlData.publicUrl
+    const title = formData.get("title") as string
+    const description = formData.get("description") as string
+    const categoryId = formData.get("categoryId") as string
+    const projectId = formData.get("projectId") as string
+    const version = formData.get("version") as string
+    const isPublic = formData.get("isPublic") === "true"
+    const tagsString = formData.get("tags") as string
+    const tags = tagsString ? tagsString.split(",").map(tag => tag.trim()).filter(tag => tag.length > 0) : []
 
-    // Generate thumbnail for PDFs if possible
-    let thumbnailUrl = null
-    if (file.type === "application/pdf") {
-      // In a real implementation, you might use a service to generate PDF thumbnails
-      // For now, we'll use a placeholder
-      thumbnailUrl = "/pdf-document.png"
+    // Handle file upload
+    const file = formData.get("file") as File
+
+    if (!file || file.size === 0) {
+      return { error: "No file provided" }
     }
 
-    // Insert document record
-    const { data, error } = await supabase
-      .from("documents")
-      .insert({
+    if (!title) {
+      return { error: "Title is required" }
+    }
+
+    // If project_id is provided, verify project ownership
+    if (projectId && projectId !== "none") {
+      const projectCheck = await query(
+        "SELECT id FROM vehicle_projects WHERE id = $1 AND user_id = $2",
+        [projectId, userId]
+      )
+
+      if (projectCheck.rows.length === 0) {
+        return { error: "Project not found or access denied" }
+      }
+    }
+
+    // Save file
+    const uploadResult = await saveUploadedFile(
+      file, 
+      "documents", 
+      userId, 
+      projectId && projectId !== "none" ? projectId : undefined
+    )
+
+    if (!uploadResult.success) {
+      return { error: uploadResult.error }
+    }
+
+    // Insert the document record
+    const result = await query(
+      `INSERT INTO documents 
+       (title, description, file_url, file_type, file_size, file_name, 
+        category_id, project_id, user_id, is_public, version)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING *`,
+      [
         title,
-        description,
-        file_url: fileUrl,
-        file_type: file.type,
-        file_size: file.size,
-        file_name: file.name,
-        category_id: categoryId,
-        project_id: projectId,
-        user_id: userId,
-        is_public: isPublic,
-        version,
-        thumbnail_url: thumbnailUrl,
-      })
-      .select()
-      .single()
+        description || null,
+        uploadResult.url,
+        uploadResult.mimeType,
+        uploadResult.fileSize,
+        uploadResult.fileName,
+        categoryId && categoryId !== "none" ? categoryId : null,
+        projectId && projectId !== "none" ? projectId : null,
+        userId,
+        isPublic,
+        version || null,
+      ]
+    )
 
-    if (error) {
-      console.error("Error creating document record:", error)
-      return { error: error.message }
-    }
+    const documentId = result.rows[0].id
 
-    // Handle tags
-    if (tags.length > 0) {
+    // Handle tags if provided
+    if (tags && tags.length > 0) {
       for (const tagName of tags) {
-        // Check if tag exists
-        const { data: existingTag, error: tagError } = await supabase
-          .from("document_tags")
-          .select("id")
-          .eq("name", tagName.trim())
-          .eq("user_id", userId)
-          .single()
-
-        let tagId
-
-        if (tagError) {
-          // Create new tag
-          const { data: newTag, error: createTagError } = await supabase
-            .from("document_tags")
-            .insert({
-              name: tagName.trim(),
-              user_id: userId,
-            })
-            .select("id")
-            .single()
-
-          if (createTagError) {
-            console.error("Error creating tag:", createTagError)
-            continue
-          }
-
-          tagId = newTag.id
-        } else {
-          tagId = existingTag.id
-        }
+        // Create or get tag
+        const tagResult = await query(
+          `INSERT INTO document_tags (name, user_id) 
+           VALUES ($1, $2) 
+           ON CONFLICT (name, user_id) DO UPDATE SET name = EXCLUDED.name
+           RETURNING id`,
+          [tagName, userId]
+        )
 
         // Create tag relation
-        await supabase.from("document_tag_relations").insert({
-          document_id: data.id,
-          tag_id: tagId,
-        })
+        await query(
+          "INSERT INTO document_tag_relations (document_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+          [documentId, tagResult.rows[0].id]
+        )
       }
     }
 
     revalidatePath("/dashboard/documents")
-    if (projectId) {
-      revalidatePath(`/dashboard/projects/${projectId}/documents`)
+    if (projectId && projectId !== "none") {
+      revalidatePath(`/dashboard/projects/${projectId}`)
     }
-    return { success: true, data }
+    
+    return { success: true, data: result.rows[0] }
   } catch (error) {
-    console.error("Document upload error:", error)
-    return { error: "An unexpected error occurred during document upload" }
+    console.error("Error uploading document:", error)
+    return { error: "An unexpected error occurred" }
   }
 }
 
 // Update a document
 export async function updateDocument(id: string, formData: FormData) {
-  const supabase = createServerClient()
-
-  const title = formData.get("title") as string
-  const description = (formData.get("description") as string) || null
-  const categoryId = (formData.get("categoryId") as string) || null
-  const projectId = (formData.get("projectId") as string) || null
-  const version = (formData.get("version") as string) || null
-  const isPublic = formData.get("isPublic") === "true"
-  const tags = formData.get("tags") ? (formData.get("tags") as string).split(",") : []
-
-  // Update document record
-  const { data, error } = await supabase
-    .from("documents")
-    .update({
-      title,
-      description,
-      category_id: categoryId,
-      project_id: projectId,
-      is_public: isPublic,
-      version,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .select()
-    .single()
-
-  if (error) {
-    console.error("Error updating document:", error)
-    return { error: error.message }
-  }
-
-  // Handle file upload if a new file is provided
-  const file = formData.get("file") as File
-
-  if (file && file.size > 0) {
-    try {
-      // Upload file to Supabase Storage
-      const fileExt = file.name.split(".").pop()
-      const fileName = `${data.user_id}-${Date.now()}.${fileExt}`
-      const { data: uploadData, error: uploadError } = await supabase.storage.from("documents").upload(fileName, file)
-
-      if (uploadError) {
-        console.error("Document upload error:", uploadError)
-        return { error: uploadError.message }
-      }
-
-      // Get the public URL
-      const { data: urlData } = supabase.storage.from("documents").getPublicUrl(fileName)
-      const fileUrl = urlData.publicUrl
-
-      // Generate thumbnail for PDFs if possible
-      let thumbnailUrl = null
-      if (file.type === "application/pdf") {
-        // In a real implementation, you might use a service to generate PDF thumbnails
-        thumbnailUrl = "/pdf-document.png"
-      }
-
-      // Update document with new file info
-      await supabase
-        .from("documents")
-        .update({
-          file_url: fileUrl,
-          file_type: file.type,
-          file_size: file.size,
-          file_name: file.name,
-          thumbnail_url: thumbnailUrl,
-        })
-        .eq("id", id)
-    } catch (error) {
-      console.error("Document upload error:", error)
-      return { error: "An unexpected error occurred during document upload" }
+  try {
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return { error: "You must be logged in to update documents" }
     }
-  }
 
-  // Handle tags - first remove all existing tag relations
-  await supabase.from("document_tag_relations").delete().eq("document_id", id)
+    const title = formData.get("title") as string
+    const description = formData.get("description") as string
+    const categoryId = formData.get("categoryId") as string
+    const projectId = formData.get("projectId") as string
+    const version = formData.get("version") as string
+    const isPublic = formData.get("isPublic") === "true"
+    const tagsString = formData.get("tags") as string
+    const tags = tagsString ? tagsString.split(",").map(tag => tag.trim()).filter(tag => tag.length > 0) : []
+    const file = formData.get("file") as File
 
-  // Then add new tag relations
-  if (tags.length > 0) {
-    const userId = data.user_id
+    if (!title) {
+      return { error: "Title is required" }
+    }
 
-    for (const tagName of tags) {
-      // Check if tag exists
-      const { data: existingTag, error: tagError } = await supabase
-        .from("document_tags")
-        .select("id")
-        .eq("name", tagName.trim())
-        .eq("user_id", userId)
-        .single()
+    // Verify document ownership
+    const documentCheck = await query(
+      "SELECT * FROM documents WHERE id = $1 AND user_id = $2",
+      [id, userId]
+    )
 
-      let tagId
+    if (documentCheck.rows.length === 0) {
+      return { error: "Document not found or access denied" }
+    }
 
-      if (tagError) {
-        // Create new tag
-        const { data: newTag, error: createTagError } = await supabase
-          .from("document_tags")
-          .insert({
-            name: tagName.trim(),
-            user_id: userId,
-          })
-          .select("id")
-          .single()
+    const existingDocument = documentCheck.rows[0]
+    let fileUrl = existingDocument.file_url
+    let fileType = existingDocument.file_type
+    let fileSize = existingDocument.file_size
+    let fileName = existingDocument.file_name
 
-        if (createTagError) {
-          console.error("Error creating tag:", createTagError)
-          continue
+    // Handle file replacement if new file provided
+    if (file && file.size > 0) {
+      // Delete old file
+      if (existingDocument.file_url) {
+        try {
+          const url = new URL(existingDocument.file_url)
+          const pathParts = url.pathname.split("/api/storage/")
+          if (pathParts.length > 1) {
+            await deleteStoredFile(pathParts[1])
+          }
+        } catch (error) {
+          console.error("Error deleting old document file:", error)
         }
-
-        tagId = newTag.id
-      } else {
-        tagId = existingTag.id
       }
 
-      // Create tag relation
-      await supabase.from("document_tag_relations").insert({
-        document_id: id,
-        tag_id: tagId,
-      })
-    }
-  }
+      // Upload new file
+      const uploadResult = await saveUploadedFile(
+        file, 
+        "documents", 
+        userId, 
+        projectId && projectId !== "none" ? projectId : undefined
+      )
 
-  revalidatePath("/dashboard/documents")
-  if (projectId) {
-    revalidatePath(`/dashboard/projects/${projectId}/documents`)
+      if (!uploadResult.success) {
+        return { error: uploadResult.error }
+      }
+
+      fileUrl = uploadResult.url
+      fileType = uploadResult.mimeType
+      fileSize = uploadResult.fileSize
+      fileName = uploadResult.fileName
+    }
+
+    // Update the document record
+    const result = await query(
+      `UPDATE documents SET 
+       title = $1, description = $2, file_url = $3, file_type = $4, 
+       file_size = $5, file_name = $6, category_id = $7, project_id = $8, 
+       is_public = $9, version = $10, updated_at = NOW()
+       WHERE id = $11 AND user_id = $12
+       RETURNING *`,
+      [
+        title,
+        description || null,
+        fileUrl,
+        fileType,
+        fileSize,
+        fileName,
+        categoryId && categoryId !== "none" ? categoryId : null,
+        projectId && projectId !== "none" ? projectId : null,
+        isPublic,
+        version || null,
+        id,
+        userId,
+      ]
+    )
+
+    // Delete existing tag relations
+    await query("DELETE FROM document_tag_relations WHERE document_id = $1", [id])
+
+    // Add new tag relations
+    if (tags && tags.length > 0) {
+      for (const tagName of tags) {
+        // Create or get tag
+        const tagResult = await query(
+          `INSERT INTO document_tags (name, user_id) 
+           VALUES ($1, $2) 
+           ON CONFLICT (name, user_id) DO UPDATE SET name = EXCLUDED.name
+           RETURNING id`,
+          [tagName, userId]
+        )
+
+        // Create tag relation
+        await query(
+          "INSERT INTO document_tag_relations (document_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+          [id, tagResult.rows[0].id]
+        )
+      }
+    }
+
+    revalidatePath("/dashboard/documents")
+    revalidatePath(`/dashboard/documents/${id}`)
+    if (projectId && projectId !== "none") {
+      revalidatePath(`/dashboard/projects/${projectId}`)
+    }
+    
+    return { success: true, data: result.rows[0] }
+  } catch (error) {
+    console.error("Error updating document:", error)
+    return { error: "An unexpected error occurred" }
   }
-  revalidatePath(`/dashboard/documents/${id}`)
-  return { success: true, data }
 }
 
 // Delete a document
-export async function deleteDocument(id: string, projectId?: string) {
-  const supabase = createServerClient()
-
-  // Get the document to find the file path
-  const { data: document, error: fetchError } = await supabase
-    .from("documents")
-    .select("file_url")
-    .eq("id", id)
-    .single()
-
-  if (fetchError) {
-    console.error("Error fetching document for deletion:", fetchError)
-    return { error: fetchError.message }
-  }
-
-  // Delete the document record
-  const { error } = await supabase.from("documents").delete().eq("id", id)
-
-  if (error) {
-    console.error("Error deleting document:", error)
-    return { error: error.message }
-  }
-
-  // Try to delete the file from storage
-  // This is a best effort - if it fails, we still consider the deletion successful
+export async function deleteDocument(id: string) {
   try {
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return { error: "Unauthorized" }
+    }
+
+    // Get document details first
+    const documentResult = await query(
+      "SELECT * FROM documents WHERE id = $1 AND user_id = $2",
+      [id, userId]
+    )
+
+    if (documentResult.rows.length === 0) {
+      return { error: "Document not found or access denied" }
+    }
+
+    const document = documentResult.rows[0]
+
+    // Delete the document record (cascade will handle tag relations)
+    await query("DELETE FROM documents WHERE id = $1", [id])
+
+    // Delete file from storage
     if (document.file_url) {
-      const fileName = document.file_url.split("/").pop()
-      if (fileName) {
-        await supabase.storage.from("documents").remove([fileName])
+      try {
+        const url = new URL(document.file_url)
+        const pathParts = url.pathname.split("/api/storage/")
+        if (pathParts.length > 1) {
+          await deleteStoredFile(pathParts[1])
+        }
+      } catch (error) {
+        console.error("Error deleting document file:", error)
       }
     }
-  } catch (storageError) {
-    console.error("Error deleting document file from storage:", storageError)
-  }
 
-  revalidatePath("/dashboard/documents")
-  if (projectId) {
-    revalidatePath(`/dashboard/projects/${projectId}/documents`)
+    revalidatePath("/dashboard/documents")
+    if (document.project_id) {
+      revalidatePath(`/dashboard/projects/${document.project_id}`)
+    }
+    
+    return { success: true }
+  } catch (error) {
+    console.error("Error deleting document:", error)
+    return { error: "An unexpected error occurred" }
   }
-  return { success: true }
 }
 
-// Get all document tags for the current user
-export async function getDocumentTags() {
-  const supabase = createServerClient()
-  const isDevelopment = process.env.NODE_ENV === "development"
-
-  // Get the current user or use development user ID
-  let userId = "dev-user-id"
-
-  if (!isDevelopment) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      redirect("/login")
+// Get document categories
+export async function getDocumentCategories() {
+  try {
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return []
     }
 
-    userId = user.id
+    const result = await query(
+      "SELECT * FROM document_categories WHERE user_id = $1 ORDER BY name ASC",
+      [userId]
+    )
+
+    return result.rows || []
+  } catch (error) {
+    console.error("Error fetching document categories:", error)
+    return []
   }
+}
 
-  const { data, error } = await supabase
-    .from("document_tags")
-    .select("*")
-    .eq("user_id", userId)
-    .order("name", { ascending: true })
+// Create document category
+export async function createDocumentCategory(name: string, description?: string, icon?: string, color?: string) {
+  try {
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return { error: "Unauthorized" }
+    }
 
-  if (error) {
+    const result = await query(
+      `INSERT INTO document_categories (name, description, icon, color, user_id)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [name, description || null, icon || null, color || null, userId]
+    )
+
+    revalidatePath("/dashboard/documents")
+    return { success: true, data: result.rows[0] }
+  } catch (error) {
+    console.error("Error creating document category:", error)
+    return { error: "An unexpected error occurred" }
+  }
+}
+
+// Get user's document tags
+export async function getDocumentTags() {
+  try {
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      return []
+    }
+
+    const result = await query(
+      "SELECT * FROM document_tags WHERE user_id = $1 ORDER BY name ASC",
+      [userId]
+    )
+
+    return result.rows || []
+  } catch (error) {
     console.error("Error fetching document tags:", error)
     return []
   }
-
-  return data || []
-}
-
-// Search documents
-export async function searchDocuments(query: string) {
-  const supabase = createServerClient()
-  const isDevelopment = process.env.NODE_ENV === "development"
-
-  // Get the current user or use development user ID
-  let userId = "dev-user-id"
-
-  if (!isDevelopment) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      redirect("/login")
-    }
-
-    userId = user.id
-  }
-
-  // Search in title, description, and file_name
-  const { data, error } = await supabase
-    .from("documents")
-    .select(`
-      *,
-      document_categories(id, name, icon),
-      vehicle_projects(id, title, make, model, year)
-    `)
-    .eq("user_id", userId)
-    .or(`title.ilike.%${query}%,description.ilike.%${query}%,file_name.ilike.%${query}%`)
-    .order("created_at", { ascending: false })
-
-  if (error) {
-    console.error("Error searching documents:", error)
-    return []
-  }
-
-  return data || []
 }
