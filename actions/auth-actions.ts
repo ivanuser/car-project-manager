@@ -129,35 +129,21 @@ export async function signIn(formData: FormData) {
 }
 
 /**
- * Sign out a user
+ * Sign out a user - Simplified version that works with client-side logout
  */
 export async function signOut() {
   try {
-    // Get token from cookies
-    const cookieStore = cookies();
-    const token = cookieStore.get('cajpro_auth_token')?.value;
-    
-    // If token exists, invalidate session
-    if (token) {
-      try {
-        await authService.logoutUser(token);
-      } catch (logoutError) {
-        console.error('Error invalidating session:', logoutError);
-        // Continue with cookie clearing even if session invalidation fails
-      }
-    }
-    
-    // Clear authentication cookies
+    // Clear authentication cookies server-side
     clearAuthCookies();
     
-    // Return success instead of redirecting from server action
-    return { success: true, redirectUrl: '/login' };
+    // Return success with redirect to landing page
+    return { success: true, redirectUrl: '/' };
   } catch (error) {
     console.error('Error during sign out:', error);
     
     // Still clear cookies and return success with redirect
     clearAuthCookies();
-    return { success: true, redirectUrl: '/login' };
+    return { success: true, redirectUrl: '/' };
   }
 }
 
@@ -261,9 +247,9 @@ export async function changePassword(formData: FormData) {
   }
   
   try {
-    // Get token from cookies
+    // Get token from cookies (using consistent cookie name)
     const cookieStore = cookies();
-    const token = cookieStore.get('cajpro_auth_token')?.value;
+    const token = cookieStore.get('auth-token')?.value;
     
     if (!token) {
       return { error: 'Authentication required' };
@@ -306,7 +292,7 @@ export async function changePassword(formData: FormData) {
 }
 
 /**
- * Set authentication cookies
+ * Set authentication cookies - Fixed to use consistent cookie name
  * @param token - JWT token
  * @param refreshToken - Refresh token
  */
@@ -323,19 +309,19 @@ function setAuthCookies(token: string, refreshToken: string) {
     ? parseInt(process.env.REFRESH_TOKEN_EXPIRATION, 10)
     : 604800; // 7 days in seconds
   
-  // Set JWT token cookie
-  cookieStore.set('cajpro_auth_token', token, {
+  // Set JWT token cookie (using consistent name 'auth-token')
+  cookieStore.set('auth-token', token, {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
     maxAge: jwtExpiration,
   });
   
   // Set refresh token cookie
-  cookieStore.set('cajpro_refresh_token', refreshToken, {
+  cookieStore.set('auth-refresh-token', refreshToken, {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
     maxAge: refreshTokenExpiration,
@@ -343,14 +329,14 @@ function setAuthCookies(token: string, refreshToken: string) {
 }
 
 /**
- * Clear authentication cookies
+ * Clear authentication cookies - Fixed to use consistent cookie names
  */
 function clearAuthCookies() {
   const cookieStore = cookies();
   
-  // Delete JWT token cookie
+  // Delete all possible auth cookies for compatibility
+  cookieStore.delete('auth-token');
+  cookieStore.delete('auth-refresh-token');
   cookieStore.delete('cajpro_auth_token');
-  
-  // Delete refresh token cookie
   cookieStore.delete('cajpro_refresh_token');
 }

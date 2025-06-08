@@ -18,10 +18,10 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { UserAvatar } from "@/components/user-avatar"
-import { signOut } from "@/actions/auth-actions"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { BackgroundToggle } from "@/components/background-toggle"
 import { useToast } from "@/hooks/use-toast"
+import { clientLogout } from "@/lib/client-auth"
 
 interface HeaderProps {
   user?: {
@@ -76,6 +76,25 @@ export function Header({ user }: HeaderProps) {
       description: `Background intensity set to ${intensity}`,
       duration: 2000,
     })
+  }
+
+  // Enhanced logout with client utility
+  const handleLogout = async () => {
+    setIsSigningOut(true)
+    try {
+      await clientLogout()
+      // clientLogout handles the redirect, so we don't need to do anything else
+    } catch (error) {
+      console.error('Error signing out:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to sign out completely, but you have been logged out.',
+        variant: 'destructive',
+      })
+      // Force redirect anyway
+      window.location.href = '/'
+    }
+    // Don't set isSigningOut to false since we're redirecting
   }
 
   return (
@@ -133,22 +152,7 @@ export function Header({ user }: HeaderProps) {
             <DropdownMenuItem
               onSelect={async (e) => {
                 e.preventDefault()
-                setIsSigningOut(true)
-                try {
-                  const result = await signOut()
-                  if (result.success) {
-                    router.push(result.redirectUrl || '/login')
-                  }
-                } catch (error) {
-                  console.error('Error signing out:', error)
-                  toast({
-                    title: 'Error',
-                    description: 'Failed to sign out. Please try again.',
-                    variant: 'destructive',
-                  })
-                } finally {
-                  setIsSigningOut(false)
-                }
+                await handleLogout()
               }}
               className="text-destructive focus:text-destructive"
               disabled={isSigningOut}

@@ -1,0 +1,1 @@
+rm -f signout-replacement.txt
