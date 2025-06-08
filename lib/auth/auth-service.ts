@@ -1,6 +1,6 @@
 /**
- * auth-service.ts - Fixed Authentication service for CAJ-Pro
- * Properly integrated with PostgreSQL database with unique session management
+ * auth-service.ts - Fixed Authentication service for CAJ-Pro  
+ * Enhanced with automatic session recovery for database rebuilds
  */
 
 import db from '@/lib/db';
@@ -355,21 +355,72 @@ export const loginUser = async (data: LoginData): Promise<AuthResult> => {
 };
 
 /**
- * Validate session
+ * Validate session with automatic recovery
  */
 export const validateSession = async (token: string): Promise<User | null> => {
   try {
-    // First try to verify as JWT token
+    // First try to verify as JWT token and extract user info
+    let jwtPayload;
     try {
-      const payload = jwtUtils.verifyToken(token);
-      if (payload && payload.sub) {
-        return await getUserById(payload.sub);
-      }
+      jwtPayload = jwtUtils.verifyToken(token);
     } catch (jwtError) {
-      // Not a valid JWT, try as session token
+      console.log('Token is not a valid JWT, trying as session token');
     }
     
-    // Check if it's a session token in database
+    // If we have a valid JWT, try to recover the session
+    if (jwtPayload && jwtPayload.sub && jwtPayload.email) {
+      console.log('Valid JWT found, checking if session exists in database');
+      
+      // Check if session exists in database
+      const sessionResult = await db.query(
+        `SELECT s.user_id, s.expires_at, u.email, u.is_admin
+         FROM sessions s
+         JOIN users u ON s.user_id = u.id
+         WHERE s.token = $1 AND s.expires_at > NOW() AND s.is_active = true`,
+        [token]
+      );
+      
+      if (sessionResult.rows.length > 0) {
+        // Session exists, return user info
+        const session = sessionResult.rows[0];
+        return {
+          id: session.user_id,
+          email: session.email,
+          isAdmin: session.is_admin || session.email === 'admin@cajpro.local',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+      } else {
+        console.log('Session not found in database, attempting recovery...');
+        
+        // Session doesn't exist, but JWT is valid - recover by creating new session
+        try {
+          const user = await getUserById(jwtPayload.sub);
+          if (user) {
+            console.log('User found, creating recovery session');
+            
+            // Generate new session token
+            const newSessionToken = generateUniqueSessionToken();
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 7);
+            
+            // Create new session
+            await db.query(
+              `INSERT INTO sessions (user_id, token, expires_at, is_active)
+               VALUES ($1, $2, $3, $4)`,
+              [user.id, newSessionToken, expiresAt, true]
+            );
+            
+            console.log('Recovery session created successfully');
+            return user;
+          }
+        } catch (recoveryError) {
+          console.error('Session recovery failed:', recoveryError);
+        }
+      }
+    }
+    
+    // Fallback: try as direct session token lookup
     const sessionResult = await db.query(
       `SELECT s.user_id, s.expires_at, u.email, u.is_admin
        FROM sessions s
@@ -384,7 +435,6 @@ export const validateSession = async (token: string): Promise<User | null> => {
     
     const session = sessionResult.rows[0];
     
-    // Return user info
     return {
       id: session.user_id,
       email: session.email,
