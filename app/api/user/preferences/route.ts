@@ -11,25 +11,27 @@ import db from '@/lib/db';
  */
 async function getCurrentUserId() {
   const cookieStore = cookies();
-  // Use the same cookie name as the auth/user endpoint
   const authToken = cookieStore.get('auth-token')?.value;
   
+  console.log("Preferences API: Looking for auth-token cookie:", !!authToken);
+  
   if (!authToken) {
-    console.log("No auth token found in cookies");
+    console.log("Preferences API: No auth token found in cookies");
     return null;
   }
   
   try {
-    // Use the production auth service to validate the session
+    console.log("Preferences API: Validating session");
     const user = await authService.validateSession(authToken);
     if (!user) {
-      console.log("Invalid auth token");
+      console.log("Preferences API: Invalid auth token");
       return null;
     }
     
+    console.log("Preferences API: Successfully authenticated user:", user.id);
     return user.id;
   } catch (error) {
-    console.error("Error getting current user ID:", error);
+    console.error("Preferences API: Error getting current user ID:", error);
     return null;
   }
 }
@@ -40,13 +42,17 @@ async function getCurrentUserId() {
  */
 export async function GET(req: NextRequest) {
   try {
+    console.log("Preferences API: Starting GET request");
+    
     // Get userId from query params
     const searchParams = req.nextUrl.searchParams;
     const requestedUserId = searchParams.get('userId');
+    console.log("Preferences API: Requested user ID:", requestedUserId);
     
     // Verify authentication
     const currentUserId = await getCurrentUserId();
     if (!currentUserId) {
+      console.log("Preferences API: Authentication failed");
       return NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
@@ -55,20 +61,27 @@ export async function GET(req: NextRequest) {
     
     // Use the requested userId or current user ID
     const userId = requestedUserId || currentUserId;
+    console.log("Preferences API: Using user ID:", userId);
     
     // Security check: only allow access to own preferences unless admin
     if (userId !== currentUserId && process.env.NODE_ENV !== 'development') {
+      console.log("Preferences API: Access denied - user mismatch");
       return NextResponse.json(
         { error: 'Access denied' },
         { status: 403 }
       );
     }
     
-    // Query the database for preferences
-    const preferencesResult = await db.query(
-      `SELECT preferences FROM user_preferences WHERE user_id = $1`,
-      [userId]
-    );
+    console.log("Preferences API: Checking database tables");
+    
+    // Check what tables exist
+    const tablesResult = await db.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_name LIKE '%preference%'
+    `);
+    console.log("Preferences API: Available preference tables:", tablesResult.rows);
     
     let preferences = {
       theme: 'system',
@@ -92,28 +105,61 @@ export async function GET(req: NextRequest) {
       }
     };
     
-    if (preferencesResult.rows.length > 0) {
-      // Merge saved preferences with defaults
-      const savedPrefs = preferencesResult.rows[0].preferences;
-      preferences = {
-        ...preferences,
-        ...savedPrefs,
-        notification_preferences: {
-          ...preferences.notification_preferences,
-          ...(savedPrefs.notification_preferences || {})
-        },
-        display_preferences: {
-          ...preferences.display_preferences,
-          ...(savedPrefs.display_preferences || {})
+    try {
+      console.log("Preferences API: Querying user_preferences table");
+      const preferencesResult = await db.query(
+        `SELECT preferences FROM user_preferences WHERE user_id = $1`,
+        [userId]
+      );
+      
+      console.log("Preferences API: Query successful, rows found:", preferencesResult.rows.length);
+      
+      if (preferencesResult.rows.length > 0) {
+        const savedPrefs = preferencesResult.rows[0].preferences;
+        console.log("Preferences API: Found saved preferences:", savedPrefs);
+        
+        preferences = {
+          ...preferences,
+          ...savedPrefs,
+          notification_preferences: {
+            ...preferences.notification_preferences,
+            ...(savedPrefs.notification_preferences || {})
+          },
+          display_preferences: {
+            ...preferences.display_preferences,
+            ...(savedPrefs.display_preferences || {})
+          }
+        };
+      } else {
+        console.log("Preferences API: No saved preferences found, using defaults");
+      }
+    } catch (queryError) {
+      console.error("Preferences API: Database query failed:", queryError);
+      
+      // Try alternative approach or table structure
+      try {
+        const altResult = await db.query(
+          `SELECT * FROM preferences WHERE user_id = $1`,
+          [userId]
+        );
+        console.log("Preferences API: Alternative query successful, rows found:", altResult.rows.length);
+        
+        if (altResult.rows.length > 0) {
+          const savedPrefs = altResult.rows[0];
+          preferences = { ...preferences, ...savedPrefs };
         }
-      };
+      } catch (altError) {
+        console.error("Preferences API: Alternative query also failed:", altError);
+        console.log("Preferences API: Using default preferences");
+      }
     }
     
+    console.log("Preferences API: Returning preferences:", preferences);
     return NextResponse.json({ preferences });
   } catch (error) {
-    console.error('Error in preferences API:', error);
+    console.error('Preferences API: Unexpected error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error.message },
       { status: 500 }
     );
   }
@@ -125,9 +171,12 @@ export async function GET(req: NextRequest) {
  */
 export async function PUT(req: NextRequest) {
   try {
+    console.log("Preferences API: Starting PUT request");
+    
     // Verify authentication
     const currentUserId = await getCurrentUserId();
     if (!currentUserId) {
+      console.log("Preferences API: PUT authentication failed");
       return NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
@@ -135,7 +184,19 @@ export async function PUT(req: NextRequest) {
     }
     
     const body = await req.json();
+    console.log("Preferences API: PUT request body:", body);
+    
     const { preferences } = body;
+    
+    if (!preferences) {
+      console.log("Preferences API: No preferences in request body");
+      return NextResponse.json(
+        { error: 'Missing preferences data' },
+        { status: 400 }
+      );
+    }
+    
+    console.log("Preferences API: Attempting to save preferences:", preferences);
     
     // Update or insert preferences
     const result = await db.query(`
@@ -148,15 +209,17 @@ export async function PUT(req: NextRequest) {
       RETURNING *
     `, [currentUserId, JSON.stringify(preferences)]);
     
+    console.log("Preferences API: Successfully saved preferences:", result.rows[0]);
+    
     return NextResponse.json({ 
       success: true, 
       preferences: result.rows[0].preferences 
     });
     
   } catch (error) {
-    console.error('Error updating preferences:', error);
+    console.error('Preferences API: PUT error:', error);
     return NextResponse.json(
-      { error: 'Failed to update preferences' },
+      { error: 'Failed to update preferences', details: error.message },
       { status: 500 }
     );
   }

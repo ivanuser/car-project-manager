@@ -12,7 +12,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { updateUserPreferences } from "@/actions/profile-actions"
 import { useToast } from "@/hooks/use-toast"
 import { ThemePreview } from "./theme-preview"
 import { ThemeColorPicker } from "./theme-color-picker"
@@ -121,88 +120,105 @@ export function PreferencesForm({ preferences = null }: PreferencesFormProps) {
     setIsLoading(true)
 
     try {
-      const formData = new FormData()
-
-      // Appearance
-      formData.append("theme", theme)
-      formData.append("colorScheme", colorScheme)
-      formData.append("backgroundIntensity", backgroundIntensity)
-      formData.append("uiDensity", uiDensity)
-
-      // Regional
-      formData.append("dateFormat", dateFormat)
-      formData.append("timeFormat", timeFormat)
-      formData.append("measurementUnit", measurementUnit)
-      formData.append("currency", currency)
-
-      // Notifications
-      formData.append("emailNotifications", emailNotifications ? "on" : "off")
-      formData.append("pushNotifications", pushNotifications ? "on" : "off")
-      formData.append("maintenanceNotifications", maintenanceNotifications ? "on" : "off")
-      formData.append("projectUpdateNotifications", projectUpdateNotifications ? "on" : "off")
-
-      // Display
-      formData.append("defaultProjectView", defaultProjectView)
-      formData.append("defaultTaskView", defaultTaskView)
-      formData.append("showCompletedTasks", showCompletedTasks ? "on" : "off")
-
-      const result = await updateUserPreferences(formData)
-
-      if (result.error) {
-        toast({
-          title: "Error",
-          description: result.error,
-          variant: "destructive",
-        })
-      } else {
-        toast({
-          title: "Success",
-          description: "Your preferences have been updated",
-        })
-
-        // Apply theme changes immediately
-        if (theme === "dark") {
-          document.documentElement.classList.add("dark")
-        } else if (theme === "light") {
-          document.documentElement.classList.remove("dark")
-        } else {
-          // System preference
-          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
-          if (prefersDark) {
-            document.documentElement.classList.add("dark")
-          } else {
-            document.documentElement.classList.remove("dark")
-          }
+      console.log("PreferencesForm: Starting save process");
+      
+      // Build the preferences object
+      const preferencesToSave = {
+        theme,
+        color_scheme: colorScheme,
+        background_intensity: backgroundIntensity,
+        ui_density: uiDensity,
+        date_format: dateFormat,
+        time_format: timeFormat,
+        measurement_unit: measurementUnit,
+        currency,
+        notification_preferences: {
+          email: emailNotifications,
+          push: pushNotifications,
+          maintenance: maintenanceNotifications,
+          project_updates: projectUpdateNotifications,
+        },
+        display_preferences: {
+          default_project_view: defaultProjectView,
+          default_task_view: defaultTaskView,
+          show_completed_tasks: showCompletedTasks,
         }
+      };
 
-        // Apply color scheme
-        applyColorScheme(colorScheme)
+      console.log("PreferencesForm: Preferences to save:", preferencesToSave);
 
-        // Apply background intensity
-        const gradientEl = document.querySelector("[data-gradient-background]")
-        if (gradientEl) {
-          gradientEl.classList.remove("opacity-0", "opacity-30", "opacity-50", "opacity-70", "opacity-90")
+      // Call the API route directly
+      const response = await fetch('/api/user/preferences', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ 
+          preferences: preferencesToSave 
+        }),
+      });
 
-          if (backgroundIntensity === "none") {
-            gradientEl.classList.add("opacity-0")
-          } else if (backgroundIntensity === "light") {
-            gradientEl.classList.add("opacity-30")
-          } else if (backgroundIntensity === "medium") {
-            gradientEl.classList.add("opacity-50")
-          } else if (backgroundIntensity === "strong") {
-            gradientEl.classList.add("opacity-70")
-          } else if (backgroundIntensity === "max") {
-            gradientEl.classList.add("opacity-90")
-          }
-        }
+      console.log("PreferencesForm: API response status:", response.status);
 
-        router.refresh()
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("PreferencesForm: API error:", errorData);
+        throw new Error(errorData.error || 'Failed to save preferences');
       }
+
+      const result = await response.json();
+      console.log("PreferencesForm: API success:", result);
+
+      toast({
+        title: "Success",
+        description: "Your preferences have been updated",
+      })
+
+      // Apply theme changes immediately
+      if (theme === "dark") {
+        document.documentElement.classList.add("dark")
+      } else if (theme === "light") {
+        document.documentElement.classList.remove("dark")
+      } else {
+        // System preference
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+        if (prefersDark) {
+          document.documentElement.classList.add("dark")
+        } else {
+          document.documentElement.classList.remove("dark")
+        }
+      }
+
+      // Apply color scheme
+      applyColorScheme(colorScheme)
+
+      // Apply background intensity
+      const gradientEl = document.querySelector("[data-gradient-background]")
+      if (gradientEl) {
+        gradientEl.classList.remove("opacity-0", "opacity-30", "opacity-50", "opacity-70", "opacity-90")
+
+        if (backgroundIntensity === "none") {
+          gradientEl.classList.add("opacity-0")
+        } else if (backgroundIntensity === "light") {
+          gradientEl.classList.add("opacity-30")
+        } else if (backgroundIntensity === "medium") {
+          gradientEl.classList.add("opacity-50")
+        } else if (backgroundIntensity === "strong") {
+          gradientEl.classList.add("opacity-70")
+        } else if (backgroundIntensity === "max") {
+          gradientEl.classList.add("opacity-90")
+        }
+      }
+
+      // Refresh the page to ensure all changes are applied
+      router.refresh()
+      
     } catch (error) {
-      console.error("Preferences update error:", error)
+      console.error("PreferencesForm: Save error:", error)
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive",
       })
     } finally {
