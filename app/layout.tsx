@@ -4,7 +4,13 @@ import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 import { initializeDatabase } from '@/lib/database-init';
 
-const inter = Inter({ subsets: ['latin'] });
+// Configure Inter font with variable for CSS
+const inter = Inter({ 
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+  weight: ['300', '400', '500', '600', '700'],
+});
 
 export const metadata: Metadata = {
   title: 'CAJPRO - Vehicle Project Management',
@@ -35,7 +41,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} font-sans antialiased`}>
+      <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider 
           attribute="class"
           defaultTheme="dark"

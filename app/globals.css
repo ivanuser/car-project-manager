@@ -153,20 +153,33 @@
   * {
     @apply border-border;
   }
+  
+  html {
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    font-variation-settings: normal;
+    font-optical-sizing: auto;
+  }
+  
   body {
     @apply bg-background text-foreground;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
   }
+  
   h1 {
-    @apply text-4xl font-bold leading-tight;
+    @apply text-4xl font-semibold leading-tight tracking-tight;
   }
   h2 {
-    @apply text-3xl font-bold leading-tight;
+    @apply text-3xl font-semibold leading-tight tracking-tight;
   }
   h3 {
-    @apply text-2xl font-semibold leading-tight;
+    @apply text-2xl font-medium leading-tight;
   }
   h4 {
-    @apply text-xl font-semibold leading-tight;
+    @apply text-xl font-medium leading-tight;
   }
   h5 {
     @apply text-lg font-medium leading-tight;
@@ -192,6 +205,7 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  font-family: var(--font-inter), Inter, system-ui, -apple-system, sans-serif;
 }
 
 .rbc-btn-group {
@@ -217,4 +231,28 @@
 
 .rbc-today {
   background-color: hsl(var(--muted) / 0.5);
+}
+
+/* Improve text rendering across the application */
+.smooth-text {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Override any potential font weight issues */
+.font-normal {
+  font-weight: 400 !important;
+}
+
+.font-medium {
+  font-weight: 500 !important;
+}
+
+.font-semibold {
+  font-weight: 600 !important;
+}
+
+.font-bold {
+  font-weight: 700 !important;
 }

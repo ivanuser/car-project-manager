@@ -70,7 +70,25 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "Inter", "Roboto", "Helvetica", "Arial", "sans-serif"],
+        sans: [
+          "var(--font-inter)", 
+          "Inter", 
+          "system-ui", 
+          "-apple-system", 
+          "BlinkMacSystemFont", 
+          "Segoe UI", 
+          "Roboto", 
+          "Helvetica Neue", 
+          "Arial", 
+          "sans-serif"
+        ],
+      },
+      fontWeight: {
+        light: "300",
+        normal: "400",
+        medium: "500",
+        semibold: "600",
+        bold: "700",
       },
       keyframes: {
         "accordion-down": {
