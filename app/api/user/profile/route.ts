@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import jwtUtils from '@/lib/auth/jwt';
+import authService from '@/lib/auth/production-auth-service';
 import db from '@/lib/db';
 
 /**
@@ -11,7 +11,8 @@ import db from '@/lib/db';
  */
 async function getCurrentUserId() {
   const cookieStore = cookies();
-  const authToken = cookieStore.get('cajpro_auth_token')?.value;
+  // Use the same cookie name as the auth/user endpoint
+  const authToken = cookieStore.get('auth-token')?.value;
   
   if (!authToken) {
     console.log("No auth token found in cookies");
@@ -19,13 +20,14 @@ async function getCurrentUserId() {
   }
   
   try {
-    const payload = jwtUtils.verifyToken(authToken);
-    if (!payload) {
+    // Use the production auth service to validate the session
+    const user = await authService.validateSession(authToken);
+    if (!user) {
       console.log("Invalid auth token");
       return null;
     }
     
-    return payload.sub;
+    return user.id;
   } catch (error) {
     console.error("Error getting current user ID:", error);
     return null;
@@ -63,14 +65,28 @@ export async function GET(request: NextRequest) {
     
     // Query the database for profile
     const profileResult = await db.query(
-      `SELECT * FROM profiles WHERE id = $1`,
+      `SELECT 
+        id,
+        user_id,
+        full_name,
+        bio,
+        location,
+        website,
+        expertise_level,
+        social_links,
+        phone,
+        avatar_url,
+        created_at,
+        updated_at
+      FROM profiles WHERE user_id = $1`,
       [userId]
     );
     
     if (profileResult.rows.length === 0) {
       // Profile doesn't exist yet, return default values
       const defaultProfile = {
-        id: userId,
+        id: null,
+        user_id: userId,
         full_name: "",
         bio: "",
         location: "",
@@ -111,6 +127,76 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching profile:', error);
     return NextResponse.json(
       { error: 'Failed to fetch profile' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PUT /api/user/profile - Update user profile data
+ */
+export async function PUT(request: NextRequest) {
+  try {
+    // Verify authentication
+    const currentUserId = await getCurrentUserId();
+    if (!currentUserId) {
+      return NextResponse.json(
+        { error: 'Not authenticated' },
+        { status: 401 }
+      );
+    }
+    
+    const body = await request.json();
+    const {
+      full_name,
+      bio,
+      location,
+      website,
+      expertise_level,
+      social_links,
+      phone
+    } = body;
+    
+    // Update or insert profile
+    const result = await db.query(`
+      INSERT INTO profiles (
+        user_id, full_name, bio, location, website, 
+        expertise_level, social_links, phone, updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+      ON CONFLICT (user_id) 
+      DO UPDATE SET
+        full_name = EXCLUDED.full_name,
+        bio = EXCLUDED.bio,
+        location = EXCLUDED.location,
+        website = EXCLUDED.website,
+        expertise_level = EXCLUDED.expertise_level,
+        social_links = EXCLUDED.social_links,
+        phone = EXCLUDED.phone,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+    `, [
+      currentUserId,
+      full_name || '',
+      bio || '',
+      location || '',
+      website || '',
+      expertise_level || 'beginner',
+      social_links || {},
+      phone || ''
+    ]);
+    
+    const profile = result.rows[0];
+    
+    return NextResponse.json({ 
+      success: true, 
+      profile 
+    });
+    
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    return NextResponse.json(
+      { error: 'Failed to update profile' },
       { status: 500 }
     );
   }
