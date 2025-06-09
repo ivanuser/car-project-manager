@@ -37,6 +37,39 @@ async function getCurrentUserId() {
 }
 
 /**
+ * Get available columns for a table
+ */
+async function getTableColumns(tableName: string): Promise<string[]> {
+  try {
+    const result = await db.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+      AND table_name = $1
+      ORDER BY ordinal_position
+    `, [tableName]);
+    
+    return result.rows.map(row => row.column_name);
+  } catch (error) {
+    console.error(`Error getting columns for table ${tableName}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Build a safe SELECT query with only existing columns
+ */
+function buildSafeSelectQuery(tableName: string, availableColumns: string[], desiredColumns: string[]): string {
+  const safeColumns = desiredColumns.filter(col => availableColumns.includes(col));
+  
+  if (safeColumns.length === 0) {
+    return `SELECT * FROM ${tableName}`;
+  }
+  
+  return `SELECT ${safeColumns.join(', ')} FROM ${tableName}`;
+}
+
+/**
  * GET /api/user/profile - Get user profile data
  */
 export async function GET(request: NextRequest) {
@@ -47,6 +80,25 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const requestedUserId = searchParams.get('userId');
     console.log("Profile API: Requested user ID:", requestedUserId);
+    
+    // Check if this is a debug request
+    const isDebugRequest = searchParams.get('debug') === 'true';
+    if (isDebugRequest) {
+      console.log("Profile API: Debug request - skipping authentication");
+      // For debug requests, just return table info
+      const tablesResult = await db.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name LIKE '%profile%'
+      `);
+      
+      return NextResponse.json({ 
+        debug: true,
+        tables: tablesResult.rows,
+        message: "Debug request processed"
+      });
+    }
     
     // Verify authentication
     const currentUserId = await getCurrentUserId();
@@ -78,63 +130,62 @@ export async function GET(request: NextRequest) {
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = 'public' 
-      AND table_name LIKE '%profile%'
+      AND table_name IN ('profiles', 'user_profiles')
     `);
     console.log("Profile API: Available profile tables:", tablesResult.rows);
     
-    // Try the query with error handling
+    // Define the columns we want
+    const desiredColumns = [
+      'id', 'user_id', 'full_name', 'bio', 'location', 'website', 
+      'expertise_level', 'social_links', 'phone', 'avatar_url', 
+      'created_at', 'updated_at'
+    ];
+    
+    // Try the main profiles table first
     let profileResult;
-    try {
-      profileResult = await db.query(
-        `SELECT 
-          id,
-          user_id,
-          full_name,
-          bio,
-          location,
-          website,
-          expertise_level,
-          social_links,
-          phone,
-          avatar_url,
-          created_at,
-          updated_at
-        FROM profiles WHERE user_id = $1`,
-        [userId]
-      );
-      console.log("Profile API: Query successful, rows found:", profileResult.rows.length);
-    } catch (queryError) {
-      console.error("Profile API: Database query failed:", queryError);
-      
-      // Try alternative table name
+    const profilesTableExists = tablesResult.rows.some(row => row.table_name === 'profiles');
+    
+    if (profilesTableExists) {
       try {
-        profileResult = await db.query(
-          `SELECT * FROM user_profiles WHERE user_id = $1`,
-          [userId]
-        );
-        console.log("Profile API: Alternative query successful, rows found:", profileResult.rows.length);
-      } catch (altError) {
-        console.error("Profile API: Alternative query also failed:", altError);
+        console.log("Profile API: Trying profiles table");
         
-        // Return a default profile if table doesn't exist
-        const defaultProfile = {
-          id: null,
-          user_id: userId,
-          full_name: "",
-          bio: "",
-          location: "",
-          website: "",
-          expertise_level: "beginner",
-          social_links: {},
-          phone: "",
-          avatar_url: null,
-          created_at: new Date(),
-          updated_at: new Date()
-        };
+        // Get available columns for profiles table
+        const availableColumns = await getTableColumns('profiles');
+        console.log("Profile API: Available columns in profiles table:", availableColumns);
         
-        console.log("Profile API: Returning default profile");
-        return NextResponse.json({ profile: defaultProfile });
+        // Build safe query with only existing columns
+        const selectQuery = buildSafeSelectQuery('profiles', availableColumns, desiredColumns);
+        const fullQuery = `${selectQuery} WHERE user_id = $1`;
+        
+        console.log("Profile API: Executing query:", fullQuery);
+        profileResult = await db.query(fullQuery, [userId]);
+        console.log("Profile API: Query successful, rows found:", profileResult.rows.length);
+        
+      } catch (queryError) {
+        console.error("Profile API: Database query failed:", queryError);
+        
+        // Try alternative table name
+        const userProfilesExists = tablesResult.rows.some(row => row.table_name === 'user_profiles');
+        if (userProfilesExists) {
+          try {
+            console.log("Profile API: Trying user_profiles table as fallback");
+            const altColumns = await getTableColumns('user_profiles');
+            const altQuery = buildSafeSelectQuery('user_profiles', altColumns, desiredColumns);
+            const fullAltQuery = `${altQuery} WHERE user_id = $1`;
+            
+            profileResult = await db.query(fullAltQuery, [userId]);
+            console.log("Profile API: Alternative query successful, rows found:", profileResult.rows.length);
+          } catch (altError) {
+            console.error("Profile API: Alternative query also failed:", altError);
+            throw new Error(`Database query failed: ${queryError.message}`);
+          }
+        } else {
+          throw new Error(`Database query failed: ${queryError.message}`);
+        }
       }
+    } else {
+      console.log("Profile API: No profile tables found");
+      throw new Error("Profile tables do not exist. Please run database migration.");
     }
     
     if (profileResult.rows.length === 0) {
@@ -161,26 +212,42 @@ export async function GET(request: NextRequest) {
     const profile = profileResult.rows[0];
     console.log("Profile API: Found profile:", profile);
     
+    // Ensure all expected fields exist with defaults
+    const normalizedProfile = {
+      id: profile.id || null,
+      user_id: profile.user_id || userId,
+      full_name: profile.full_name || "",
+      bio: profile.bio || "",
+      location: profile.location || "",
+      website: profile.website || "",
+      expertise_level: profile.expertise_level || "beginner",
+      social_links: profile.social_links || {},
+      phone: profile.phone || "",
+      avatar_url: profile.avatar_url || null,
+      created_at: profile.created_at || new Date(),
+      updated_at: profile.updated_at || new Date()
+    };
+    
     // Process avatar URL if it exists
-    if (profile.avatar_url) {
+    if (normalizedProfile.avatar_url) {
       // Check if this is an old Supabase URL that needs conversion
       if (
-        profile.avatar_url.includes("storage/avatars") || 
-        profile.avatar_url.includes("storage.googleapis.com") || 
-        profile.avatar_url.includes("supabase.co")
+        normalizedProfile.avatar_url.includes("storage/avatars") || 
+        normalizedProfile.avatar_url.includes("storage.googleapis.com") || 
+        normalizedProfile.avatar_url.includes("supabase.co")
       ) {
         // Extract the filename from the URL
-        const urlParts = profile.avatar_url.split('/');
+        const urlParts = normalizedProfile.avatar_url.split('/');
         const filename = urlParts[urlParts.length - 1];
         
         // Convert to our new API endpoint
         const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-        profile.avatar_url = `${baseUrl}/api/storage/avatars/${filename}`;
+        normalizedProfile.avatar_url = `${baseUrl}/api/storage/avatars/${filename}`;
       }
     }
     
     console.log("Profile API: Returning successful response");
-    return NextResponse.json({ profile });
+    return NextResponse.json({ profile: normalizedProfile });
   } catch (error) {
     console.error('Profile API: Unexpected error:', error);
     return NextResponse.json(
@@ -222,34 +289,66 @@ export async function PUT(request: NextRequest) {
     
     console.log("Profile API: Attempting to update profile");
     
-    // Update or insert profile
-    const result = await db.query(`
-      INSERT INTO profiles (
-        user_id, full_name, bio, location, website, 
-        expertise_level, social_links, phone, updated_at
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+    // Check if profiles table exists and get its columns
+    const availableColumns = await getTableColumns('profiles');
+    console.log("Profile API: Available columns for update:", availableColumns);
+    
+    if (availableColumns.length === 0) {
+      throw new Error("Profiles table does not exist or has no columns. Please run database migration.");
+    }
+    
+    // Build dynamic insert/update query based on available columns
+    const updateFields = [];
+    const values = [currentUserId]; // user_id is always first parameter
+    let paramIndex = 2;
+    
+    const fieldMappings = {
+      full_name: full_name || '',
+      bio: bio || '',
+      location: location || '',
+      website: website || '',
+      expertise_level: expertise_level || 'beginner',
+      social_links: social_links || {},
+      phone: phone || ''
+    };
+    
+    // Only include fields that exist in the table
+    for (const [fieldName, fieldValue] of Object.entries(fieldMappings)) {
+      if (availableColumns.includes(fieldName)) {
+        updateFields.push(`${fieldName} = $${paramIndex}`);
+        values.push(fieldValue);
+        paramIndex++;
+      }
+    }
+    
+    if (updateFields.length === 0) {
+      throw new Error("No valid columns found for profile update. Table may need migration.");
+    }
+    
+    // Build the upsert query
+    const insertColumns = ['user_id', ...Object.keys(fieldMappings).filter(col => availableColumns.includes(col))];
+    const insertPlaceholders = insertColumns.map((_, index) => `$${index + 1}`);
+    const insertValues = [currentUserId, ...Object.values(fieldMappings).filter((_, index) => 
+      availableColumns.includes(Object.keys(fieldMappings)[index])
+    )];
+    
+    // Add timestamps if columns exist
+    if (availableColumns.includes('updated_at')) {
+      updateFields.push('updated_at = CURRENT_TIMESTAMP');
+    }
+    
+    const query = `
+      INSERT INTO profiles (${insertColumns.join(', ')}${availableColumns.includes('created_at') ? ', created_at' : ''}${availableColumns.includes('updated_at') ? ', updated_at' : ''})
+      VALUES (${insertPlaceholders.join(', ')}${availableColumns.includes('created_at') ? ', CURRENT_TIMESTAMP' : ''}${availableColumns.includes('updated_at') ? ', CURRENT_TIMESTAMP' : ''})
       ON CONFLICT (user_id) 
-      DO UPDATE SET
-        full_name = EXCLUDED.full_name,
-        bio = EXCLUDED.bio,
-        location = EXCLUDED.location,
-        website = EXCLUDED.website,
-        expertise_level = EXCLUDED.expertise_level,
-        social_links = EXCLUDED.social_links,
-        phone = EXCLUDED.phone,
-        updated_at = CURRENT_TIMESTAMP
+      DO UPDATE SET ${updateFields.join(', ')}
       RETURNING *
-    `, [
-      currentUserId,
-      full_name || '',
-      bio || '',
-      location || '',
-      website || '',
-      expertise_level || 'beginner',
-      social_links || {},
-      phone || ''
-    ]);
+    `;
+    
+    console.log("Profile API: Executing upsert query:", query);
+    console.log("Profile API: Query values:", insertValues);
+    
+    const result = await db.query(query, insertValues);
     
     const profile = result.rows[0];
     console.log("Profile API: Successfully updated profile:", profile);

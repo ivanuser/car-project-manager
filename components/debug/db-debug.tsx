@@ -4,13 +4,15 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertTriangle, CheckCircle2, Database, RefreshCw, Loader2 } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Database, RefreshCw, Loader2, Wrench } from "lucide-react"
 
 export function DatabaseDebug() {
   const [dbInfo, setDbInfo] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [createTableLoading, setCreateTableLoading] = useState(false)
+  const [migrateLoading, setMigrateLoading] = useState(false)
   const [createTableResult, setCreateTableResult] = useState<any>(null)
+  const [migrateResult, setMigrateResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
 
   const checkDatabase = async () => {
@@ -120,6 +122,39 @@ export function DatabaseDebug() {
     }
   }
   
+  const migrateTables = async () => {
+    setMigrateLoading(true)
+    setError(null)
+    setMigrateResult(null)
+    
+    try {
+      console.log("Migrating tables...");
+      const response = await fetch('/api/debug/migrate-tables', {
+        method: 'POST',
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server returned ${response.status}: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      console.log("Migration result:", data);
+      setMigrateResult(data)
+      
+      // Refresh database info after a short delay
+      setTimeout(() => {
+        checkDatabase()
+      }, 1000);
+      
+    } catch (err) {
+      console.error('Error migrating tables:', err)
+      setError((err as Error).message || 'Unknown error')
+    } finally {
+      setMigrateLoading(false)
+    }
+  }
+  
   // Load database info on initial render
   useEffect(() => {
     checkDatabase()
@@ -127,6 +162,11 @@ export function DatabaseDebug() {
 
   const hasAllTables = dbInfo?.tableStatus?.user_preferences?.exists && 
                       dbInfo?.tableStatus?.profiles?.exists;
+  
+  // Check if we need migration (tables exist but might have wrong schema)
+  const needsMigration = dbInfo?.issues && dbInfo.issues.some((issue: string) => 
+    issue.includes('missing') || issue.includes('column') || issue.includes('schema')
+  );
 
   return (
     <Card className="shadow-md">
@@ -158,6 +198,26 @@ export function DatabaseDebug() {
                 <span className="block mt-1">
                   Created tables: {createTableResult.tables.join(', ')}
                 </span>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {migrateResult && (
+          <Alert className="mb-4 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+            <CheckCircle2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <AlertTitle>Migration Complete</AlertTitle>
+            <AlertDescription className="text-blue-800 dark:text-blue-300">
+              {migrateResult.message}
+              {migrateResult.migrations && migrateResult.migrations.length > 0 && (
+                <div className="mt-2">
+                  <div className="text-xs font-medium mb-1">Changes made:</div>
+                  <ul className="text-xs ml-4 list-disc">
+                    {migrateResult.migrations.map((migration: string, index: number) => (
+                      <li key={index}>{migration}</li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </AlertDescription>
           </Alert>
@@ -213,7 +273,7 @@ export function DatabaseDebug() {
                   <div className="flex items-center">
                     <span className={`w-3 h-3 rounded-full mr-2 ${hasAllTables ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
                     <span className="text-sm font-medium">
-                      {hasAllTables ? 'All required tables exist' : 'Some tables are missing'}
+                      {hasAllTables ? 'All required tables exist' : 'Some tables are missing or need migration'}
                     </span>
                   </div>
                 </div>
@@ -277,6 +337,28 @@ export function DatabaseDebug() {
               <>
                 <Database className="w-4 h-4 mr-1" />
                 Create Tables
+              </>
+            )}
+          </Button>
+        )}
+        
+        {dbInfo && (hasAllTables || needsMigration) && (
+          <Button 
+            variant="secondary" 
+            size="sm"
+            onClick={migrateTables}
+            disabled={migrateLoading}
+            className="flex-1"
+          >
+            {migrateLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                Migrating...
+              </>
+            ) : (
+              <>
+                <Wrench className="w-4 h-4 mr-1" />
+                Migrate Schema
               </>
             )}
           </Button>
