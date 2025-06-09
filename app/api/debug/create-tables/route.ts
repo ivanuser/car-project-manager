@@ -16,41 +16,71 @@ export async function POST(req: NextRequest) {
   }
   
   try {
-    // Create the user_preferences table if it doesn't exist
+    console.log("Creating tables...");
+    
+    // Create the user_preferences table with proper structure
     await db.query(`
       CREATE TABLE IF NOT EXISTS user_preferences (
-        id UUID PRIMARY KEY,
-        theme VARCHAR(50) DEFAULT 'system',
-        color_scheme VARCHAR(50) DEFAULT 'default',
-        background_intensity VARCHAR(50) DEFAULT 'medium',
-        ui_density VARCHAR(50) DEFAULT 'comfortable',
-        date_format VARCHAR(20) DEFAULT 'MM/DD/YYYY',
-        time_format VARCHAR(10) DEFAULT '12h',
-        measurement_unit VARCHAR(20) DEFAULT 'imperial',
-        currency VARCHAR(5) DEFAULT 'USD',
-        notification_preferences JSONB DEFAULT '{"email": true, "push": true, "maintenance": true, "project_updates": true}'::jsonb,
-        display_preferences JSONB DEFAULT '{"default_project_view": "grid", "default_task_view": "list", "show_completed_tasks": true}'::jsonb,
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL UNIQUE,
+        preferences JSONB DEFAULT '{
+          "theme": "system",
+          "color_scheme": "default",
+          "background_intensity": "medium",
+          "ui_density": "comfortable",
+          "date_format": "MM/DD/YYYY",
+          "time_format": "12h",
+          "measurement_unit": "imperial",
+          "currency": "USD",
+          "notification_preferences": {
+            "email": true,
+            "push": true,
+            "maintenance": true,
+            "project_updates": true
+          },
+          "display_preferences": {
+            "default_project_view": "grid",
+            "default_task_view": "list",
+            "show_completed_tasks": true
+          }
+        }'::jsonb,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
       );
     `);
     
-    // Create the profiles table if it doesn't exist
+    console.log("✓ user_preferences table created");
+    
+    // Create the profiles table with proper structure
     await db.query(`
       CREATE TABLE IF NOT EXISTS profiles (
-        id UUID PRIMARY KEY,
-        full_name TEXT,
-        bio TEXT,
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL UNIQUE,
+        full_name TEXT DEFAULT '',
+        bio TEXT DEFAULT '',
         avatar_url TEXT,
-        location TEXT,
-        website TEXT,
+        location TEXT DEFAULT '',
+        website TEXT DEFAULT '',
         expertise_level TEXT DEFAULT 'beginner',
         social_links JSONB DEFAULT '{}'::jsonb,
-        phone TEXT,
+        phone TEXT DEFAULT '',
         created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
       );
     `);
+    
+    console.log("✓ profiles table created");
+    
+    // Create indexes for better performance
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_user_preferences_user_id ON user_preferences(user_id);
+    `);
+    
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON profiles(user_id);
+    `);
+    
+    console.log("✓ indexes created");
     
     // Check if tables were created successfully
     const tables = await db.query(`
@@ -58,12 +88,19 @@ export async function POST(req: NextRequest) {
       FROM information_schema.tables 
       WHERE table_schema = 'public'
       AND table_name IN ('user_preferences', 'profiles')
+      ORDER BY table_name
     `);
+    
+    console.log("✓ Tables verified:", tables.rows.map(row => row.table_name));
     
     return NextResponse.json({
       success: true,
       message: 'Tables created successfully',
-      tables: tables.rows.map(row => row.table_name)
+      tables: tables.rows.map(row => row.table_name),
+      details: {
+        user_preferences: "Created with user_id column and JSONB preferences",
+        profiles: "Created with user_id column and all profile fields"
+      }
     });
   } catch (error) {
     console.error('Error creating tables:', error);

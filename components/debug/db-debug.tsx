@@ -18,6 +18,9 @@ export function DatabaseDebug() {
     setError(null)
     
     try {
+      console.log("Checking database status...");
+      
+      // Check table existence
       const response = await fetch('/api/debug/db-schema')
       
       if (!response.ok) {
@@ -25,7 +28,57 @@ export function DatabaseDebug() {
       }
       
       const data = await response.json()
-      setDbInfo(data)
+      console.log("Database info received:", data);
+      
+      // Extract user_preferences table info
+      const userPrefsExists = data.tables?.details?.user_preferences?.exists || 
+                             data.tables?.list?.includes('user_preferences') || false;
+      
+      const profilesExists = data.tables?.details?.profiles?.exists || 
+                           data.tables?.list?.includes('profiles') || false;
+      
+      // Get specific table data
+      let userPrefsData = null;
+      let profilesData = null;
+      
+      if (userPrefsExists) {
+        try {
+          const prefsResponse = await fetch('/api/user/preferences?debug=true');
+          if (prefsResponse.ok) {
+            userPrefsData = await prefsResponse.json();
+          }
+        } catch (e) {
+          console.log("Could not fetch preferences data:", e);
+        }
+      }
+      
+      if (profilesExists) {
+        try {
+          const profileResponse = await fetch('/api/user/profile?debug=true');
+          if (profileResponse.ok) {
+            profilesData = await profileResponse.json();
+          }
+        } catch (e) {
+          console.log("Could not fetch profile data:", e);
+        }
+      }
+      
+      setDbInfo({
+        ...data,
+        tableStatus: {
+          user_preferences: {
+            exists: userPrefsExists,
+            data: userPrefsData,
+            columns: data.tables?.details?.user_preferences?.columns || []
+          },
+          profiles: {
+            exists: profilesExists,
+            data: profilesData,
+            columns: data.tables?.details?.profiles?.columns || []
+          }
+        }
+      });
+      
     } catch (err) {
       console.error('Error checking database:', err)
       setError((err as Error).message || 'Unknown error')
@@ -37,21 +90,28 @@ export function DatabaseDebug() {
   const createTables = async () => {
     setCreateTableLoading(true)
     setError(null)
+    setCreateTableResult(null)
     
     try {
+      console.log("Creating tables...");
       const response = await fetch('/api/debug/create-tables', {
         method: 'POST',
       })
       
       if (!response.ok) {
-        throw new Error(`Server returned ${response.status}: ${response.statusText}`)
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server returned ${response.status}: ${response.statusText}`)
       }
       
       const data = await response.json()
+      console.log("Table creation result:", data);
       setCreateTableResult(data)
       
-      // Refresh database info
-      await checkDatabase()
+      // Refresh database info after a short delay
+      setTimeout(() => {
+        checkDatabase()
+      }, 1000);
+      
     } catch (err) {
       console.error('Error creating tables:', err)
       setError((err as Error).message || 'Unknown error')
@@ -64,6 +124,9 @@ export function DatabaseDebug() {
   useEffect(() => {
     checkDatabase()
   }, [])
+
+  const hasAllTables = dbInfo?.tableStatus?.user_preferences?.exists && 
+                      dbInfo?.tableStatus?.profiles?.exists;
 
   return (
     <Card className="shadow-md">
@@ -110,73 +173,64 @@ export function DatabaseDebug() {
             <div>
               <h3 className="text-md font-medium">Database Tables</h3>
               <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded">
+                
                 {/* user_preferences table */}
                 <div className="mb-3">
                   <div className="flex items-center">
-                    <span className={`w-3 h-3 rounded-full mr-2 ${dbInfo.tableExists ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                    <span className={`w-3 h-3 rounded-full mr-2 ${dbInfo.tableStatus?.user_preferences?.exists ? 'bg-green-500' : 'bg-red-500'}`}></span>
                     <span className="font-mono text-sm">user_preferences</span>
-                    <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${dbInfo.tableExists ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'}`}>
-                      {dbInfo.tableExists ? 'Exists' : 'Missing'}
+                    <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${dbInfo.tableStatus?.user_preferences?.exists ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'}`}>
+                      {dbInfo.tableStatus?.user_preferences?.exists ? 'Exists' : 'Missing'}
                     </span>
                   </div>
                   
-                  {dbInfo.data && (
+                  {dbInfo.tableStatus?.user_preferences?.columns?.length > 0 && (
                     <div className="mt-2 ml-5 text-xs">
-                      <div className="mb-1">Records: {dbInfo.data.count}</div>
-                      {dbInfo.data.ids.length > 0 && (
-                        <div>
-                          <div className="mb-1">IDs:</div>
-                          <ul className="ml-4 list-disc">
-                            {dbInfo.data.ids.map((id: string, index: number) => (
-                              <li key={id} className="font-mono text-xs truncate">
-                                {id}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                      <div className="mb-1">Columns: {dbInfo.tableStatus.user_preferences.columns.map((col: any) => col.column_name).join(', ')}</div>
                     </div>
                   )}
                 </div>
                 
-                {/* Schema */}
-                {dbInfo.schema && (
-                  <div className="mt-4">
-                    <h4 className="text-sm font-medium mb-2">Table Schema</h4>
-                    <div className="max-h-48 overflow-y-auto">
-                      <table className="min-w-full text-xs">
-                        <thead className="bg-gray-100 dark:bg-gray-700">
-                          <tr>
-                            <th className="px-2 py-1 text-left">Column</th>
-                            <th className="px-2 py-1 text-left">Type</th>
-                            <th className="px-2 py-1 text-left">Nullable</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {dbInfo.schema.map((column: any, index: number) => (
-                            <tr key={column.column_name} className={index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700'}>
-                              <td className="px-2 py-1 font-mono">{column.column_name}</td>
-                              <td className="px-2 py-1">{column.data_type}</td>
-                              <td className="px-2 py-1">{column.is_nullable === 'YES' ? 'Yes' : 'No'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                {/* profiles table */}
+                <div className="mb-3">
+                  <div className="flex items-center">
+                    <span className={`w-3 h-3 rounded-full mr-2 ${dbInfo.tableStatus?.profiles?.exists ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                    <span className="font-mono text-sm">profiles</span>
+                    <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${dbInfo.tableStatus?.profiles?.exists ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'}`}>
+                      {dbInfo.tableStatus?.profiles?.exists ? 'Exists' : 'Missing'}
+                    </span>
+                  </div>
+                  
+                  {dbInfo.tableStatus?.profiles?.columns?.length > 0 && (
+                    <div className="mt-2 ml-5 text-xs">
+                      <div className="mb-1">Columns: {dbInfo.tableStatus.profiles.columns.map((col: any) => col.column_name).join(', ')}</div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
                 
-                {/* SQL for create table */}
-                {dbInfo.createTableSQL && (
-                  <div className="mt-4">
-                    <h4 className="text-sm font-medium mb-2">Create Table SQL</h4>
-                    <pre className="p-2 bg-gray-100 dark:bg-gray-700 rounded overflow-x-auto text-xs">
-                      {dbInfo.createTableSQL}
-                    </pre>
+                {/* Overall Status */}
+                <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-600">
+                  <div className="flex items-center">
+                    <span className={`w-3 h-3 rounded-full mr-2 ${hasAllTables ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
+                    <span className="text-sm font-medium">
+                      {hasAllTables ? 'All required tables exist' : 'Some tables are missing'}
+                    </span>
                   </div>
-                )}
+                </div>
               </div>
             </div>
+            
+            {/* Debug Info */}
+            {dbInfo.issues && dbInfo.issues.length > 0 && (
+              <div className="mt-4">
+                <h4 className="text-sm font-medium mb-2 text-yellow-600">Issues Found:</h4>
+                <ul className="text-xs text-yellow-800 dark:text-yellow-300 ml-4 list-disc">
+                  {dbInfo.issues.map((issue: string, index: number) => (
+                    <li key={index}>{issue}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         ) : (
           <div className="py-4 text-center text-muted-foreground">
@@ -206,7 +260,7 @@ export function DatabaseDebug() {
           )}
         </Button>
         
-        {dbInfo && !dbInfo.tableExists && (
+        {dbInfo && !hasAllTables && (
           <Button 
             variant="default" 
             size="sm"
