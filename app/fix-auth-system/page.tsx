@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@heroui/react';
-import { Card, CardBody, CardHeader } from '@heroui/react';
-import { Divider } from '@heroui/react';
-import { CheckCircleIcon, ExclamationCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { CheckCircle, AlertCircle, Info } from 'lucide-react';
 
 interface FixResult {
   success: boolean;
@@ -75,7 +75,7 @@ export default function FixAuthSystemPage() {
           <CardHeader className="pb-4">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                <InformationCircleIcon className="w-5 h-5 text-blue-400" />
+                <Info className="w-5 h-5 text-blue-400" />
               </div>
               <div>
                 <h2 className="text-2xl font-semibold text-white">Authentication Issues Identified</h2>
@@ -83,26 +83,26 @@ export default function FixAuthSystemPage() {
               </div>
             </div>
           </CardHeader>
-          <CardBody className="space-y-6">
+          <CardContent className="space-y-6">
             {/* Issues List */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-3">
                 <h3 className="text-lg font-medium text-white">🔍 Issues Found:</h3>
                 <ul className="space-y-2 text-slate-300">
                   <li className="flex items-start gap-2">
-                    <ExclamationCircleIcon className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
+                    <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
                     <span>Sessions table missing or misconfigured</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <ExclamationCircleIcon className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
+                    <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
                     <span>Duplicate session token constraint errors</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <ExclamationCircleIcon className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
+                    <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
                     <span>Schema mismatch between code and database</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <ExclamationCircleIcon className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
+                    <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
                     <span>Missing admin user for testing</span>
                   </li>
                 </ul>
@@ -112,34 +112,34 @@ export default function FixAuthSystemPage() {
                 <h3 className="text-lg font-medium text-white">✨ Fixes Applied:</h3>
                 <ul className="space-y-2 text-slate-300">
                   <li className="flex items-start gap-2">
-                    <CheckCircleIcon className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
                     <span>Create proper sessions table with indexes</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <CheckCircleIcon className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
                     <span>Implement unique session token generation</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <CheckCircleIcon className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
                     <span>Update database schema to match code</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <CheckCircleIcon className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
                     <span>Create admin@cajpro.local / admin123</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <CheckCircleIcon className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
                     <span>Clean up expired sessions</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <CheckCircleIcon className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
                     <span>Add proper error handling and logging</span>
                   </li>
                 </ul>
               </div>
             </div>
 
-            <Divider className="bg-slate-600" />
+            <Separator className="bg-slate-600" />
 
             {/* Action Button */}
             <div className="text-center">
@@ -147,7 +147,6 @@ export default function FixAuthSystemPage() {
                 size="lg"
                 className="bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold px-8 py-3"
                 onClick={handleFixAuth}
-                isLoading={isFixing}
                 disabled={isFixing}
               >
                 {isFixing ? '🔧 Fixing Authentication System...' : '🚀 Fix Authentication System'}
@@ -157,7 +156,7 @@ export default function FixAuthSystemPage() {
             {/* Results */}
             {result && (
               <div className="mt-6">
-                <Divider className="bg-slate-600 mb-6" />
+                <Separator className="bg-slate-600 mb-6" />
                 
                 <Card className={`border ${result.success 
                   ? 'border-green-500/50 bg-green-500/10' 
@@ -166,9 +165,9 @@ export default function FixAuthSystemPage() {
                   <CardHeader>
                     <div className="flex items-center gap-3">
                       {result.success ? (
-                        <CheckCircleIcon className="w-8 h-8 text-green-400" />
+                        <CheckCircle className="w-8 h-8 text-green-400" />
                       ) : (
-                        <ExclamationCircleIcon className="w-8 h-8 text-red-400" />
+                        <AlertCircle className="w-8 h-8 text-red-400" />
                       )}
                       <div>
                         <h3 className={`text-xl font-semibold ${result.success ? 'text-green-400' : 'text-red-400'}`}>
@@ -179,7 +178,7 @@ export default function FixAuthSystemPage() {
                     </div>
                   </CardHeader>
                   
-                  <CardBody className="space-y-4">
+                  <CardContent className="space-y-4">
                     {result.success && result.details && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -219,11 +218,11 @@ export default function FixAuthSystemPage() {
                         </p>
                       </div>
                     )}
-                  </CardBody>
+                  </CardContent>
                 </Card>
               </div>
             )}
-          </CardBody>
+          </CardContent>
         </Card>
 
         {/* Footer */}
