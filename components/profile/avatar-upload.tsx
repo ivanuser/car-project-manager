@@ -120,8 +120,9 @@ export function AvatarUpload({ currentAvatarUrl, userId }: AvatarUploadProps) {
         setPreviewUrl(result.avatarUrl)
         setProcessedAvatarUrl(result.avatarUrl)
         
-        // Refresh the page to update the profile data
-        window.location.reload()
+        // Trigger event to update header avatar
+        console.log('AvatarUpload: Dispatching profile-updated event')
+        window.dispatchEvent(new CustomEvent('profile-updated'))
       }
     } catch (error) {
       console.error("Avatar upload error:", error)
@@ -179,8 +180,9 @@ export function AvatarUpload({ currentAvatarUrl, userId }: AvatarUploadProps) {
         setPreviewUrl(null)
         setProcessedAvatarUrl(null)
         
-        // Refresh the page to update the profile data
-        window.location.reload()
+        // Trigger event to update header avatar
+        console.log('AvatarUpload: Dispatching profile-updated event for removal')
+        window.dispatchEvent(new CustomEvent('profile-updated'))
       }
     } catch (error) {
       console.error("Avatar removal error:", error)

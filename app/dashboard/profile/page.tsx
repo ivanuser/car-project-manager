@@ -148,6 +148,10 @@ export default function ProfilePage() {
         title: "Success",
         description: "Your profile has been updated successfully.",
       });
+      
+      // Trigger event to update header with new profile data
+      console.log('Profile Page: Dispatching profile-updated event')
+      window.dispatchEvent(new CustomEvent('profile-updated'))
 
     } catch (error) {
       console.error("Profile Page: Save error:", error);
