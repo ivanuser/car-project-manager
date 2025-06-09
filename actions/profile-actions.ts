@@ -1,7 +1,7 @@
 "use server"
 
 import { cookies } from 'next/headers';
-import jwtUtils from '@/lib/auth/jwt';
+import authService from '@/lib/auth/production-auth-service';
 import db from '@/lib/db';
 import { revalidatePath } from "next/cache";
 import * as fs from 'fs';
@@ -13,25 +13,27 @@ import * as path from 'path';
  */
 async function getCurrentUserId() {
   const cookieStore = cookies();
-  const authToken = cookieStore.get('cajpro_auth_token')?.value;
+  const authToken = cookieStore.get('auth-token')?.value;
+  
+  console.log("Profile Actions: Looking for auth-token cookie:", !!authToken);
   
   if (!authToken) {
-    console.log("No auth token found in cookies");
+    console.log("Profile Actions: No auth token found in cookies");
     return null;
   }
   
-  // Validate token and get user ID
   try {
-    const payload = jwtUtils.verifyToken(authToken);
-    if (!payload) {
-      console.log("Invalid auth token");
+    console.log("Profile Actions: Validating session with production auth service");
+    const user = await authService.validateSession(authToken);
+    if (!user) {
+      console.log("Profile Actions: Invalid auth token");
       return null;
     }
     
-    // Extract user ID from the token
-    return payload.sub;
+    console.log("Profile Actions: Successfully authenticated user:", user.id);
+    return user.id;
   } catch (error) {
-    console.error("Error getting current user ID:", error);
+    console.error("Profile Actions: Error getting current user ID:", error);
     return null;
   }
 }
@@ -51,7 +53,7 @@ export async function getUserProfile(userId: string) {
     
     // Query the database for profile
     const profileResult = await db.query(
-      `SELECT * FROM profiles WHERE id = $1`,
+      `SELECT * FROM profiles WHERE user_id = $1`,
       [userId]
     );
     
@@ -112,7 +114,7 @@ export async function updateUserProfile(formData: FormData) {
     
     // Check if profile exists
     const profileResult = await db.query(
-      `SELECT id FROM profiles WHERE id = $1`,
+      `SELECT user_id FROM profiles WHERE user_id = $1`,
       [userId]
     );
     
@@ -120,7 +122,7 @@ export async function updateUserProfile(formData: FormData) {
       // Insert new profile
       await db.query(
         `INSERT INTO profiles (
-          id, full_name, bio, location, website, expertise_level, 
+          user_id, full_name, bio, location, website, expertise_level, 
           social_links, phone, created_at, updated_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
@@ -140,7 +142,7 @@ export async function updateUserProfile(formData: FormData) {
           social_links = $6,
           phone = $7,
           updated_at = $8
-        WHERE id = $9`,
+        WHERE user_id = $9`,
         [
           fullName, bio, location, website, expertiseLevel,
           JSON.stringify(socialLinks), phone, new Date(), userId
@@ -202,7 +204,7 @@ export async function updateAvatar(formData: FormData) {
       `UPDATE profiles SET
         avatar_url = $1,
         updated_at = $2
-      WHERE id = $3`,
+      WHERE user_id = $3`,
       [publicUrl, new Date(), userId]
     );
     
@@ -272,7 +274,7 @@ export async function getUserPreferences(userId: string) {
     
     // Query the database for preferences
     const prefsResult = await db.query(
-      `SELECT * FROM user_preferences WHERE id = $1`,
+      `SELECT * FROM user_preferences WHERE user_id = $1`,
       [userId]
     );
     
@@ -397,7 +399,7 @@ export async function updateUserPreferences(formData: FormData) {
     
     // Check if preferences already exist
     const prefResult = await db.query(
-      `SELECT id FROM user_preferences WHERE id = $1`,
+      `SELECT user_id FROM user_preferences WHERE user_id = $1`,
       [userId]
     );
     
@@ -405,7 +407,7 @@ export async function updateUserPreferences(formData: FormData) {
       // Insert new preferences
       await db.query(
         `INSERT INTO user_preferences (
-          id, theme, color_scheme, background_intensity, ui_density,
+          user_id, theme, color_scheme, background_intensity, ui_density,
           date_format, time_format, measurement_unit, currency,
           notification_preferences, display_preferences,
           created_at, updated_at
@@ -432,7 +434,7 @@ export async function updateUserPreferences(formData: FormData) {
           notification_preferences = $9,
           display_preferences = $10,
           updated_at = $11
-        WHERE id = $12`,
+        WHERE user_id = $12`,
         [
           theme, colorScheme, backgroundIntensity, uiDensity,
           dateFormat, timeFormat, measurementUnit, currency,

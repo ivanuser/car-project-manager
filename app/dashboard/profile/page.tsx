@@ -10,7 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, User } from "lucide-react";
+import { Loader2, User } from "lucide-react";
+import { AvatarUpload } from "@/components/profile/avatar-upload";
 
 interface ProfileData {
   id?: string;
@@ -203,29 +204,18 @@ export default function ProfilePage() {
           
           <CardContent className="space-y-6">
             {/* Avatar Section */}
-            <div className="flex items-center space-x-4">
-              <div className="h-16 w-16 overflow-hidden rounded-full border-2 border-border bg-muted flex items-center justify-center">
-                {profile?.avatar_url ? (
-                  <img
-                    src={profile.avatar_url}
-                    alt="Profile avatar"
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <User className="h-8 w-8 text-muted-foreground" />
-                )}
-              </div>
-              
-              <div className="space-y-1">
+            <div className="space-y-4">
+              <div>
                 <Label>Profile Picture</Label>
-                <Button type="button" variant="outline" size="sm" disabled>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload Image
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  Avatar upload coming soon
+                <p className="text-sm text-muted-foreground mb-4">
+                  Upload a profile picture to personalize your account
                 </p>
               </div>
+              
+              <AvatarUpload 
+                currentAvatarUrl={profile?.avatar_url || null}
+                userId={user.id}
+              />
             </div>
 
             {/* Account Info */}

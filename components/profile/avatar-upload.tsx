@@ -7,7 +7,7 @@ import Image from "next/image"
 import { Camera, Loader2, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { updateAvatar } from "@/actions/profile-actions"
+// import { updateAvatar } from "@/actions/profile-actions" // Using API endpoint instead
 import { useToast } from "@/hooks/use-toast"
 import { UserAvatar } from "@/components/user-avatar"
 
@@ -87,7 +87,21 @@ export function AvatarUpload({ currentAvatarUrl, userId }: AvatarUploadProps) {
       const formData = new FormData()
       formData.append("avatar", file)
 
-      const result = await updateAvatar(formData)
+      console.log("AvatarUpload: Uploading file to API endpoint")
+      
+      const response = await fetch('/api/uploads/avatars', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Upload failed')
+      }
+
+      const result = await response.json()
+      console.log("AvatarUpload: Upload successful:", result)
 
       if (result.error) {
         toast({
@@ -105,12 +119,15 @@ export function AvatarUpload({ currentAvatarUrl, userId }: AvatarUploadProps) {
         // Update preview with the new URL from the server
         setPreviewUrl(result.avatarUrl)
         setProcessedAvatarUrl(result.avatarUrl)
+        
+        // Refresh the page to update the profile data
+        window.location.reload()
       }
     } catch (error) {
       console.error("Avatar upload error:", error)
       toast({
         title: "Upload failed",
-        description: "An unexpected error occurred",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive",
       })
       // Revert to previous avatar
@@ -132,7 +149,21 @@ export function AvatarUpload({ currentAvatarUrl, userId }: AvatarUploadProps) {
       formData.append("avatar", emptyFile)
       formData.append("remove", "true")
 
-      const result = await updateAvatar(formData)
+      console.log("AvatarUpload: Removing avatar via API endpoint")
+      
+      const response = await fetch('/api/uploads/avatars', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Remove failed')
+      }
+
+      const result = await response.json()
+      console.log("AvatarUpload: Remove successful:", result)
 
       if (result.error) {
         toast({
@@ -147,12 +178,15 @@ export function AvatarUpload({ currentAvatarUrl, userId }: AvatarUploadProps) {
         })
         setPreviewUrl(null)
         setProcessedAvatarUrl(null)
+        
+        // Refresh the page to update the profile data
+        window.location.reload()
       }
     } catch (error) {
       console.error("Avatar removal error:", error)
       toast({
         title: "Failed to remove avatar",
-        description: "An unexpected error occurred",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive",
       })
     } finally {
