@@ -1,0 +1,97 @@
+/**
+ * direct-login/route.ts - Direct login API endpoint
+ * For Caj-pro car project build tracking application
+ * Created on: May 4, 2025
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { getServerAuth, setAuthCookies, createErrorResponse } from '@/lib/auth/api-helpers';
+
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  try {
+    console.log("Starting direct login process...");
+    
+    // Safely import server-side auth modules
+    const { authService } = await getServerAuth();
+    
+    // Parse request body
+    let body;
+    try {
+      body = await req.json();
+      console.log(`Login attempt for email: ${body.email}`);
+    } catch (parseError) {
+      console.error("Error parsing request body:", parseError);
+      return createErrorResponse('Invalid request body', 400);
+    }
+    
+    // Validate request body
+    if (!body.email || !body.password) {
+      console.error("Missing required fields");
+      return createErrorResponse('Email and password are required', 400);
+    }
+    
+    try {
+      // Login user
+      console.log("Calling authService.loginUser...");
+      const result = await authService.loginUser({
+        email: body.email,
+        password: body.password,
+      });
+      
+      console.log(`Login successful for: ${body.email}`);
+      
+      // Set auth cookies
+      const response = NextResponse.json({
+        success: true,
+        user: {
+          id: result.user.id,
+          email: result.user.email,
+          isAdmin: result.user.isAdmin,
+        },
+        message: 'Login successful',
+        // Include debug info
+        sessionInfo: {
+          tokenPresent: !!result.token,
+          refreshTokenPresent: !!result.refreshToken,
+        }
+      });
+      
+      // Set the cookies
+      const cookieResponse = setAuthCookies(
+        response,
+        result.token,
+        result.refreshToken
+      );
+      
+      // Set a debug cookie that is visible to JavaScript
+      cookieResponse.cookies.set("auth-debug-direct", `Login successful at ${new Date().toISOString()}`, {
+        path: "/",
+        maxAge: 300, // 5 minutes
+        secure: false,
+        httpOnly: false,
+      });
+      
+      console.log("Auth cookies set successfully");
+      
+      return cookieResponse;
+    } catch (authError: any) {
+      console.error("Authentication error:", authError);
+      
+      // Handle known errors
+      if (authError.message === 'Invalid email or password') {
+        return createErrorResponse('Invalid email or password', 401);
+      }
+      
+      return createErrorResponse('Login failed: ' + (authError.message || 'Unknown error'), 500);
+    }
+  } catch (error: any) {
+    console.error('Unexpected error during direct login:', error);
+    
+    return createErrorResponse(
+      'An internal server error occurred during login: ' + 
+      (error instanceof Error ? error.message : String(error)), 
+      500
+    );
+  }
+}
