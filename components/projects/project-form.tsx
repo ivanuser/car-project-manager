@@ -216,7 +216,9 @@ export function ProjectForm({ defaultValues, isEditing = false }: ProjectFormPro
         });
         
         result = await response.json();
-        console.log('📊 API response:', result);
+        console.log('📊 API response status:', response.status);
+        console.log('📊 API response headers:', Object.fromEntries(response.headers.entries()));
+        console.log('📊 API response body:', result);
         
         if (!response.ok) {
           result.error = result.error || `HTTP ${response.status}: ${response.statusText}`;
