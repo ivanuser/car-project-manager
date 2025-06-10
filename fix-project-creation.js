@@ -7,9 +7,18 @@ const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-// Database connection from environment
+// Load environment variables
+require('dotenv').config({ path: '.env.local' });
+
+// Database connection with fallback to individual parameters
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+  // Try individual parameters first (more reliable)
+  host: process.env.POSTGRES_HOST,
+  port: parseInt(process.env.POSTGRES_PORT),
+  database: process.env.POSTGRES_DB,
+  user: process.env.POSTGRES_USER,
+  password: process.env.POSTGRES_PASSWORD,
+  ssl: false // Disable SSL for local development
 });
 
 async function checkDatabaseConnection() {
