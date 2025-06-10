@@ -12,7 +12,7 @@ import { saveUploadedFile, deleteStoredFile } from '@/lib/file-storage'
  */
 async function getCurrentUserId() {
   const cookieStore = cookies()
-  const authToken = cookieStore.get('cajpro_auth_token')?.value
+  const authToken = cookieStore.get('auth-token')?.value
   
   if (!authToken) {
     return null
