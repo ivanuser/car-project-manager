@@ -11,10 +11,14 @@ import { saveUploadedFile, deleteStoredFile } from '@/lib/file-storage'
  * @returns User ID or null if not authenticated
  */
 async function getCurrentUserId() {
+  console.log('🔍 getCurrentUserId called');
   const cookieStore = cookies()
+  console.log('📌 Available cookies:', cookieStore.getAll().map(c => c.name));
   const authToken = cookieStore.get('auth-token')?.value
+  console.log('🎩 Auth token found:', authToken ? 'YES' : 'NO');
   
   if (!authToken) {
+    console.log('❌ No auth token found');
     return null
   }
   
@@ -133,10 +137,18 @@ export async function getVehicleProject(id: string) {
  * @returns Result of the operation
  */
 export async function createVehicleProject(formData: FormData) {
+  console.log('🚀 createVehicleProject called');
+  console.log('📋 FormData entries:');
+  for (const [key, value] of formData.entries()) {
+    console.log(`   ${key}:`, value instanceof File ? `[File: ${value.name}]` : value);
+  }
+  
   // Get the current user
   const userId = await getCurrentUserId()
+  console.log('👤 Current user ID:', userId);
   
   if (!userId) {
+    console.log('❌ No user ID found, returning error');
     return { error: "You must be logged in to create a project" }
   }
   
@@ -173,6 +185,12 @@ export async function createVehicleProject(formData: FormData) {
   }
   
   try {
+    console.log('💾 Attempting to insert project into database...');
+    console.log('📋 Project data:', {
+      title, make, model, year, vin, description, projectType,
+      startDate, endDate, budget, status, userId, thumbnailUrl
+    });
+    
     // Insert the project
     const result = await db.query(
       `INSERT INTO vehicle_projects (
@@ -186,6 +204,8 @@ export async function createVehicleProject(formData: FormData) {
         startDate, endDate, budget, status, userId, thumbnailUrl
       ]
     )
+    
+    console.log('✅ Project inserted successfully:', result.rows[0]);
     
     revalidatePath("/dashboard/projects")
     return { success: true, data: result.rows[0] }

@@ -163,9 +163,11 @@ export function ProjectForm({ defaultValues, isEditing = false }: ProjectFormPro
   }
 
   async function onSubmit(data: ProjectFormValues) {
+    console.log('🚀 Form onSubmit called with data:', data);
     setIsLoading(true)
 
     try {
+      console.log('📋 Building FormData...');
       const formData = new FormData()
       formData.append("title", data.title)
       formData.append("description", data.description || "")
@@ -193,13 +195,22 @@ export function ProjectForm({ defaultValues, isEditing = false }: ProjectFormPro
         formData.append("thumbnail", thumbnail)
       }
 
+      console.log('📏 FormData built, entries:');
+      for (const [key, value] of formData.entries()) {
+        console.log(`   ${key}:`, value instanceof File ? `[File: ${value.name}]` : value);
+      }
+
       let result
 
       if (isEditing && defaultValues?.id) {
+        console.log('🔄 Calling updateVehicleProject...');
         result = await updateVehicleProject(defaultValues.id, formData)
       } else {
+        console.log('✨ Calling createVehicleProject...');
         result = await createVehicleProject(formData)
       }
+      
+      console.log('📊 Server action result:', result);
 
       if (result.error) {
         toast({
