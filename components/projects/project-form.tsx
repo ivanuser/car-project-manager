@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { EnhancedDatePicker } from "@/components/ui/enhanced-date-picker"
 import { useToast } from "@/hooks/use-toast"
 import { lookupVehicleByVin } from "@/actions/vin-actions"
-import { createVehicleProject, updateVehicleProject } from "@/actions/project-actions"
+import { updateVehicleProject } from "@/actions/project-actions"
 
 const projectSchema = z.object({
   title: z.string().min(2, { message: "Title must be at least 2 characters" }),
@@ -206,8 +206,20 @@ export function ProjectForm({ defaultValues, isEditing = false }: ProjectFormPro
         console.log('🔄 Calling updateVehicleProject...');
         result = await updateVehicleProject(defaultValues.id, formData)
       } else {
-        console.log('✨ Calling createVehicleProject...');
-        result = await createVehicleProject(formData)
+        console.log('✨ Calling API /api/projects...');
+        
+        // Use API route instead of server action
+        const response = await fetch('/api/projects', {
+          method: 'POST',
+          body: formData
+        });
+        
+        result = await response.json();
+        console.log('📊 API response:', result);
+        
+        if (!response.ok) {
+          result.error = result.error || `HTTP ${response.status}: ${response.statusText}`;
+        }
       }
       
       console.log('📊 Server action result:', result);
