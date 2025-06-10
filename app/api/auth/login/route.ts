@@ -25,14 +25,28 @@ export async function POST(request: NextRequest) {
       message: 'Login successful'
     });
     
-    // Set secure HTTP-only cookie
-    response.cookies.set('auth-token', authResult.token, {
+    // Set secure HTTP-only cookie with proper domain settings for remote dev
+    const cookieOptions: any = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60, // 7 days
       path: '/'
-    });
+    };
+    
+    // Handle different environments
+    if (process.env.NODE_ENV === 'production') {
+      cookieOptions.secure = true;
+    } else {
+      // For development with custom domain
+      cookieOptions.secure = false;
+      // Allow cookie for dev domain
+      if (request.headers.get('host')?.includes('customautojourney.com')) {
+        cookieOptions.domain = '.customautojourney.com';
+      }
+    }
+    
+    console.log('🍪 Setting auth-token cookie with options:', cookieOptions);
+    response.cookies.set('auth-token', authResult.token, cookieOptions);
     
     return response;
     
