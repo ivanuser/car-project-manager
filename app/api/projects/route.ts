@@ -41,6 +41,9 @@ async function getCurrentUserId() {
 
 export async function POST(request: NextRequest) {
   console.log('🚀 API POST /api/projects called');
+  console.log('🌐 Request URL:', request.url);
+  console.log('🏠 Request headers host:', request.headers.get('host'));
+  console.log('🍪 Request headers cookie:', request.headers.get('cookie'));
   
   try {
     // Get the current user

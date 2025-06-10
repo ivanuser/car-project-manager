@@ -208,10 +208,11 @@ export function ProjectForm({ defaultValues, isEditing = false }: ProjectFormPro
       } else {
         console.log('✨ Calling API /api/projects...');
         
-        // Use API route instead of server action
+        // Use API route instead of server action - use relative URL and include credentials
         const response = await fetch('/api/projects', {
           method: 'POST',
-          body: formData
+          body: formData,
+          credentials: 'include' // Ensure cookies are sent
         });
         
         result = await response.json();
