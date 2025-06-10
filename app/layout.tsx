@@ -1,3 +1,7 @@
+main2
+import React from 'react';
+import Head from 'next/head';
+=======
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
@@ -33,10 +37,23 @@ if (typeof window === 'undefined') {
       console.error('❌ Database initialization error:', error);
     });
 }
+main
 
 export default function RootLayout({
   children,
 }: {
+main2
+  children: React.ReactNode
+}) {
+  return (
+    <html lang="en">
+      <Head>
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
+      <body>{children}</body>
+    </html>
+  )
+=======
   children: React.ReactNode;
 }) {
   return (
@@ -53,4 +70,5 @@ export default function RootLayout({
       </body>
     </html>
   );
+main
 }
